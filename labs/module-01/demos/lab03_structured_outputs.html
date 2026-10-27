@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 3 — Structured Outputs</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 32px; text-align: center; border-bottom: 1px solid #334155; }
+  .header h1 { font-size: 1.8rem; color: #f8fafc; margin-bottom: 8px; }
+  .header p  { color: #94a3b8; font-size: 1rem; }
+  .badge { display: inline-block; background: #06b6d4; color: #0f172a; font-size: 0.75rem; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; font-weight: 700; }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.25rem; color: #f1f5f9; margin-bottom: 8px; }
+  p.section-sub { color: #64748b; font-size: 0.88rem; margin-bottom: 24px; }
+
+  /* Approach comparison */
+  .approach-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .approach-card { background: #1e293b; border: 1.5px solid #334155; border-radius: 14px; padding: 20px; position: relative; }
+  .approach-card.recommended { border-color: #06b6d4; }
+  .recommended-badge { position: absolute; top: -10px; right: 14px; background: #06b6d4; color: #0f172a; font-size: 0.65rem; font-weight: 700; padding: 2px 10px; border-radius: 99px; }
+  .approach-num { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 8px; }
+  .approach-name { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+  .approach-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.5; margin-bottom: 12px; }
+  .approach-pros { margin-bottom: 8px; }
+  .approach-cons { }
+  .pro-item, .con-item { font-size: 0.78rem; display: flex; gap: 6px; margin-bottom: 4px; line-height: 1.4; }
+  .pro-item { color: #86efac; }
+  .con-item { color: #fca5a5; }
+
+  /* Schema builder */
+  .schema-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .schema-fields { }
+  .schema-output { }
+
+  .field-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .field-input { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; padding: 8px 10px; font-size: 0.82rem; font-family: inherit; outline: none; }
+  .field-input:focus { border-color: #06b6d4; }
+  .field-type { width: 110px; }
+  .field-req { width: 36px; height: 36px; border-radius: 6px; border: 1.5px solid #334155; background: #0f172a; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.15s; flex-shrink: 0; }
+  .field-req.on { background: rgba(6,182,212,0.1); border-color: #06b6d4; color: #22d3ee; }
+  .field-del { width: 30px; height: 30px; border-radius: 6px; border: none; background: transparent; color: #ef4444; cursor: pointer; font-size: 0.9rem; opacity: 0.5; flex-shrink: 0; }
+  .field-del:hover { opacity: 1; }
+
+  .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #06b6d4; color: #0f172a; }
+  .btn-primary:hover { background: #22d3ee; }
+  .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
+
+  .code-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 18px; font-family: 'Consolas', monospace; font-size: 0.78rem; line-height: 1.7; color: #cbd5e1; overflow: auto; white-space: pre; min-height: 360px; }
+  .kw { color: #818cf8; }
+  .str { color: #34d399; }
+  .num { color: #fb923c; }
+  .key { color: #7dd3fc; }
+  .cm { color: #475569; font-style: italic; }
+  .fn { color: #fbbf24; }
+  .cls { color: #f472b6; }
+  .dec { color: #a78bfa; }
+
+  /* Pattern cards */
+  .pattern-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .p-tab { padding: 7px 14px; border-radius: 8px; border: 1.5px solid #334155; background: #1e293b; color: #94a3b8; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+  .p-tab.active { background: #06b6d4; border-color: #06b6d4; color: #0f172a; font-weight: 700; }
+
+  .pattern-panel { display: none; }
+  .pattern-panel.active { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; animation: fadeIn 0.2s; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+  .pattern-schema { background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; padding: 16px; }
+  .pattern-output { background: #1e293b; border: 1.5px solid #10b981; border-radius: 12px; padding: 16px; }
+  .panel-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; font-weight: 700; }
+  .panel-label.schema-lbl { color: #818cf8; }
+  .panel-label.output-lbl { color: #10b981; }
+
+  /* Error handling */
+  .err-flow { display: flex; flex-direction: column; gap: 0; }
+  .err-step { display: flex; gap: 0; }
+  .err-connector { width: 32px; display: flex; flex-direction: column; align-items: center; }
+  .err-node { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+  .err-line { flex: 1; width: 2px; background: #334155; margin: 2px 0; }
+  .err-body { padding: 0 0 16px 16px; flex: 1; }
+  .err-title { font-size: 0.88rem; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+  .err-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.5; }
+
+  /* Quiz */
+  .quiz-card { background: #1e293b; border-radius: 14px; padding: 24px; margin-bottom: 16px; border: 1px solid #334155; }
+  .quiz-card .question { font-size: 1rem; color: #f1f5f9; margin-bottom: 16px; font-weight: 500; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn { background: #0f172a; border: 1.5px solid #334155; border-radius: 8px; padding: 10px 16px; color: #94a3b8; font-size: 0.88rem; cursor: pointer; text-align: left; transition: all 0.15s; }
+  .opt-btn:hover:not(:disabled) { border-color: #06b6d4; color: #e2e8f0; }
+  .opt-btn.correct   { border-color: #10b981 !important; background: rgba(16,185,129,0.1); color: #6ee7b7; }
+  .opt-btn.incorrect { border-color: #ef4444 !important; background: rgba(239,68,68,0.1);  color: #fca5a5; }
+  .feedback { margin-top: 12px; font-size: 0.85rem; padding: 12px 14px; border-radius: 8px; display: none; line-height: 1.5; }
+  .feedback.show { display: block; }
+  .feedback.ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border-left: 3px solid #10b981; }
+  .feedback.bad { background: rgba(239,68,68,0.1);  color: #fca5a5; border-left: 3px solid #ef4444; }
+  .score-banner { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(6,182,212,0.05)); border: 1px solid #06b6d4; border-radius: 14px; padding: 24px; text-align: center; display: none; }
+  .score-banner.show { display: block; }
+  .score-num { font-size: 2.5rem; font-weight: 800; color: #22d3ee; }
+  .score-label { font-size: 0.9rem; color: #94a3b8; margin-top: 4px; }
+
+  .info-box { background: rgba(6,182,212,0.07); border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 14px 16px; font-size: 0.83rem; color: #94a3b8; line-height: 1.6; }
+  .info-box strong { color: #22d3ee; }
+
+  @media (max-width: 700px) { .approach-grid { grid-template-columns: 1fr; } .schema-layout { grid-template-columns: 1fr; } .pattern-panel.active { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">Module 4 · Lab 3</div>
+  <h1>Structured Outputs</h1>
+  <p>Get reliable JSON from LLMs using three techniques — from prompt instructions to Pydantic schemas</p>
+</div>
+
+<div class="main">
+
+  <!-- Section 1: Three Approaches -->
+  <section>
+    <h2 class="section-title">Three Approaches to Structured Output</h2>
+    <p class="section-sub">Choose the right technique based on your reliability requirements and production constraints.</p>
+
+    <div class="approach-grid">
+      <div class="approach-card">
+        <div class="approach-num">Approach 1</div>
+        <div class="approach-name">Prompt Instructions</div>
+        <div class="approach-desc">Tell the model to return JSON in your prompt. The simplest approach but relies on model compliance.</div>
+        <div class="approach-pros">
+          <div class="pro-item">✓ No extra SDK features needed</div>
+          <div class="pro-item">✓ Works with any model</div>
+          <div class="pro-item">✓ Easy to implement</div>
+        </div>
+        <div class="approach-cons">
+          <div class="con-item">✗ May produce invalid JSON</div>
+          <div class="con-item">✗ No schema enforcement</div>
+          <div class="con-item">✗ Requires defensive parsing</div>
+        </div>
+      </div>
+
+      <div class="approach-card">
+        <div class="approach-num">Approach 2</div>
+        <div class="approach-name">JSON Mode</div>
+        <div class="approach-desc">Pass <code style="color:#22d3ee;font-size:0.75rem;">response_format={"type":"json_object"}</code> to guarantee valid JSON output (but no schema enforcement).</div>
+        <div class="approach-pros">
+          <div class="pro-item">✓ Guarantees valid JSON</div>
+          <div class="pro-item">✓ Simple to enable</div>
+          <div class="pro-item">✓ Works with gpt-4o-mini</div>
+        </div>
+        <div class="approach-cons">
+          <div class="con-item">✗ Keys/types not enforced</div>
+          <div class="con-item">✗ Still need validation</div>
+          <div class="con-item">✗ Must mention JSON in prompt</div>
+        </div>
+      </div>
+
+      <div class="approach-card recommended">
+        <div class="recommended-badge">Recommended</div>
+        <div class="approach-num">Approach 3</div>
+        <div class="approach-name">Structured Outputs (Pydantic)</div>
+        <div class="approach-desc">Use <code style="color:#22d3ee;font-size:0.75rem;">.parse()</code> with a Pydantic model. API guarantees output matches your schema exactly. Available on both Chat Completions and the Responses API.</div>
+        <div class="approach-pros">
+          <div class="pro-item">✓ Schema is fully enforced</div>
+          <div class="pro-item">✓ Types validated automatically</div>
+          <div class="pro-item">✓ Returns typed Python object</div>
+        </div>
+        <div class="approach-cons">
+          <div class="con-item">✗ Requires pydantic library</div>
+          <div class="con-item">✗ Works on GPT-4o, GPT-4.1, GPT-5, o3, o4-mini</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>Note on the SDK:</strong> The <code style="color:#22d3ee">.parse()</code> helper has been promoted out of <code style="color:#22d3ee">client.beta.*</code>. Use <code style="color:#22d3ee">client.chat.completions.parse()</code> or <code style="color:#22d3ee">client.responses.parse()</code> directly. The <code>beta</code> alias still works for backward compatibility.
+    </div>
+  </section>
+
+  <!-- Section 2: Schema Builder -->
+  <section>
+    <h2 class="section-title">Pydantic Schema Builder</h2>
+    <p class="section-sub">Define your output schema fields. The Pydantic class and API call code generate automatically. Toggle between Chat Completions and Responses to see both call shapes.</p>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button id="schApiChat" class="btn btn-primary" onclick="setSchemaApi('chat')" style="background:#22d3ee;">Chat Completions .parse()</button>
+      <button id="schApiResp" class="btn btn-secondary" onclick="setSchemaApi('responses')">Responses .parse()</button>
+    </div>
+
+    <div class="schema-layout">
+      <div class="schema-fields">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Class Name</div>
+        <input class="field-input" id="className" value="ProductReview" oninput="renderSchema()" style="margin-bottom:16px;width:100%;display:block;">
+
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Fields &nbsp;<span style="color:#334155;font-size:0.65rem;">(✓ = required)</span></div>
+        <div id="fieldRows"></div>
+        <button class="btn btn-primary btn-sm" onclick="addField()" style="margin-top:8px;">Add Field ＋</button>
+      </div>
+
+      <div class="schema-output">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Generated Code</div>
+        <div class="code-box" id="schemaCode"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Common Patterns -->
+  <section>
+    <h2 class="section-title">Common Extraction Patterns</h2>
+    <p class="section-sub">Click a pattern to see its Pydantic schema and example structured output.</p>
+
+    <div class="pattern-tabs">
+      <button class="p-tab active" onclick="showPattern(0,this)">Sentiment Analysis</button>
+      <button class="p-tab" onclick="showPattern(1,this)">Information Extraction</button>
+      <button class="p-tab" onclick="showPattern(2,this)">Classification</button>
+      <button class="p-tab" onclick="showPattern(3,this)">Content Generation</button>
+    </div>
+
+    <div id="pat0" class="pattern-panel active">
+      <div class="pattern-schema">
+        <div class="panel-label schema-lbl">Pydantic Schema</div>
+        <div class="code-box" style="min-height:auto;">
+<span class="kw">class</span> <span class="cls">SentimentResult</span>(<span class="cls">BaseModel</span>):
+    sentiment: <span class="fn">Literal</span>[<span class="str">"positive"</span>, <span class="str">"negative"</span>,
+                               <span class="str">"neutral"</span>, <span class="str">"mixed"</span>]
+    confidence: <span class="fn">float</span>  <span class="cm"># 0.0 to 1.0</span>
+    key_phrases: <span class="fn">list</span>[<span class="fn">str</span>]
+    summary: <span class="fn">str</span>
+    requires_followup: <span class="fn">bool</span></div>
+      </div>
+      <div class="pattern-output">
+        <div class="panel-label output-lbl">Example Output</div>
+        <div class="code-box" style="min-height:auto;border-color:#10b981;">
+{
+  <span class="key">"sentiment"</span>: <span class="str">"mixed"</span>,
+  <span class="key">"confidence"</span>: <span class="num">0.87</span>,
+  <span class="key">"key_phrases"</span>: [
+    <span class="str">"fast delivery"</span>,
+    <span class="str">"packaging damaged"</span>
+  ],
+  <span class="key">"summary"</span>: <span class="str">"Positive shipping but negative product condition"</span>,
+  <span class="key">"requires_followup"</span>: <span class="kw">true</span>
+}</div>
+      </div>
+    </div>
+
+    <div id="pat1" class="pattern-panel">
+      <div class="pattern-schema">
+        <div class="panel-label schema-lbl">Pydantic Schema</div>
+        <div class="code-box" style="min-height:auto;">
+<span class="kw">class</span> <span class="cls">PersonInfo</span>(<span class="cls">BaseModel</span>):
+    name: <span class="fn">str</span>
+    age: <span class="fn">int</span> | <span class="kw">None</span>
+    occupation: <span class="fn">str</span>
+    skills: <span class="fn">list</span>[<span class="fn">str</span>]
+    location: <span class="fn">str</span> | <span class="kw">None</span>
+    email: <span class="fn">str</span> | <span class="kw">None</span></div>
+      </div>
+      <div class="pattern-output">
+        <div class="panel-label output-lbl">Example Output</div>
+        <div class="code-box" style="min-height:auto;border-color:#10b981;">
+{
+  <span class="key">"name"</span>: <span class="str">"Maria Chen"</span>,
+  <span class="key">"age"</span>: <span class="num">34</span>,
+  <span class="key">"occupation"</span>: <span class="str">"ML Engineer"</span>,
+  <span class="key">"skills"</span>: [<span class="str">"PyTorch"</span>, <span class="str">"MLOps"</span>, <span class="str">"Python"</span>],
+  <span class="key">"location"</span>: <span class="str">"San Francisco"</span>,
+  <span class="key">"email"</span>: <span class="kw">null</span>
+}</div>
+      </div>
+    </div>
+
+    <div id="pat2" class="pattern-panel">
+      <div class="pattern-schema">
+        <div class="panel-label schema-lbl">Pydantic Schema</div>
+        <div class="code-box" style="min-height:auto;">
+<span class="kw">class</span> <span class="cls">TicketClassification</span>(<span class="cls">BaseModel</span>):
+    category: <span class="fn">Literal</span>[<span class="str">"billing"</span>, <span class="str">"technical"</span>,
+                              <span class="str">"security"</span>, <span class="str">"general"</span>]
+    urgency: <span class="fn">Literal</span>[<span class="str">"low"</span>, <span class="str">"medium"</span>, <span class="str">"high"</span>]
+    one_line_summary: <span class="fn">str</span>
+    suggested_team: <span class="fn">str</span></div>
+      </div>
+      <div class="pattern-output">
+        <div class="panel-label output-lbl">Example Output</div>
+        <div class="code-box" style="min-height:auto;border-color:#10b981;">
+{
+  <span class="key">"category"</span>: <span class="str">"security"</span>,
+  <span class="key">"urgency"</span>: <span class="str">"high"</span>,
+  <span class="key">"one_line_summary"</span>: <span class="str">"Unauthorized login detected on account"</span>,
+  <span class="key">"suggested_team"</span>: <span class="str">"security-response"</span>
+}</div>
+      </div>
+    </div>
+
+    <div id="pat3" class="pattern-panel">
+      <div class="pattern-schema">
+        <div class="panel-label schema-lbl">Pydantic Schema</div>
+        <div class="code-box" style="min-height:auto;">
+<span class="kw">class</span> <span class="cls">BlogPost</span>(<span class="cls">BaseModel</span>):
+    title: <span class="fn">str</span>
+    meta_description: <span class="fn">str</span>
+    sections: <span class="fn">list</span>[<span class="cls">Section</span>]
+    tags: <span class="fn">list</span>[<span class="fn">str</span>]
+    estimated_read_minutes: <span class="fn">int</span>
+
+<span class="kw">class</span> <span class="cls">Section</span>(<span class="cls">BaseModel</span>):
+    heading: <span class="fn">str</span>
+    body: <span class="fn">str</span></div>
+      </div>
+      <div class="pattern-output">
+        <div class="panel-label output-lbl">Example Output</div>
+        <div class="code-box" style="min-height:auto;border-color:#10b981;">
+{
+  <span class="key">"title"</span>: <span class="str">"Getting Started with LLM APIs"</span>,
+  <span class="key">"meta_description"</span>: <span class="str">"A concise guide..."</span>,
+  <span class="key">"sections"</span>: [
+    {<span class="key">"heading"</span>: <span class="str">"Setup"</span>, <span class="key">"body"</span>: <span class="str">"..."</span>},
+    {<span class="key">"heading"</span>: <span class="str">"First Call"</span>, <span class="key">"body"</span>: <span class="str">"..."</span>}
+  ],
+  <span class="key">"tags"</span>: [<span class="str">"AI"</span>, <span class="str">"Python"</span>, <span class="str">"API"</span>],
+  <span class="key">"estimated_read_minutes"</span>: <span class="num">5</span>
+}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Error Handling -->
+  <section>
+    <h2 class="section-title">Defensive JSON Parsing</h2>
+    <p class="section-sub">Even with JSON mode, models occasionally produce malformed output. Use this multi-stage parsing approach as a fallback.</p>
+
+    <div class="err-flow">
+      <div class="err-step">
+        <div class="err-connector">
+          <div class="err-node" style="background:rgba(6,182,212,0.15);border:1.5px solid #06b6d4;color:#22d3ee;">1</div>
+          <div class="err-line"></div>
+        </div>
+        <div class="err-body">
+          <div class="err-title">Direct parse</div>
+          <div class="err-desc">Try <code style="color:#22d3ee;font-size:0.78rem;">json.loads(raw)</code> first. Succeeds ~95% of the time when JSON mode is enabled.</div>
+        </div>
+      </div>
+      <div class="err-step">
+        <div class="err-connector">
+          <div class="err-node" style="background:rgba(251,191,36,0.15);border:1.5px solid #fbbf24;color:#fbbf24;">2</div>
+          <div class="err-line"></div>
+        </div>
+        <div class="err-body">
+          <div class="err-title">Strip markdown fences</div>
+          <div class="err-desc">Regex for <code style="color:#22d3ee;font-size:0.78rem;">```json ... ```</code> blocks. Models sometimes wrap JSON in code fences even when instructed not to.</div>
+        </div>
+      </div>
+      <div class="err-step">
+        <div class="err-connector">
+          <div class="err-node" style="background:rgba(251,146,60,0.15);border:1.5px solid #fb923c;color:#fb923c;">3</div>
+          <div class="err-line"></div>
+        </div>
+        <div class="err-body">
+          <div class="err-title">Find first JSON object</div>
+          <div class="err-desc">Regex for the first <code style="color:#22d3ee;font-size:0.78rem;">{...}</code> block in the text. Handles models that prepend explanation text before the JSON.</div>
+        </div>
+      </div>
+      <div class="err-step">
+        <div class="err-connector">
+          <div class="err-node" style="background:rgba(239,68,68,0.15);border:1.5px solid #ef4444;color:#ef4444;">4</div>
+        </div>
+        <div class="err-body">
+          <div class="err-title">Retry with correction prompt</div>
+          <div class="err-desc">Append <code style="color:#22d3ee;font-size:0.78rem;">"Your previous response was not valid JSON. Return ONLY the JSON object."</code> and retry the API call. Maximum 3 retries.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:24px;">
+      <strong>Best practice:</strong> For production code, always use <strong>Approach 3 (Pydantic + .parse())</strong>. The API guarantees schema compliance so you don't need defensive parsing at all. Use defensive parsing only when working with models that don't support structured outputs.
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section>
+    <h2 class="section-title">Self-Check Quiz</h2>
+    <p class="section-sub">5 questions · Select an answer to see immediate feedback</p>
+
+    <div class="quiz-card" id="q1">
+      <div class="question">1. You need a JSON response where a field must be exactly one of: "low", "medium", or "high". Which Pydantic type enforces this?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q1',false)">A. str — with a comment explaining the allowed values</button>
+        <button class="opt-btn" onclick="answer(this,'q1',true)">B. Literal["low", "medium", "high"] — enforces exact values at the schema level</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">C. Enum — but you must write validation logic yourself</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">D. Any string type — the model will naturally follow the description</button>
+      </div>
+      <div class="feedback" id="fb_q1"></div>
+    </div>
+
+    <div class="quiz-card" id="q2">
+      <div class="question">2. You enable JSON mode (response_format={"type":"json_object"}) but the API call fails. What is the most likely reason?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q2',false)">A. JSON mode is not available for gpt-4o-mini models</button>
+        <button class="opt-btn" onclick="answer(this,'q2',true)">B. You forgot to mention "JSON" in the prompt — JSON mode requires it</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">C. JSON mode only works with the assistant role, not user role</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">D. JSON mode requires an additional API key permission</button>
+      </div>
+      <div class="feedback" id="fb_q2"></div>
+    </div>
+
+    <div class="quiz-card" id="q3">
+      <div class="question">3. What does client.chat.completions.parse() return compared to .create()?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q3',false)">A. The same response object — .parse() is just an alias</button>
+        <button class="opt-btn" onclick="answer(this,'q3',true)">B. A typed Python object matching your Pydantic schema, accessible via .message.parsed (or .output_parsed on the Responses API)</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">C. Raw JSON text that you must parse with json.loads()</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">D. A dictionary with schema validation errors if any</button>
+      </div>
+      <div class="feedback" id="fb_q3"></div>
+    </div>
+
+    <div class="quiz-card" id="q4">
+      <div class="question">4. Why should temperature be set to 0.0 for structured extraction tasks?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q4',false)">A. Higher temperatures cause the model to ignore JSON format instructions</button>
+        <button class="opt-btn" onclick="answer(this,'q4',true)">B. Temperature 0.0 produces deterministic output, ensuring consistent structure across identical inputs</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">C. The JSON mode parameter overrides temperature anyway</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">D. It reduces cost by making responses shorter</button>
+      </div>
+      <div class="feedback" id="fb_q4"></div>
+    </div>
+
+    <div class="quiz-card" id="q5">
+      <div class="question">5. A field in your Pydantic schema is defined as age: int | None. What does this allow?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q5',false)">A. The field accepts only integers — None will cause a validation error</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">B. The field accepts text like "none" or "N/A" instead of a real age</button>
+        <button class="opt-btn" onclick="answer(this,'q5',true)">C. The field accepts either an integer or null (when the value is not present in the input)</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">D. The field is optional — the model may omit it from the JSON entirely</button>
+      </div>
+      <div class="feedback" id="fb_q5"></div>
+    </div>
+
+    <div class="score-banner" id="scoreBanner">
+      <div class="score-num" id="scoreNum">0/5</div>
+      <div class="score-label">Quiz complete! Review any incorrect answers above.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// Schema builder
+let fields = [
+  { name: 'product_name', type: 'str', required: true },
+  { name: 'rating', type: 'float', required: true },
+  { name: 'pros', type: 'list[str]', required: true },
+  { name: 'cons', type: 'list[str]', required: true },
+  { name: 'recommended', type: 'bool', required: true },
+  { name: 'review_date', type: 'str | None', required: false },
+];
+
+const typeOptions = ['str', 'int', 'float', 'bool', 'list[str]', 'str | None', 'int | None', 'list[dict]'];
+
+function renderFieldRows() {
+  const container = document.getElementById('fieldRows');
+  container.innerHTML = fields.map((f, i) => `
+    <div class="field-row">
+      <input class="field-input" value="${f.name}" oninput="fields[${i}].name=this.value;renderSchema();" placeholder="field_name">
+      <select class="field-input field-type" onchange="fields[${i}].type=this.value;renderSchema();">
+        ${typeOptions.map(t => `<option ${t===f.type?'selected':''}>${t}</option>`).join('')}
+      </select>
+      <div class="field-req ${f.required?'on':''}" onclick="fields[${i}].required=!fields[${i}].required;renderAll();" title="Required">✓</div>
+      <button class="field-del" onclick="fields.splice(${i},1);renderAll();">✕</button>
+    </div>
+  `).join('');
+}
+
+function addField() {
+  fields.push({ name: 'new_field', type: 'str', required: true });
+  renderAll();
+}
+
+let schemaApi = 'chat';
+
+function setSchemaApi(which) {
+  schemaApi = which;
+  const c = document.getElementById('schApiChat');
+  const r = document.getElementById('schApiResp');
+  if (which === 'chat') {
+    c.className = 'btn btn-primary'; c.style.background = '#22d3ee';
+    r.className = 'btn btn-secondary'; r.style.background = '';
+  } else {
+    r.className = 'btn btn-primary'; r.style.background = '#a78bfa';
+    c.className = 'btn btn-secondary'; c.style.background = '';
+  }
+  renderSchema();
+}
+
+function renderSchema() {
+  const cls = document.getElementById('className').value || 'OutputSchema';
+  const fieldLines = fields.map(f => {
+    const optional = !f.required && !f.type.includes('None') ? ` = None` : '';
+    return `    <span class="key">${f.name}</span>: <span class="fn">${f.type}</span>${optional}`;
+  }).join('\n');
+
+  let apiCall;
+  if (schemaApi === 'chat') {
+    apiCall =
+`<span class="cm"># Use .parse() for guaranteed schema compliance</span>
+response = client.chat.completions.<span class="fn">parse</span>(
+    <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+    <span class="key">messages</span>=[
+        {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"Extract structured data."</span>},
+        {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: your_text}
+    ],
+    <span class="key">response_format</span>=<span class="cls">${cls}</span>,
+    <span class="key">temperature</span>=<span class="num">0.0</span>,
+)
+
+<span class="cm"># Typed Python object — no json.loads() needed</span>
+result: <span class="cls">${cls}</span> = response.choices[<span class="num">0</span>].message.parsed
+<span class="fn">print</span>(result.model_dump())`;
+  } else {
+    apiCall =
+`<span class="cm"># Responses API: .parse() with a Pydantic model — same idea, different shape</span>
+response = client.responses.<span class="fn">parse</span>(
+    <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+    <span class="key">instructions</span>=<span class="str">"Extract structured data."</span>,
+    <span class="key">input</span>=your_text,
+    <span class="key">text_format</span>=<span class="cls">${cls}</span>,
+    <span class="key">temperature</span>=<span class="num">0.0</span>,
+)
+
+<span class="cm"># Typed Python object — exposed as response.output_parsed</span>
+result: <span class="cls">${cls}</span> = response.output_parsed
+<span class="fn">print</span>(result.model_dump())`;
+  }
+
+  document.getElementById('schemaCode').innerHTML =
+`<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = <span class="fn">OpenAI</span>()
+
+<span class="kw">class</span> <span class="cls">${cls}</span>(<span class="cls">BaseModel</span>):
+${fieldLines}
+
+${apiCall}`;
+}
+
+function renderAll() {
+  renderFieldRows();
+  renderSchema();
+}
+
+renderAll();
+
+// Pattern tabs
+function showPattern(idx, btn) {
+  document.querySelectorAll('[id^="pat"]').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.p-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('pat'+idx).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Quiz
+const feedbacks = {
+  q1: { ok: "Correct! Literal['low','medium','high'] enforces that the value must be exactly one of these strings — the schema will reject any other value.", bad: "Use Literal['low','medium','high'] from Python's typing module. This constrains the field at the schema level, not just as documentation." },
+  q2: { ok: "Correct! JSON mode requires you to mention the word 'JSON' somewhere in your prompt (system or user message). Without it, the API returns a validation error.", bad: "JSON mode requires the word 'JSON' to appear in your prompt. This is an API requirement — it fails if the prompt doesn't mention JSON." },
+  q3: { ok: "Correct! On Chat Completions, .parse() exposes the typed object at .choices[0].message.parsed. On the Responses API, the equivalent is .output_parsed. Either way, no manual json.loads() needed.", bad: ".parse() returns a typed Pydantic object. Access via .choices[0].message.parsed (Chat Completions) or .output_parsed (Responses). No json.loads() or schema validation needed." },
+  q4: { ok: "Correct! temperature=0.0 makes output deterministic. For extraction tasks, the same input should always produce the same structured output.", bad: "temperature=0.0 ensures deterministic, consistent output. Higher temperatures introduce randomness that can change field values or structure across runs." },
+  q5: { ok: "Correct! int | None means the field accepts either an integer or null — useful when a value may or may not be present in the source text.", bad: "int | None allows the field to be an integer OR null (Python None / JSON null). This handles cases where the value is absent from the input." }
+};
+
+let answers = {};
+function answer(btn, qId, correct) {
+  if (answers[qId] !== undefined) return;
+  answers[qId] = correct;
+  const allBtns = btn.parentElement.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => b.disabled = true);
+  btn.classList.add(correct ? 'correct' : 'incorrect');
+  if (!correct) {
+    allBtns.forEach(b => { if (b.onclick.toString().includes('true')) b.classList.add('correct'); });
+  }
+  const fb = document.getElementById('fb_' + qId);
+  fb.textContent = correct ? '✓ ' + feedbacks[qId].ok : '✗ ' + feedbacks[qId].bad;
+  fb.className = 'feedback show ' + (correct ? 'ok' : 'bad');
+  if (Object.keys(answers).length === 5) {
+    const score = Object.values(answers).filter(Boolean).length;
+    document.getElementById('scoreNum').textContent = score + '/5';
+    document.getElementById('scoreBanner').classList.add('show');
+  }
+}
+</script>
+</body>
+</html>

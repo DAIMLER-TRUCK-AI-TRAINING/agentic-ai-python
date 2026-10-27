@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic AI GenAI Fundamentals Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- Tokens (shared by every module deck — never edit) ---------- */
+:root {
+  --bg: #e9ecf1; --slide: #fbfbfd; --surface: #ffffff; --surface-2: #eef1f5; --border: #d8dde5;
+  --text: #1b2330; --muted: #5b6678; --accent: #2f6fdb; --accent-soft: #dce8fb;
+  --ok: #1f8a4c; --ok-soft: #dcf2e4; --bad: #c43b3b; --bad-soft: #f9e0e0; --warn: #b7791f; --warn-soft: #fbefd8;
+  --p0: #2f6fdb; --p1: #d0682a; --p2: #2a9d6f; --p3: #8a4fd1; --p4: #c2417b; --p5: #3a8fa8;
+  --grid: rgba(27, 35, 48, .045);
+  --shadow: 0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.06);
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0d12; --slide: #11151c; --surface: #1a1f28; --surface-2: #232a35; --border: #333c4a;
+    --text: #e6eaf0; --muted: #9aa5b5; --accent: #6b9cf0; --accent-soft: #22324f;
+    --ok: #4cc27e; --ok-soft: #1d3527; --bad: #ef7070; --bad-soft: #3d2222; --warn: #e0a84a; --warn-soft: #3a2f1c;
+    --p0: #6b9cf0; --p1: #ec8d52; --p2: #4cc29a; --p3: #ad84ec; --p4: #e8729f; --p5: #5dbbd4;
+    --grid: rgba(230, 234, 240, .035); --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0d12; --slide: #11151c; --surface: #1a1f28; --surface-2: #232a35; --border: #333c4a;
+  --text: #e6eaf0; --muted: #9aa5b5; --accent: #6b9cf0; --accent-soft: #22324f;
+  --ok: #4cc27e; --ok-soft: #1d3527; --bad: #ef7070; --bad-soft: #3d2222; --warn: #e0a84a; --warn-soft: #3a2f1c;
+  --p0: #6b9cf0; --p1: #ec8d52; --p2: #4cc29a; --p3: #ad84ec; --p4: #e8729f; --p5: #5dbbd4;
+  --grid: rgba(230, 234, 240, .035); --shadow: none; color-scheme: dark;
+}
+
+/* ---------- Stage & slides ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+code, .mono { font-family: var(--mono); }
+.viewport { position: fixed; inset: 0; display: grid; place-items: center; }
+.deck { position: relative; width: 1280px; height: 720px; transform-origin: center center; flex: none; }
+.slide {
+  position: absolute; inset: 0; padding: 44px 64px 60px; display: flex; flex-direction: column;
+  background: var(--slide); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0; visibility: hidden; transform: translateX(24px); transition: opacity .35s ease, transform .35s ease, visibility 0s .35s;
+}
+.slide.active { opacity: 1; visibility: visible; transform: none; transition: opacity .35s ease, transform .35s ease; }
+.slide.before { transform: translateX(-24px); }
+.slide::before { /* accent rail */
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  background: linear-gradient(var(--p0), var(--p3), var(--p1));
+}
+.foot {
+  position: absolute; left: 64px; right: 64px; bottom: 20px; display: flex; justify-content: space-between;
+  font-size: 13px; color: var(--muted); letter-spacing: .02em;
+}
+.foot b { color: var(--text); font-weight: 600; }
+
+.kicker { text-transform: uppercase; letter-spacing: .12em; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+h1, h2 { margin: 0; letter-spacing: -.02em; }
+h2 { font-size: 38px; line-height: 1.12; font-weight: 800; }
+h2 .hl { color: var(--accent); }
+.sub { color: var(--muted); font-size: 18px; margin: 8px 0 0; max-width: 980px; line-height: 1.45; }
+.body { flex: 1; min-height: 0; margin-top: 22px; }
+.row { display: flex; gap: 20px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow);
+}
+.card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 700; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+.pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+.tag { display: inline-block; font-family: var(--mono); font-size: 12.5px; padding: 1px 7px; border-radius: 6px; background: var(--surface-2); color: var(--text); }
+.callout {
+  display: flex; gap: 14px; align-items: center; border-radius: 14px; padding: 14px 18px; font-size: 16px; line-height: 1.4;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.callout.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.callout .big { font-size: 26px; font-weight: 800; color: var(--accent); flex: none; }
+.callout.warn .big { color: var(--warn); }
+
+/* ---------- SVG vocabulary ---------- */
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: var(--sans); fill: var(--text); font-size: 14px; }
+svg .t { font-weight: 600; font-size: 15px; }
+svg .m { fill: var(--muted); font-size: 12.5px; }
+svg .mono { font-family: var(--mono); }
+svg .acc { fill: var(--accent); }
+svg .box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+svg .box2 { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.2; }
+svg .frame { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; }
+svg .frame-m { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 5; }
+svg .ln { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+svg .ln-soft { stroke: var(--border); stroke-width: 1.4; fill: none; }
+svg .ln-acc { stroke: var(--accent); stroke-width: 2; fill: none; }
+svg .arrow { marker-end: url(#arr); }
+svg .arrow-acc { marker-end: url(#arr-acc); }
+svg .hub { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+svg .k0, svg .k1, svg .k2, svg .k3, svg .k4, svg .k5 { stroke-width: 1.8; }
+svg .k0 { fill: color-mix(in srgb, var(--p0) 22%, var(--surface)); stroke: var(--p0); }
+svg .k1 { fill: color-mix(in srgb, var(--p1) 22%, var(--surface)); stroke: var(--p1); }
+svg .k2 { fill: color-mix(in srgb, var(--p2) 22%, var(--surface)); stroke: var(--p2); }
+svg .k3 { fill: color-mix(in srgb, var(--p3) 22%, var(--surface)); stroke: var(--p3); }
+svg .k4 { fill: color-mix(in srgb, var(--p4) 22%, var(--surface)); stroke: var(--p4); }
+svg .k5 { fill: color-mix(in srgb, var(--p5) 22%, var(--surface)); stroke: var(--p5); }
+svg .kx { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.4; }
+svg .ghost { fill: none; stroke: var(--border); stroke-width: 1.4; stroke-dasharray: 4 4; }
+svg .tomb { fill: var(--surface); stroke: var(--p1); stroke-width: 1.8; stroke-dasharray: 5 4; }
+svg .cons { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.6; }
+svg .lag { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.6; }
+svg .unrep { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 4; }
+svg .gone { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 3 4; opacity: .7; }
+svg .d0 { fill: var(--p0); } svg .d1 { fill: var(--p1); } svg .d2 { fill: var(--p2); }
+svg .d3 { fill: var(--p3); } svg .d4 { fill: var(--p4); } svg .d5 { fill: var(--p5); }
+svg .cell-t { font-size: 12px; font-weight: 600; text-anchor: middle; }
+svg .off-t { font-size: 11px; fill: var(--muted); text-anchor: middle; font-family: var(--mono); }
+svg .mid { text-anchor: middle; }
+svg .end { text-anchor: end; }
+svg .bad-t { fill: var(--bad); } svg .ok-t { fill: var(--ok); } svg .warn-t { fill: var(--warn); }
+
+/* ---------- Slide specifics ---------- */
+.title-grid { display: grid; grid-template-columns: 1fr 580px; gap: 36px; align-items: center; height: 100%; }
+.title-grid h1 { font-size: 64px; line-height: 1.02; font-weight: 800; letter-spacing: -.03em; }
+.title-grid h1 span {
+  background: linear-gradient(90deg, var(--p0), var(--p3) 55%, var(--p1)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.title-grid .lede { font-size: 20px; color: var(--muted); line-height: 1.45; margin: 20px 0 26px; max-width: 520px; }
+.chips { display: flex; gap: 10px; flex-wrap: wrap; }
+@keyframes drop { 0% { opacity: 0; transform: translateY(-40px); } 25%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+.new-cell { animation: drop 3s ease-out infinite; transform-box: fill-box; }
+
+.modmap { display: grid; grid-template-columns: 6fr 10fr 8fr 8fr 8fr; gap: 8px; } /* weighted by module hours: 6 · 10 · 8 · 8 · 8 */
+.mod { border-radius: 10px; padding: 10px 10px 12px; font-size: 13px; line-height: 1.3; background: var(--surface); border: 1px solid var(--border); min-height: 64px; }
+.mod b { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; letter-spacing: .06em; }
+.mod.now { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+.mod.now b { color: rgba(255,255,255,.85); }
+.bands { display: grid; grid-template-columns: 16fr 24fr; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.bands div { border-top: 3px solid; padding-top: 6px; text-align: center; }
+
+.decouple { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
+.decouple .card h3 { display: flex; align-items: center; gap: 8px; }
+.decouple .num { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; color: #fff; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.panel h3 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+.panel .cap { color: var(--muted); font-size: 15px; line-height: 1.45; margin: 4px 0 8px; }
+.panel .foot-note { margin-top: auto; font-size: 14px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 8px; }
+
+table.cmp { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+table.cmp th, table.cmp td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.cmp tr:last-child td { border-bottom: 0; }
+table.cmp th { background: var(--surface-2); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+table.cmp td:first-child { font-weight: 600; white-space: nowrap; }
+table.cmp td.k { color: var(--accent); font-weight: 600; }
+
+.quote { font-size: 28px; line-height: 1.3; font-weight: 700; letter-spacing: -.01em; margin: 0 0 18px; }
+.quote em { font-style: normal; color: var(--accent); }
+.event { font-family: var(--mono); font-size: 14px; line-height: 1.75; }
+.event .f { color: var(--muted); display: inline-block; width: 92px; }
+.event .v { color: var(--text); }
+.usecases { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.usecases span { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
+
+.legend5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 12px; }
+.legend5 .card { padding: 12px 14px; border-top: 4px solid var(--accent); }
+.legend5 .card h3 { font-size: 15px; }
+.legend5 .card p { font-size: 13.5px; }
+.cards4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+.cards4 .card { padding: 12px 14px; }
+.cards4 .card p { font-size: 14px; color: var(--text); }
+.cards4 .card p b { color: var(--accent); }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.rule { display: flex; gap: 12px; align-items: flex-start; }
+.rule .ico { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 15px; }
+.rule h3 { margin: 0 0 2px; font-size: 16px; }
+.rule p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.4; }
+
+.term {
+  background: #0d1117; color: #d6deeb; border-radius: 12px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+  padding: 12px 14px; border: 1px solid #2a3240; white-space: pre; overflow: hidden;
+}
+.term .bar { display: flex; gap: 6px; margin: -2px 0 8px; }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+.term .bar i:nth-child(2) { background: #febc2e; } .term .bar i:nth-child(3) { background: #28c840; }
+.term .c { color: #7d8799; } .term .p { color: #7fd1a7; } .term .h { color: #82aaff; } .term .y { color: #ffcb6b; }
+.baseline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.baseline div { text-align: center; background: var(--surface-2); border-radius: 10px; padding: 8px 4px; }
+.baseline b { display: block; font-size: 24px; color: var(--accent); }
+.baseline span { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+.timeline { display: grid; grid-template-columns: repeat(6, 1fr); position: relative; margin-top: 14px; }
+.timeline::before { content: ""; position: absolute; left: 8%; right: 8%; top: 13px; height: 3px; background: linear-gradient(90deg, var(--muted), var(--accent)); border-radius: 2px; }
+.timeline .ev { text-align: center; position: relative; font-size: 13.5px; line-height: 1.35; padding: 0 6px; }
+.timeline .ev::before { content: ""; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--slide); border: 3px solid var(--accent); margin: 5px auto 8px; }
+.timeline .ev.key::before { background: var(--accent); }
+.timeline .ev b { display: block; font-size: 16px; }
+.timeline .ev span { color: var(--muted); }
+
+.labs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+.labs .card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; }
+.labs .n { flex: none; font-weight: 800; font-size: 22px; color: var(--accent); line-height: 1; }
+
+.recap { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; }
+.take { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+.take .card { padding: 12px 14px; }
+.take .card h3 { font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
+.take .card h3 i { font-style: normal; color: var(--accent); font-weight: 800; }
+.take .card p { font-size: 13.5px; }
+.quiz { display: flex; flex-direction: column; gap: 10px; }
+.q { position: relative; padding-right: 110px !important; cursor: pointer; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 14px; font-size: 15px; transition: border-color .2s; }
+.q:hover { border-color: var(--accent); }
+.q .a { display: none; margin-top: 6px; color: var(--ok); font-size: 14px; font-weight: 500; }
+.q.open .a { display: block; }
+.q .hint { color: var(--muted); font-size: 12px; position: absolute; right: 14px; top: 13px; }
+.q.open .hint { display: none; }
+.next { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 14px; background: var(--accent); color: #fff; }
+.next b { font-size: 18px; }
+
+/* ---------- Chrome: controls, progress, notes ---------- */
+.progress { position: fixed; left: 0; top: 0; height: 4px; background: linear-gradient(90deg, var(--p0), var(--p3)); transition: width .3s; z-index: 5; }
+.controls { position: fixed; right: 16px; top: 12px; display: flex; gap: 6px; z-index: 5; }
+.controls button {
+  font: 600 13px var(--sans); color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer; opacity: .75;
+}
+.controls button:hover { opacity: 1; border-color: var(--accent); }
+.notes-panel {
+  position: fixed; left: 16px; right: 16px; bottom: 16px; max-height: 32vh; overflow: auto; z-index: 6; display: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; font-size: 15px; line-height: 1.5;
+  box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+.notes-panel.show { display: block; }
+.notes-panel h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
+aside.notes { display: none; }
+
+/* ---------- Print: one slide per page ---------- */
+@page { size: 1280px 720px; margin: 0; }
+@media print {
+  body { overflow: visible; background: none; }
+  .viewport { position: static; display: block; }
+  .deck { transform: none !important; width: 1280px; height: auto; }
+  .slide { position: relative; opacity: 1; visibility: visible; transform: none; height: 720px; border-radius: 0; box-shadow: none; break-after: page; transition: none; }
+  .controls, .progress, .notes-panel { display: none !important; }
+  .q .a { display: block; } .q .hint { display: none; }
+}
+
+/* ---------- Shared extras (carried forward from the reference decks) ---------- */
+.title-grid .kicker { letter-spacing: .09em; white-space: nowrap; }
+svg .badbox { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.6; }
+.term.sm { font-size: 12px; line-height: 1.55; }
+.term .b { color: #ef7070; } .term .a { color: #c3a6ff; }
+.term { font-variant-ligatures: none; }
+table.cmp.tight { font-size: 13.5px; }
+table.cmp.tight th, table.cmp.tight td { padding: 7px 11px; }
+table.cmp.tight td:first-child { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+table.cmp.tight.plain td:first-child { font-family: var(--sans); font-size: 13.5px; }
+table.cmp.tight td code { font-size: 12px; }
+.rules2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+.rules2 .card { padding: 12px 14px; border-left: 4px solid var(--accent); }
+.rules2 .card h3 { font-size: 15px; }
+.rules2 .card p { font-size: 13.5px; }
+svg .thr { stroke: var(--warn); stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
+svg .ln-ok { stroke: var(--ok); stroke-width: 2.2; fill: none; }
+svg .ln-bad { stroke: var(--bad); stroke-width: 2.2; fill: none; }
+/* Off-screen slides are not painted. Animations on them are paused in the script. */
+@media screen {
+  html.deck-ready .slide:not(.active) { content-visibility: hidden; contain-intrinsic-size: 1280px 720px; }
+}
+.slide { transition-duration: .16s, .16s, 0s; transition-delay: 0s, 0s, .16s; }
+
+/* ---------- Module 1 additions ---------- */
+/* Only the classes this module's slides use. Never redefine a shared token or class above. */
+.aw {
+  display: inline-block; margin-left: 10px; padding: 2px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .06em; vertical-align: 1px;
+  color: var(--p5); background: color-mix(in srgb, var(--p5) 14%, transparent); border: 1px solid color-mix(in srgb, var(--p5) 45%, transparent);
+}
+th .aw { margin-left: 6px; padding: 1px 7px; font-size: 10.5px; }
+.mt { margin-top: 14px; }
+.terms2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+svg .hm { fill: var(--accent); stroke: none; }
+svg .ink { fill: var(--muted); opacity: .5; }
+svg .scan { fill: var(--accent); opacity: .55; }
+svg .tok { font-family: var(--mono); font-size: 15px; }
+svg .chip-t { font-family: var(--mono); font-size: 12px; text-anchor: middle; }
+</style>
+</head>
+<body>
+
+<!-- Shared SVG defs (markers) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/>
+    </marker>
+    <marker id="arr-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="progress" id="progress"></div>
+<div class="viewport"><div class="deck" id="deck">
+
+<!-- ===================== 1. TITLE ===================== -->
+<section class="slide" data-title="Title">
+  <div class="title-grid">
+    <div>
+      <div class="kicker">Agentic AI Systems Engineering · Module 1</div>
+      <h1>GenAI, NLP, OCR<br><span>&amp; LLMs</span></h1>
+      <p class="lede">Follow one IT ticket from pixels to text, tokens and vectors, so you can predict where language models are cheap, where they fail, and which one to pay for.</p>
+      <div class="chips">
+        <span class="pill">Foundations</span>
+        <span class="pill">7 topics · 3 labs</span>
+        <span class="pill">Python 3.12+ · OpenAI &amp; Claude SDKs · Tesseract</span>
+      </div>
+    </div>
+    <svg viewBox="0 0 580 380" role="img" aria-label="The model's eye view, animated: a scanned ticket becomes OCR text, the text becomes tokens, and the tokens become a vector that lands nearest to knowledge-base article KB-0450 with a cosine score of 0.67">
+      <g id="title-anim"></g>
+    </svg>
+  </div>
+  <aside class="notes">Welcome to the programme. This is Module 1, so the bridge is not from an earlier module but from your own experience: you already build reliable systems out of unreliable parts, and today the unreliable part is probabilistic. Point at the animation: one synthetic incident, INC-104233, travels from pixels to OCR text, from text to tokens, and from tokens to a vector that lands next to KB-0450. That is the model's eye view, and every slide today zooms into one of those four stages. Ask the room: where in your current systems does a component already give a different answer to the same input, and how do you test it?</aside>
+</section>
+
+<!-- ===================== 2. AGENDA ===================== -->
+<section class="slide" data-title="Agenda">
+  <div class="kicker">Today's route</div>
+  <h2>From pixels to predictions, <span class="hl">then a model choice you can defend</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 250" role="img" aria-label="Agenda as a metro line with 8 stops, from the GenAI landscape to the hands-on labs">
+      <path id="metro" d="M60,125 L1098,125" style="stroke: var(--accent); stroke-width: 8; stroke-linecap: round; fill: none; opacity: .25"/>
+      <path d="M60,125 L1098,125" style="stroke: var(--accent); stroke-width: 8; stroke-linecap: round; fill: none; stroke-dasharray: 1 22"/>
+      <circle r="9" class="d2"><animateMotion dur="8s" repeatCount="indefinite"><mpath href="#metro"/></animateMotion></circle>
+      <g id="stops"></g>
+    </svg>
+    <div style="margin-top:6px">
+      <div class="kicker" style="color:var(--muted)">Where Module 1 sits in the 40-hour programme</div>
+      <!-- Add " now" to exactly one .mod: the current module. -->
+      <div class="modmap">
+        <div class="mod now"><b>M1 · 6 h</b>GenAI, NLP, OCR &amp; LLMs</div>
+        <div class="mod"><b>M2 · 10 h</b>Prompts, SDKs &amp; single agent</div>
+        <div class="mod"><b>M3 · 8 h</b>Enterprise RAG &amp; fine-tuning</div>
+        <div class="mod"><b>M4 · 8 h</b>Multi-agent, patterns &amp; MCP</div>
+        <div class="mod"><b>M5 · 8 h</b>Cloud, security &amp; evals</div>
+      </div>
+      <div class="bands">
+        <div style="border-color:var(--p0);color:var(--p0)">Phase 1 · Foundations &amp; single agent</div>
+        <div style="border-color:var(--p3);color:var(--p3)">Phase 2 · Enterprise RAG, orchestration &amp; governance</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Walk the route. First the landscape, then the stages a document passes through (NLP, OCR, attention), then how the LLM itself behaves at its edges, then embeddings, and finally model choice with Responsible AI. The module table gives Module 1 six hours, while the delivery schedule gives it all of Day 1; the labs fit either. H1 comes first in the outline, so you may run Lab 03 Parts 1 and 2 straight after the landscape stop and keep its model-selection part for the end of the day. Tokens, context budgets, OCR confidence gates and the model comparison sheet all carry into Module 2, where triage becomes a prompt-engineering and structured-output problem on both SDKs; embeddings return in Module 3 for retrieval. Ask: who has already shipped a feature with an LLM call in it?</aside>
+</section>
+
+<!-- ===================== 3. LAYERS ===================== -->
+<section class="slide" data-title="AI, ML, DL and GenAI">
+  <div class="kicker">Topic 1 · GenAI landscape &amp; foundation models</div>
+  <h2>Production systems mix layers: <span class="hl">use the cheapest one that meets a measured requirement</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 250" role="img" aria-label="Left: nested layers, with artificial intelligence containing machine learning, deep learning, generative AI and large language models. Right: one ticket, INC-104233, passes through a regex, a BERT-base encoder and a decoder LLM into one escalation record, with cost rising at each layer">
+      <g id="s-layers"></g>
+    </svg>
+    <div class="cards4">
+      <div class="card"><h3>Rule-based</h3><p>Nothing is learned. A regex routes tickets that mention <b>VPN</b> to Network Ops.</p></div>
+      <div class="card"><h3>Classical ML</h3><p>A function over features you engineer: a <b>TF-IDF</b> ticket-priority classifier.</p></div>
+      <div class="card"><h3>Deep learning</h3><p>The network learns features and function: a <b>BERT</b> encoder tags people and places.</p></div>
+      <div class="card"><h3>Generative AI</h3><p>A distribution sampled token by token: it drafts the <b>INC-104233</b> escalation.</p></div>
+    </div>
+  </div>
+  <aside class="notes">This is survey level, so move quickly: the taxonomy is not the point. The point is the production mix on the right. The regex finds the incident ID for free and deterministically, a 110-million-parameter encoder tags names on a CPU, and the decoder LLM runs only where generation is genuinely needed. Ask: which text-processing step in your current systems would you never hand to an LLM, and why?</aside>
+</section>
+
+<!-- ===================== 4. FOUNDATION MODELS ===================== -->
+<section class="slide" data-title="Foundation models">
+  <div class="kicker">Topic 1 · GenAI landscape &amp; foundation models</div>
+  <h2>A foundation model is frozen general knowledge: <span class="hl">you adapt it at request time</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 250" role="img" aria-label="The provider pre-trains and post-trains a foundation model, then freezes it with a knowledge cutoff. It reaches you through one of four doors: a provider API, a hyperscaler platform, open weights you host, or a specialist AI service. Your application adapts it with prompts, retrieval and tools, and connects it to enterprise systems">
+      <g id="s-fm"></g>
+    </svg>
+    <div class="callout warn mt"><div><b>Enterprise reality:</b> the same model reaches you through several doors. Claude Opus 5.5 is <code>claude-opus-5-5</code> on the Claude API and <code>anthropic.claude-opus-5-5</code> on Amazon Bedrock. The ID, regions, features, price and retirement date can differ per platform, so check that platform's own model page before you commit.</div></div>
+  </div>
+  <aside class="notes">The provider trains the model once, on web-scale text by next-token prediction, then post-trains it to follow instructions, then freezes the weights. It knows nothing after its cutoff (June 2026 for the current Claude models) and nothing private, so anything newer or internal must arrive in the request: that is why Modules 2 to 4 are about prompts, retrieval and tools far more than fine-tuning. You also choose a door: the provider API gets the newest models first; a hyperscaler brings existing contracts, private networking and regional processing; open weights keep data in your estate at a fixed infrastructure cost; specialist services such as OCR come with task-specific accuracy. Ask: which door does your procurement already open, and does it limit which models you can use?</aside>
+</section>
+
+<!-- ===================== 5. NLP PIPELINE ===================== -->
+<section class="slide" data-title="NLP pipeline">
+  <div class="kicker">Topic 2 · The NLP pipeline</div>
+  <h2>Regex owns formats, NER owns names, <span class="hl">the LLM owns the long tail</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 240" role="img" aria-label="Five NLP stages, tokenisation, POS tagging, NER, semantic similarity and intent detection, run over the synthetic ticket INC-104233. A regex extracts both identifiers exactly; a pre-trained NER model finds the person, the place and the teams, but also reports two false entities, IN and LT, from fragments of the identifiers. The ticket matches KB-0450 and routes to Platform Engineering">
+      <g id="s-nlp"></g>
+    </svg>
+    <table class="cmp tight plain mt">
+      <tr><th>Approach</th><th>Latency</th><th>Cost per ticket</th><th>Deterministic?</th><th>Best when</th></tr>
+      <tr><td>Regex or rules</td><td>Lowest</td><td>~0</td><td>Yes</td><td>The signal has a fixed format: <code>INC-\d{6}</code>, amounts, dates</td></tr>
+      <tr><td>Zero-shot NLI, local</td><td>Low</td><td>Infrastructure only</td><td>Yes, for a fixed model</td><td>Few labels, and the data cannot leave the estate</td></tr>
+      <tr><td>Embedding nearest intent</td><td>Low</td><td>~0 once examples are embedded</td><td>Yes, for a fixed model</td><td>Many intents, each with example phrasings</td></tr>
+      <tr><td>LLM classification</td><td>Highest</td><td>Per token</td><td>No</td><td>Ambiguous input, or a reason is needed for the audit log</td></tr>
+    </table>
+  </div>
+  <aside class="notes">Run the pipeline left to right on the synthetic ticket. Tokenisation comes first: WordPiece splits "Passwortänderung" into three pieces, and the token is the unit in which limits and bills are counted. The pre-trained NER model (dslim/bert-base-NER) gets the person, the place and both teams right, then reports IN and LT: fragments of identifiers from a model trained on news text that has never seen your formats. The regex gets both IDs exactly. That is the production baseline: regex for anything with a format, NER for names, a model for the long tail; the entity step is also where you decide what personal data to redact before any external call. The 0.67 match to KB-0450 is Lab 02's end-to-end result from the OCR'd image. Ask: what are the label set, the unknown class and the evaluation set for your intent detector?</aside>
+</section>
+
+<!-- ===================== 6. OCR FUNDAMENTALS ===================== -->
+<section class="slide" data-title="OCR fundamentals">
+  <div class="kicker">Topic 3 · OCR for enterprise documents</div>
+  <h2>OCR is lossy ETL: <span class="hl">every model downstream inherits its errors</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 240" role="img" aria-label="Five enterprise document types enter a decision: is the document already text? Born-digital documents go straight to text-layer extraction; scans go through an OCR engine that returns text, layout and confidence. Both feed field extraction and a gate on key fields: a pass goes to the system of record, a failure goes to human review, whose corrections become the evaluation set">
+      <g id="s-ocr"></g>
+    </svg>
+    <table class="cmp tight plain mt">
+      <tr><th></th><th>Traditional OCR · Tesseract</th><th>Cloud AI OCR · Azure AI Vision, Textract <span class="aw">overview · demo</span></th><th>Multimodal LLM extraction</th></tr>
+      <tr><td>Output</td><td>Text, word boxes, confidence</td><td>Lines, words, polygons, confidence; Textract adds forms, tables and expense fields</td><td>The fields in the schema you define</td></tr>
+      <tr><td>Layout</td><td>Rule-based page segmentation</td><td>Learned layout analysis</td><td>Semantic; no geometric guarantees</td></tr>
+      <tr><td>Determinism</td><td>Deterministic</td><td>Deterministic per service version</td><td>Not deterministic</td></tr>
+      <tr><td>Typical failure</td><td>A noisy scan gives garbage, silently</td><td>Fewer errors, at a cost per page</td><td><b>A plausible, invented value</b></td></tr>
+    </table>
+  </div>
+  <aside class="notes">Ask "is this already text?" before "which OCR engine?": a born-digital policy such as POL-SEC-012 carries a text layer, and extracting it is faster, cheaper and exact. For scans, OCR is the lossy ETL step at the front of the workflow, and whatever it misreads every downstream model inherits. Dwell on the table's last row: Tesseract fails visibly, a multimodal LLM fails plausibly, with a confident value that was never on the page. Cloud OCR is an overview plus an instructor demo, with no separate lab, so compress it if pacing slips; Microsoft now documents the service as Azure Vision in Foundry Tools and points document OCR at the Document Intelligence read model. In practice the choice is settled by where the documents live and which cloud already has a data-processing agreement. Ask: which of your document types arrive born-digital, and which as scans?</aside>
+</section>
+
+<!-- ===================== 7. TESSERACT PIPELINE ===================== -->
+<section class="slide" data-title="Tesseract pipeline">
+  <div class="kicker">Topic 3 · OCR for enterprise documents <span class="aw">Cloud OCR: instructor demo, no separate lab</span></div>
+  <h2>Measure OCR before you fix it: <span class="hl">layout and image quality need different cures</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 240" role="img" aria-label="Grouped bar chart of Tesseract character error rate on four synthetic documents under three settings. The clean invoice falls from 0.403 to 0.004 when page segmentation changes from psm 3 to psm 4; the degraded scan only falls from 0.499 to 0.029 after preprocessing. Right: confidence bars for three fields of invoice INV-88342 against a gate at 60; the invoice ID at 93 passes, the total at 41 and the due date at 55 go to human review">
+      <g id="s-cer"></g>
+    </svg>
+    <div class="rules2 mt">
+      <div class="card"><h3>Layout error → page segmentation</h3><p>The default psm 3 emits table columns as separate blocks; psm 4 keeps each row together. Clean invoice: 0.403 → 0.004.</p></div>
+      <div class="card"><h3>Image error → preprocessing</h3><p>Grey, contrast, median filter, deskew, Otsu threshold: the scan falls from 0.492 to 0.029. Page segmentation alone barely helps.</p></div>
+      <div class="card"><h3>Never preprocess blindly</h3><p>The clean invoice gets worse (0.004 → 0.011), and the deskew cannot correct the photo's perspective (0.129).</p></div>
+      <div class="card"><h3>Confidence is OCR's gift</h3><p>Per-word confidence is a signal an LLM does not give you. Gate the ID, total, date and IBAN on it, never the page average.</p></div>
+    </div>
+  </div>
+  <aside class="notes">The chart is deterministic for Tesseract 5.5.3, and learners reproduce it in Lab 02 Parts 1 and 2; other versions give different third decimals but the same relationships. The clean invoice's 40% character error rate is a reading-order problem, not a recognition problem, so page segmentation fixes it. The scan's error is image quality, so preprocessing fixes it, and the same preprocessing makes the clean image slightly worse: measure, never preprocess blindly. The field gate on the right is the guide's representative output for the degraded scan: the true total is 1,491.24 and the true due date is 21 Oct 2026, so both misreads go to a human. Ask: what is your business-critical field set, and what threshold would you defend to Finance?</aside>
+</section>
+
+<!-- ===================== 8. ATTENTION ===================== -->
+<section class="slide" data-title="Attention">
+  <div class="kicker">Topic 4 · Transformer architecture &amp; attention</div>
+  <h2>Self-attention lets each token read the others: <span class="hl">that mechanism explains the bill</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 230" role="img" aria-label="Left: a four-by-four causal attention matrix for the tokens laptop, asks, recovery and key, with the upper triangle masked. Centre: for each query token in turn, arcs to the earlier tokens with thickness proportional to the attention weight; the token key draws 0.56 from itself and 0.35 from asks. Right: three consequences: compute grows with the square of the length, the prompt is processed in parallel but output is generated one token per step, and output tokens cost more">
+      <g id="s-attn"></g>
+    </svg>
+    <table class="cmp tight plain mt">
+      <tr><th>Family</th><th>Attention</th><th>Trained to</th><th>Examples</th><th>Where you use it</th></tr>
+      <tr><td>Encoder-only</td><td>Bidirectional</td><td>Fill in masked tokens</td><td>BERT, mDeBERTa, Sentence-BERT encoders</td><td>NER, POS, zero-shot NLI, embeddings</td></tr>
+      <tr><td>Decoder-only</td><td>Causal, left to right</td><td>Predict the next token</td><td>GPT and Claude families, gpt-oss, SmolLM2</td><td>Generation, reasoning and tool use (Modules 2–5)</td></tr>
+      <tr><td>Encoder–decoder</td><td>Encoder, plus cross-attention</td><td>Map one sequence to another</td><td>The original Transformer, T5, TrOCR</td><td>Translation, summarisation, transformer OCR</td></tr>
+    </table>
+  </div>
+  <aside class="notes">You will not implement a transformer; you need just enough to explain three production facts. Self-attention lets every token draw information from every other token, so compute grows roughly with the square of the sequence length and long prompts add latency. The prompt is processed in one parallel pass, but output comes one token per step through the KV cache, which is one reason output tokens cost five times input on Claude Opus 5.5. The matrix is exact for the guide's seeded four-token toy; watch each row light up in turn, and note the causal mask. Ask: which family would you deploy for NER on 6,000 tickets a day, and why not the biggest decoder you can buy?</aside>
+</section>
+
+<!-- ===================== 9. SAMPLING ===================== -->
+<section class="slide" data-title="Sampling">
+  <div class="kicker">Topic 5 · LLM architecture: context windows, hallucinations &amp; limits</div>
+  <h2>Temperature reshapes the next-token odds, <span class="hl">but hosted APIs now hide the dial</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 236" role="img" aria-label="Left: the generation loop. Context tokens go through a forward pass to logits, softmax with temperature turns them into probabilities, the next token is picked and appended, and the loop repeats until the response returns with a stop reason and usage. Right: four small bar charts of the same four priority labels at temperatures 0.2, 0.7, 1.0 and 1.5; P2 falls from 0.92 to 0.47 while P1 rises from 0.08 to 0.34">
+      <g id="s-temp"></g>
+    </svg>
+    <table class="cmp tight plain mt">
+      <tr><th></th><th>OpenAI Responses API</th><th>Claude Messages API</th></tr>
+      <tr><td><code>temperature</code>, <code>top_p</code></td><td>Only with <code>reasoning={"effort": "none"}</code>, on models that offer it (<code>gpt-6.1-terra</code>, <code>gpt-6-luna</code>); otherwise a 400</td><td>No such argument in the SDK (<code>TypeError</code>); current models accept only the defaults, and API version <code>2026-10-21</code> rejects the fields with a 400</td></tr>
+      <tr><td>The dial you do have</td><td><code>reasoning={"effort": "low"}</code></td><td><code>output_config={"effort": "low"}</code>: <code>low</code> · <code>medium</code> · <code>high</code> · <code>xhigh</code> · <code>max</code></td></tr>
+      <tr><td>Consistency comes from</td><td colspan="2">A constrained task, a schema, validation, and tests that assert on structure rather than on exact text</td></tr>
+    </table>
+  </div>
+  <aside class="notes">A model never writes an answer: it scores every vocabulary token, turns the scores into probabilities and picks one, over and over. Temperature divides the logits before the softmax; the four charts are exact maths for one ticket's priority (logits 3.1, 2.6, 1.4 and −0.5). At T = 1.0 the ticket comes back P1 about a third of the time, and that variability comes from decoding, before any question of prompt quality. Then the API reality, verified for the course pins: OpenAI accepts temperature only at reasoning effort none, on the models that offer it; the Claude SDK has no sampling arguments, and current Claude models accept only the defaults. Lab 01 Part 2 sweeps temperature on a local SmolLM2 model and provokes both errors on purpose. Ask: if you cannot turn the temperature down, how do you get consistent triage?</aside>
+</section>
+
+<!-- ===================== 10. CONTEXT WINDOW ===================== -->
+<section class="slide" data-title="Context window">
+  <div class="kicker">Topic 5 · LLM architecture: context windows, hallucinations &amp; limits</div>
+  <h2>The context window is working memory, <span class="hl">not storage</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 240" role="img" aria-label="Left: one request's context window of about a million tokens, filled with instructions and tool definitions, history, retrieved documents and OCR text, the current message, unused space and reserved output. Above it, an illustrative recall curve that is high at the start and end and dips in the middle, where a buried root cause sits. Right: the same complaint costs 16 tokens in English, 20 in German, 22 in Hindi and 25 in Japanese">
+      <g id="s-ctx"></g>
+    </svg>
+    <div class="terms2">
+      <div class="term sm"><div class="bar"><i></i><i></i><i></i></div><span class="c"># OpenAI Responses API · count, cap, check</span>
+n = openai_client.responses.input_tokens.<span class="h">count</span>(
+        model=OPENAI_MODEL, input=log).input_tokens
+r = openai_client.responses.<span class="h">create</span>(model=OPENAI_MODEL, input=log,
+                                   max_output_tokens=<span class="y">64</span>)
+<span class="a">if</span> r.status == <span class="p">"incomplete"</span>:
+    r.incomplete_details.reason     <span class="c"># "max_output_tokens"</span></div>
+      <div class="term sm"><div class="bar"><i></i><i></i><i></i></div><span class="c"># Claude Messages API · count, cap, check</span>
+n = claude_client.messages.<span class="h">count_tokens</span>(
+        model=ANTHROPIC_MODEL, messages=msgs).input_tokens
+m = claude_client.messages.<span class="h">create</span>(model=ANTHROPIC_MODEL,
+                                  max_tokens=<span class="y">64</span>, messages=msgs)
+m.stop_reason   <span class="c"># "end_turn" · "max_tokens" · "refusal"</span>
+                <span class="c"># · "model_context_window_exceeded"</span></div>
+    </div>
+  </div>
+  <aside class="notes">The window is the model's working memory for one request: instructions, tool definitions, history, retrieved documents, OCR text, the current message and the output, thinking included, all count. Every current model in both families offers about a million tokens, so the problem has moved from fitting text in to choosing what goes in. You pay for every token on every call, latency rises, and facts in the middle are used less well; the curve is illustrative of the lost-in-the-middle result and Anthropic's "context rot". Count with each provider's own endpoint, because tokenisers differ and Japanese costs 1.56 times English for the same complaint; reserve the output; read the stop condition before you trust the text. Lab 01 Part 4 ends with a pre-flight guard that refuses an oversized request before it costs anything. Ask: what is your rule when a request would not fit: trim, summarise or retrieve?</aside>
+</section>
+
+<!-- ===================== 11. HALLUCINATIONS ===================== -->
+<section class="slide" data-title="Hallucinations">
+  <div class="kicker">Topic 5 · LLM architecture: context windows, hallucinations &amp; limits</div>
+  <h2>Hallucination is expected behaviour: <span class="hl">ground it, permit abstention, verify in code</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 230" role="img" aria-label="Six triggers, a false premise, an unseen internal document, a citation request, an unknowable private fact, the knowledge cutoff and a forced format, all lead to fluent, specific and wrong output. To engineer around it, the article KB-0042 and the question go to the LLM with a GroundedAnswer schema, and code checks the quote: it is grounded if the quote is in the article, abstained if the model says the answer is unsupported, and unverified if the quote is not in the article">
+      <g id="s-hal"></g>
+    </svg>
+    <div class="term sm mt"><div class="bar"><i></i><i></i><i></i></div><span class="c"># Lab 01 Part 3 · one Pydantic schema drives structured output on both providers</span>
+<span class="a">class</span> <span class="h">GroundedAnswer</span>(BaseModel):
+    supported: bool            <span class="c"># True only if the article states the answer</span>
+    answer: str | <span class="a">None</span>         <span class="c"># null when the article does not contain it</span>
+    quote: str | <span class="a">None</span>          <span class="c"># one sentence copied verbatim from the article</span>
+a = openai_client.responses.<span class="h">parse</span>(..., text_format=GroundedAnswer).output_parsed
+a = claude_client.messages.<span class="h">parse</span>(..., output_format=GroundedAnswer).parsed_output
+verified = a.quote <span class="a">is not None and</span> a.quote <span class="a">in</span> kb_0042_text     <span class="c"># code decides, not the model</span></div>
+  </div>
+  <aside class="notes">A hallucination is fluent output unsupported by the world (factuality) or by the supplied context (faithfulness). Training and evaluation reward a confident guess over "I don't know", so treat it as expected behaviour and engineer around it rather than prompting it away. The first five triggers are the probes learners run in Lab 01 Part 3; the forced-format one returns in Lab 02, where a required po_number gets invented. Grounding means three things at once: supply the source, permit abstention, and demand evidence your code can check deterministically. If a row comes back UNVERIFIED, the model invented its own evidence: that is a finding, not a broken lab. Ask: which fields in your systems could you verify against a system of record before anyone acts on them?</aside>
+</section>
+
+<!-- ===================== 12. EMBEDDINGS ===================== -->
+<section class="slide" data-title="Embeddings">
+  <div class="kicker">Topic 6 · Embeddings &amp; multilingual semantic similarity</div>
+  <h2>Multilingual embeddings put a German ticket <span class="hl">next to the English article that solves it</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 240" role="img" aria-label="Left: cosine similarity of one VPN complaint in five languages to the English sentence. With the English-only model the translations score 0.25 to 0.46; with the multilingual model they score 0.95 to 0.99. Right: matching 28 multilingual tickets to 7 English knowledge-base articles; the English-only model is 57 percent correct and sends 23 of 28 tickets to a human, while the multilingual model is 100 percent correct and sends none">
+      <g id="s-emb"></g>
+    </svg>
+    <div class="rules2 mt">
+      <div class="card"><h3>A score is not a probability</h3><p>Rank within one query. Set thresholds from labelled pairs, per model and per language, because the scales differ.</p></div>
+      <div class="card"><h3>Negation barely moves the vector</h3><p>"The VPN works" versus "does not work" after the password change: 0.96–0.98. Use a classifier for polarity.</p></div>
+      <div class="card"><h3>Identifiers are invisible</h3><p><code>INC-104233</code> versus <code>INC-104234</code>: 0.97–0.99. Extract IDs with a pattern and look them up exactly.</p></div>
+      <div class="card"><h3>Vectors belong to one model</h3><p>Store <code>model_id</code> with every vector and never mix versions in an index: an upgrade is a data migration.</p></div>
+    </div>
+  </div>
+  <aside class="notes">An embedding is a fixed-length feature vector for meaning; cosine similarity measures the angle between two of them. The multilingual Sentence Transformers model was trained by knowledge distillation, so a sentence and its translations land almost on top of each other; the English-only model only sees shared sub-words, which is why the Latin-script "VPN" keeps Hindi and Japanese above zero. On Lab 02's 28 tickets the English-only model's median best score is 0.11 against 0.70, so a 0.35 escalation rule would push most of the queue to humans. Anthropic offers no embedding model of its own (its docs point to Voyage AI); OpenAI has text-embedding-3; the labs use local models, which serve either provider. Ask: what happens to your vector index on the day you upgrade the embedding model?</aside>
+</section>
+
+<!-- ===================== 13. MODEL SELECTION ===================== -->
+<section class="slide" data-title="Model selection">
+  <div class="kicker">Topic 7 · Model selection &amp; Responsible AI</div>
+  <h2>Pick the agent type first, <span class="hl">then the cheapest tier that passes your evals</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 270" role="img" aria-label="A grid of five agent types, from single-call classifier to multi-agent system, against three model tiers, frontier, balanced and fast, with their price ranges. Lab 03's scenarios sit in it: UC-1 ticket triage as a fast single-call classifier at 13 dollars a month, UC-3 invoice extraction as a balanced batch workflow at 86 to 173 dollars, UC-4 multilingual IT help as a balanced RAG assistant at 779 dollars, and UC-2 root-cause analysis as a frontier tool-using agent with human approval at 798 dollars. More autonomy means more cost, latency and risk">
+      <g id="s-sel"></g>
+    </svg>
+    <div class="cards4">
+      <div class="card"><h3>1 · Filter</h3><p>Hard constraints such as <b>EU residency</b> or an existing data-processing agreement are filters, not weights.</p></div>
+      <div class="card"><h3>2 · Shortlist</h3><p>At least one <b>OpenAI</b> and one <b>Claude</b> model, plus a local baseline, that can all hold the worst-case input.</p></div>
+      <div class="card"><h3>3 · Measure</h3><p>At least 50 labelled items: quality, p95 latency and <b>cost per completed task</b>, not price per token.</p></div>
+      <div class="card"><h3>4 · Decide and date it</h3><p>Break ties with a criterion agreed <b>before</b> scoring, and record it in the comparison sheet with a review date.</p></div>
+    </div>
+  </div>
+  <aside class="notes">Read the grid left to right as more autonomy, and top to bottom as cheaper tiers. The agent type comes first: if you can draw the flowchart, build a workflow and let code own the control flow. The costs are Lab 03's numbers at list prices on 27 October 2026, with caching and the Batch API where a scenario allows them: UC-1 on Claude Haiku 5.5 or GPT-6 Luna, UC-3 on GPT-6.1 Terra or Claude Sonnet 5.5, UC-4 on Sonnet 5.5 or GPT-6.1 Sol, UC-2 on Claude Opus 5.5. Within a provider the tiers span about a hundredfold; across providers the same tier often costs the same. Model IDs change several times a year, so course code reads them from OPENAI_MODEL and ANTHROPIC_MODEL, never from source. Ask: for UC-2, at 120 requests a day, is the bill or the evidence the deciding factor?</aside>
+</section>
+
+<!-- ===================== 14. RESPONSIBLE AI ===================== -->
+<section class="slide" data-title="Responsible AI">
+  <div class="kicker">Topic 7 · Model selection &amp; Responsible AI <span class="aw">30 min · no separate exercise</span></div>
+  <h2>Responsible AI is real only as <span class="hl">a test, a log field, a gate or an owner</span></h2>
+  <div class="body">
+    <svg viewBox="0 0 1160 230" role="img" aria-label="The document pipeline runs from a ticket or invoice, through redaction and region choice, a logged model call and a validation gate, to the system of record or human review. Each Responsible AI principle lands on one component: privacy on redaction, transparency on the logged model call, safety and reliability on the gate, accountability on change requests for model upgrades, and fairness on per-language evaluation">
+      <g id="s-rai"></g>
+    </svg>
+    <table class="cmp tight plain mt">
+      <tr><th>Framework</th><th>What it is</th><th>Why you will meet it</th></tr>
+      <tr><td>NIST AI Risk Management Framework</td><td>A voluntary US framework: Govern, Map, Measure, Manage</td><td>A common vocabulary for AI risk registers</td></tr>
+      <tr><td>EU AI Act · Regulation (EU) 2024/1689</td><td>Risk-based EU law: obligations scale across four risk levels, including transparency duties</td><td>It applies to systems used in the EU, wherever the vendor is</td></tr>
+      <tr><td>ISO/IEC 42001</td><td>A certifiable management-system standard for AI</td><td>Auditors increasingly ask for it alongside ISO 27001</td></tr>
+    </table>
+  </div>
+  <aside class="notes">The outline gives Responsible AI thirty minutes and no separate exercise, because Module 5 engineers the controls; compress this slide if pacing slips. Map each principle onto the pipeline you are already building. Privacy is redaction before any external call, plus a processing region (Claude's inference_geo, or a cloud region). Transparency is disclosing AI use and logging the model ID, version and a reason. Safety is the validation gate and the human in the loop from the OCR slides. Accountability makes every model upgrade a CHG change request with an owner, a rollback and evals run first. Fairness is per-language evaluation, because tickets in some languages match less reliably and nobody notices without the slice. Lab 03's comparison sheet asks the bias, transparency and governance questions for your chosen model. Ask: who in your organisation owns the model choice, and what gets logged?</aside>
+</section>
+
+<!-- ===================== 15. HANDS-ON ===================== -->
+<section class="slide" data-title="Hands-on">
+  <div class="kicker">Hands-on · Model behaviour, document intelligence &amp; model choice</div>
+  <h2>Three labs that make model behaviour <span class="hl">visible, measurable and defensible</span></h2>
+  <div class="body">
+    <div style="display:grid;grid-template-columns:480px 1fr;gap:20px">
+      <svg viewBox="0 0 480 300" role="img" aria-label="Lab environment: the Jupyter notebooks in labs/module-01 call the OpenAI Responses API and the Claude Messages API, run Tesseract and the local SmolLM2 and Sentence Transformers models, and read the data folder. The instructor's laptop runs the Azure AI Vision Read demo and can share its results into the data folder">
+        <g id="labenv"></g>
+      </svg>
+      <div class="term sm"><div class="bar"><i></i><i></i><i></i></div><span class="c"># Setup · the first 15 minutes of Lab 01 (repo root, venv active)</span>
+<span class="p">$</span> python labs/setup/check_env.py --module 1
+<span class="p">$</span> python labs/setup/prefetch_models.py --module 1
+<span class="c"># Lab 02 · four synthetic documents with known ground truth</span>
+<span class="p">$</span> python labs/module-01/data/make_samples.py
+<span class="c"># All labs · starter notebooks; solutions/ holds the reference</span>
+<span class="p">$</span> jupyter lab labs/module-01/notebooks/
+<span class="c"># Instructor only · Lab 02 Part 4, Azure AI Vision Read</span>
+<span class="p">$</span> python labs/module-01/instructor/cloud_ocr_demo.py \
+      --sample INV-88342_scan.png
+<span class="c"># Clean up (from labs/module-01)</span>
+<span class="p">$</span> rm -rf outputs data/cloud_ocr</div>
+    </div>
+    <div class="labs">
+      <div class="card"><span class="n">01</span><div><h3>Exploring LLM behaviour with OpenAI and Claude</h3><p>60 min · first calls on both SDKs, temperature, hallucination probes, token counts and a pre-flight guard.</p></div></div>
+      <div class="card"><span class="n">02</span><div><h3>Document intelligence: OCR and multilingual embeddings</h3><p>75 min · Tesseract and CER, vision extraction on both SDKs, ticket-to-KB matching in six languages.</p></div></div>
+      <div class="card"><span class="n">03</span><div><h3>Mapping use cases and selecting models</h3><p>45 min · four IT scenarios, a monthly cost model, a weighted matrix and the model comparison sheet.</p></div></div>
+    </div>
+  </div>
+  <aside class="notes">Everything lives in labs/module-01: starter notebooks in notebooks/, reference notebooks in solutions/, synthetic data in data/, the comparison sheet in templates/. Lab 01 (60 minutes, including the 15-minute environment check) proves that both APIs return the same shape of information under different names, that sampling knobs have moved, and that hallucination can be caught in code. Lab 02 (75 minutes) proves that OCR errors are measurable and fixable, that a schema which cannot say "absent" makes a model invent a value, and that a multilingual encoder matches tickets in six languages. Lab 03 (45 minutes) turns all of it into a costed, dated model decision. Lab 02 Part 4 is an instructor-led Azure demo: participants need no cloud credentials. Offline, the Tesseract cells skip and Lab 01 falls back to an illustrative logits vector. If pacing slips, compress Lab 02 Part 4 and Lab 03's dual-provider review, and remember that Lab 03 Parts 1 and 2 can run in the morning, straight after the landscape topic.</aside>
+</section>
+
+<!-- ===================== 16. RECAP ===================== -->
+<section class="slide" data-title="Recap">
+  <div class="kicker">Wrap-up</div>
+  <h2>Key takeaways, and a quick self-check</h2>
+  <div class="body recap">
+    <div class="take">
+      <div class="card"><h3><i>01</i>Tokens are the unit of everything</h3><p>Limits, latency and cost are counted in tokens, per tokeniser: Japanese costs 1.56× English. Count with the provider's endpoint.</p></div>
+      <div class="card"><h3><i>02</i>OCR is lossy ETL</h3><p>Check for a text layer first, diagnose layout versus image quality, and gate business-critical fields on confidence.</p></div>
+      <div class="card"><h3><i>03</i>Working memory, not storage</h3><p>A million tokens is capacity, not a strategy: you pay for every token, and facts in the middle get missed.</p></div>
+      <div class="card"><h3><i>04</i>Expect hallucination</h3><p>Ground the model, permit abstention, and verify quotes, IDs and numbers in code. Assert on structure, not text.</p></div>
+      <div class="card"><h3><i>05</i>Embeddings are per-model coordinates</h3><p>Thresholds per model and language, one model per index, and never match identifiers by embedding.</p></div>
+      <div class="card"><h3><i>06</i>The cheapest tier that passes</h3><p>Agent type first, hard constraints as filters, cost per completed task, and a decision with a review date.</p></div>
+    </div>
+    <div>
+      <div class="quiz">
+        <div class="q"><span class="hint">click to reveal</span>A scan averages 92% OCR confidence. Straight to the ERP?<div class="a">No. Gate the business-critical fields: the total may have been read at 41.</div></div>
+        <div class="q"><span class="hint">click to reveal</span>What does <code>temperature=0</code> do on Claude Opus 5.5?<div class="a">The SDK raises a TypeError; on the wire, a 400. Use a constrained task, a schema and validation.</div></div>
+        <div class="q"><span class="hint">click to reveal</span>Why never match <code>INC-104233</code> by embedding?<div class="a">It and INC-104234 score 0.97–0.99. Extract IDs with a pattern and look them up exactly.</div></div>
+        <div class="q"><span class="hint">click to reveal</span>Two models tie at 4.25. How do you break it?<div class="a">With a criterion agreed before scoring, never by nudging weights. Record it with a review date.</div></div>
+      </div>
+      <!-- Modules 1–4: "Next up" + next module's sentence-case title. Module 5: programme-completion variant. -->
+      <div class="next"><div><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.85">Next up</div><b>Module 2: Prompt engineering, OpenAI &amp; Claude SDKs, LangChain &amp; single agent</b></div><span style="font-size:26px">→</span></div>
+    </div>
+  </div>
+  <aside class="notes">Run the four questions as a quick poll: hands up for yes or no before you reveal each answer. Then hand over to the labs, or, if the labs have already run, close the day by asking each team for the one number from their comparison sheet they would defend in an architecture review. The ticket scenario, the KB articles and the Lab 03 comparison sheet carry straight into Module 2, where triage becomes a prompt-engineering and structured-output problem, built on the OpenAI and Claude SDKs side by side.</aside>
+</section>
+</div></div>
+
+<div class="notes-panel" id="notesPanel"><h4>Speaker notes</h4><div id="notesText"></div></div>
+<div class="controls">
+  <button id="prev" aria-label="Previous slide">←</button>
+  <button id="counter" aria-label="Slide number" disabled style="cursor:default"></button>
+  <button id="next" aria-label="Next slide">→</button>
+  <button id="notesBtn" title="Speaker notes (N)">Notes</button>
+  <button id="themeBtn" title="Toggle theme (T)">Theme</button>
+  <button id="fsBtn" title="Fullscreen (F)">⛶</button>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const txt = (parent, x, y, s, cls, lh = 14) => {
+    const lines = String(s).split("\n");
+    const t = el("text", { x, y: y - ((lines.length - 1) * lh) / 2, class: cls }, parent);
+    lines.forEach((l, i) => el("tspan", { x, dy: i ? lh : 0 }, t, l));
+    return t;
+  };
+  const dot = (parent, cls, path, dur, begin = 0, r = 7) => {
+    const c = el("circle", { r, class: cls }, parent);
+    el("animateMotion", { dur: dur + "s", begin: begin + "s", repeatCount: "indefinite", path }, c);
+    return c;
+  };
+  // A dot that travels a path only between fractions t0..t1 of a shared cycle
+  const seqDot = (parent, cls, path, dur, t0, t1, r = 7) => {
+    const c = el("circle", { r, class: cls, opacity: 0 }, parent);
+    el("animateMotion", { dur: dur + "s", repeatCount: "indefinite", keyPoints: "0;0;1;1", keyTimes: `0;${t0};${t1};1`, calcMode: "linear", path }, c);
+    el("animate", { attributeName: "opacity", values: "0;1;0", keyTimes: `0;${t0};${t1}`, dur: dur + "s", calcMode: "discrete", repeatCount: "indefinite" }, c);
+    return c;
+  };
+  // Show a node from fraction t of the cycle until near the end
+  const appear = (node, t, dur = 8, until = 0.94) =>
+    el("animate", { attributeName: "opacity", values: "0;1;0", keyTimes: `0;${t};${until}`, dur: dur + "s", calcMode: "discrete", repeatCount: "indefinite" }, node);
+  // Show a node only during one phase of a multi-phase cycle
+  const phase = (node, i, n, dur) => {
+    const vals = Array.from({ length: n }, (_, k) => (k === i ? 1 : 0)).join(";");
+    const kt = Array.from({ length: n }, (_, k) => (k / n).toFixed(4)).join(";");
+    el("animate", { attributeName: "opacity", values: vals, keyTimes: kt, dur: dur + "s", calcMode: "discrete", repeatCount: "indefinite" }, node);
+  };
+
+
+  const R = (p, x, y, w, h, cls) => el("rect", { x, y, width: w, height: h, rx: 10, class: cls }, p);
+  const T = (p, x, y, s, cls) => el("text", { x, y, class: cls || "t" }, p, s);
+  // Show a node only between fractions a..b of the cycle
+  const win = (node, a, b, dur) => appear(node, a, dur, b);
+  // A box with a bold title and a muted second line, left-aligned or centred
+  const card = (p, x, y, w, h, cls, a, b, mid) => {
+    R(p, x, y, w, h, cls);
+    const tx = mid ? x + w / 2 : x + 14, c = mid ? " mid" : "";
+    T(p, tx, y + h / 2 - (b ? 3 : -5), a, "t" + c);
+    if (b) T(p, tx, y + h / 2 + 15, b, "m" + c);
+  };
+  const sty = (n, s) => { n.setAttribute("style", s); return n; };
+  const head = (p, x, y, s, c = "") => sty(T(p, x, y, s, "m" + c), "font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:11.5px");
+  const cross = (p, x, y) => sty(T(p, x, y, "✕", "t mid bad-t"), "font-size:22px;font-weight:800");
+
+  const badge = (p, x, y, n, cls) => {
+    el("circle", { cx: x, cy: y, r: 13, class: cls }, p);
+    return sty(T(p, x, y + 5, n, "t mid"), "font-size:13px;font-weight:800");
+  };
+  const line = (p, d, cls) => el("path", { d, class: cls }, p);
+
+  const bad = n => sty(n, "fill:var(--bad)");
+  const cells = (p, x, y, n, w, h, gap, clsAt) => {
+    for (let i = 0; i < n; i++) R(p, x + i * (w + gap), y, w, h, clsAt(i)).setAttribute("rx", 3);
+  };
+
+  /* ---- Slide 1: title animation — the model's eye view: pixels → text → tokens → vectors ---- */
+  const ta = document.getElementById("title-anim");
+  const TD = 8;
+  [ [0, 0, "k0", "Pixels", "INC-104233_ticket.png"], [320, 0, "k1", "Text", "OCR · Tesseract"],
+   [320, 220, "k3", "Tokens", "the unit of cost"], [0, 220, "k2", "Vectors", "384 dims, shown in 2"]].forEach(([x, y, k, a, b], i) => {
+    R(ta, x, y, 260, 160, "box");
+    badge(ta, x + 24, y + 24, String(i + 1), k);
+    T(ta, x + 46, y + 29, a);
+    sty(T(ta, x + 246, y + 29, b, "m end mono"), "font-size:11px");
+    const f = R(ta, x - 4, y - 4, 268, 168, "frame");
+    f.setAttribute("rx", 13);
+    phase(f, i, 4, TD);
+  });
+  // 1 · pixels: a ticket scan, read by a sweeping scan line
+  R(ta, 16, 44, 228, 102, "box2");
+  [ [150, 58], [196, 74], [120, 90], [180, 106], [88, 122], [140, 136]].forEach(([w, y]) =>
+    el("rect", { x: 28, y, width: w, height: 7, rx: 2, class: "ink" }, ta));
+  const scl = el("rect", { x: 16, y: 44, width: 228, height: 3, class: "scan" }, ta);
+  el("animate", { attributeName: "y", values: "44;143;143", keyTimes: "0;0.25;1", dur: TD + "s", repeatCount: "indefinite" }, scl);
+  // 2 · text: what OCR hands on
+  ["INC-104233: After this", "morning's firmware update,", "laptop LT-77410 asks for a", "48-digit recovery key."].forEach((s, i) =>
+    appear(sty(T(ta, 336, 64 + i * 20, s, "mono"), "font-size:12.5px"), 0.25 + i * 0.03, TD, 0.98));
+  sty(T(ta, 336, 148, "text + word boxes + confidence", "m"), "font-size:11.5px");
+  // 3 · tokens: two real tokenisers (exact splits from the guide)
+  const chipRow = (x, y, toks, t0) => toks.forEach((s, i) => {
+    const w = 14 + s.length * 7.4, g = el("g", {}, ta);
+    el("rect", { x, y, width: w, height: 24, rx: 6, class: "k3" }, g);
+    T(g, x + w / 2, y + 16, s, "chip-t");
+    appear(g, t0 + i * 0.03, TD, 0.98);
+    x += w + 6;
+  });
+  sty(T(ta, 336, 268, "o200k_base (OpenAI)", "m mono"), "font-size:11px");
+  chipRow(336, 276, ["INC", "-", "104", "233"], 0.52);
+  sty(T(ta, 336, 326, "WordPiece (BERT)", "m mono"), "font-size:11px");
+  chipRow(336, 334, ["Pass", "##wort", "##änderung"], 0.6);
+  // 4 · vectors: the ticket lands next to KB-0450 (Lab 02's end-to-end score)
+  [ ["KB-0042", 60, 292], ["KB-0107", 96, 346], ["KB-0213", 190, 350], ["KB-0450", 206, 282]].forEach(([n, x, y]) => {
+    el("circle", { cx: x, cy: y, r: 6, class: "d4" }, ta);
+    T(ta, x, y - 11, n, "off-t");
+  });
+  const tdot = el("circle", { r: 7, class: "d0", opacity: 0 }, ta);
+  el("animateMotion", { dur: TD + "s", repeatCount: "indefinite", path: "M40,362 L190,292", keyPoints: "0;0;1;1", keyTimes: "0;0.76;0.88;1", calcMode: "linear" }, tdot);
+  el("animate", { attributeName: "opacity", values: "0;1;0", keyTimes: "0;0.76;0.99", dur: TD + "s", calcMode: "discrete", repeatCount: "indefinite" }, tdot);
+  const tcos = el("g", {}, ta);
+  sty(T(tcos, 112, 318, "cos 0.67 → KB-0450", "t"), "font-size:13px");
+  appear(tcos, 0.88, TD, 0.99);
+  line(ta, "M260,80 L320,80", "ln arrow"); line(ta, "M450,160 L450,220", "ln arrow"); line(ta, "M320,300 L260,300", "ln arrow");
+  seqDot(ta, "d0", "M260,80 L320,80", TD, 0.2, 0.25, 5);
+  seqDot(ta, "d0", "M450,160 L450,220", TD, 0.45, 0.5, 5);
+  seqDot(ta, "d0", "M320,300 L260,300", TD, 0.7, 0.75, 5);
+
+  /* ---- Slide 2: agenda stops (6–8: the topic groups, then Hands-on last) ---- */
+  const stops = [
+    ["Landscape", "foundation models"], ["NLP pipeline", "tokens → intents"], ["OCR", "pixels → text"],
+    ["Attention", "transformers"], ["LLM limits", "sampling · context · hallucination"], ["Embeddings", "multilingual meaning"],
+    ["Model choice", "+ Responsible AI"], ["Hands-on", "3 labs"]
+  ];
+  const sg = document.getElementById("stops");
+  const step = 1038 / (stops.length - 1);
+  stops.forEach(([a, b], i) => {
+    const x = 60 + i * step, up = i % 2 === 0, last = i === stops.length - 1;
+    el("circle", { cx: x, cy: 125, r: 18, style: `fill:${last ? "var(--p2)" : "var(--slide)"};stroke:${last ? "var(--p2)" : "var(--accent)"};stroke-width:4` }, sg);
+    T(sg, x, 131, last ? "▶" : String(i + 1), "t mid");
+    sg.lastChild.setAttribute("style", `fill:${last ? "#fff" : "var(--accent)"};font-size:15px`);
+    T(sg, x, up ? 68 : 182, a, "t mid");
+    T(sg, x, up ? 86 : 200, b, "m mid");
+  });
+
+  /* ---- Slide 3: AI ⊃ ML ⊃ DL ⊃ GenAI, and the production mix for one ticket ---- */
+  const ly = document.getElementById("s-layers");
+  [ [0, 0, 400, 250, "box2", "Artificial intelligence", "rules · search · planning"],
+   [24, 36, 352, 206, "box", "Machine learning", "learns f(features)"],
+   [48, 72, 304, 162, "k0", "Deep learning", "learns the features"],
+   [72, 108, 256, 118, "k3", "Generative AI", "samples outputs"]].forEach(([x, y, w, h, c, a, b]) => {
+    R(ly, x, y, w, h, c);
+    T(ly, x + 14, y + 22, a);
+    T(ly, x + w - 14, y + 22, b, "m end");
+  });
+  R(ly, 96, 160, 208, 50, "hub");
+  T(ly, 200, 182, "Large language models", "t mid");
+  T(ly, 200, 199, "GPT · Claude · gpt-oss", "m mid");
+  head(ly, 470, 12, "One ticket, three layers, rising cost");
+  card(ly, 470, 100, 150, 60, "k0", "INC-104233", "raw ticket text", true);
+  card(ly, 990, 100, 170, 60, "k2", "Escalation record", "ID · entities · summary", true);
+  [ ["Regex  INC-\\d{6}", "IDs · ~$0 · deterministic", "box2", 22], ["BERT-base encoder", "names, places · 110M · CPU", "k0", 100],
+   ["Decoder LLM", "summary · per token · sampled", "k3", 178]].forEach(([a, b, c, y], i) => {
+    card(ly, 680, y, 250, 60, c, a, b);
+    const yc = y + 30, p = `M620,130 C650,130 650,${yc} 680,${yc}`, q = `M930,${yc} C960,${yc} 960,130 990,130`;
+    line(ly, p, "ln arrow"); line(ly, q, "ln arrow");
+    seqDot(ly, "d0", `${p} L930,${yc} ${q.replace("M930," + yc, "")}`, 9, 0.03 + i * 0.32, 0.3 + i * 0.32);
+  });
+
+  /* ---- Slide 4: from pre-training to your application, through one of four doors ---- */
+  const fm = document.getElementById("s-fm");
+  head(fm, 0, 12, "The provider trains");
+  card(fm, 0, 30, 200, 60, "box2", "Pre-train", "next-token prediction");
+  card(fm, 0, 150, 200, 60, "box2", "Post-train", "instructions, preferences");
+  line(fm, "M100,90 L100,150", "ln arrow");
+  R(fm, 250, 70, 180, 100, "hub");
+  T(fm, 340, 106, "Foundation model", "t mid"); T(fm, 340, 126, "frozen weights", "m mid"); T(fm, 340, 144, "knowledge cutoff", "m mid");
+  line(fm, "M200,180 C225,180 225,120 250,120", "ln arrow");
+  head(fm, 490, 12, "You choose a door");
+  const doors = [ ["Provider API", "OpenAI · Claude, newest first", "k4"], ["Hyperscaler", "Azure AI Foundry · Bedrock", "k4"],
+                 ["Open weights", "gpt-oss-20b / 120b, self-hosted", "box"], ["Specialist service", "Azure AI Vision · Textract", "k4"]];
+  doors.forEach(([a, b, c], i) => {
+    const y = 22 + i * 56, yc = y + 24;
+    card(fm, 490, y, 240, 48, c, a, b);
+    const pin = `M430,120 C460,120 460,${yc} 490,${yc}`, pout = `M730,${yc} C760,${yc} 760,120 790,120`;
+    line(fm, pin, "ln-soft"); line(fm, pout, "ln-soft");
+    seqDot(fm, "d3", `${pin} L730,${yc} ${pout.replace("M730," + yc, "")} L1020,120`, 8, 0.02 + i * 0.25, 0.23 + i * 0.25);
+  });
+  head(fm, 790, 12, "You adapt it");
+  R(fm, 790, 62, 190, 116, "box");
+  T(fm, 804, 88, "Your application");
+  ["prompts · retrieval", "tools · memory", "fine-tuning: rarely"].forEach((s, i) => T(fm, 804, 110 + i * 19, s, "m"));
+  line(fm, "M980,120 L1020,120", "ln arrow");
+  R(fm, 1020, 72, 140, 96, "k4");
+  T(fm, 1034, 98, "Enterprise");
+  T(fm, 1034, 120, "Jira · Confluence", "m"); T(fm, 1034, 138, "SharePoint · ERP", "m");
+
+  /* ---- Slide 5: the NLP pipeline over INC-104233 ---- */
+  const nl = document.getElementById("s-nlp");
+  const ND = 9, CW = 9, TX = 20, BL = [118, 160];
+  [ ["Tokenisation", "Pass · ##wort · ##änderung", "k3"], ["POS tagging", "PROPN · NUM · ADP", "k3"],
+   ["NER", "PER · ORG · LOC · MISC", "k3"], ["Semantic similarity", "nearest KB article", "k3"],
+   ["Intent detection", "→ routed ticket", "k2"]].forEach(([a, b, c], i) => {
+    card(nl, i * 241, 0, 196, 54, c, a, b, true);
+    if (i) line(nl, `M${i * 241 - 45},27 L${i * 241},27`, "ln arrow");
+  });
+  R(nl, 0, 72, 1160, 116, "box");
+  const TL = ["INC-104233: After this morning's firmware update, laptop LT-77410 asks for a 48-digit",
+              "recovery key. Reported by Dana Whitfield (Finance, Frankfurt office) to the Service Desk."];
+  const reveal = x => Math.min(0.9, 0.02 + (x / 836) * 0.75);
+  [ [0, "INC-104233", "cons", "regex ✓", "ok-t"], [0, "LT-77410", "cons", "regex ✓", "ok-t"],
+   [1, "Dana Whitfield", "k0", "PER 1.00"], [1, "Finance", "k0", "ORG 0.93"],
+   [1, "Frankfurt", "k0", "LOC 1.00"], [1, "Service Desk", "k0", "ORG 1.00"]].forEach(([li, s, c, lab, lc]) => {
+    const x = TX + TL[li].indexOf(s) * CW, w = s.length * CW, g = el("g", {}, nl);
+    el("rect", { x: x - 2, y: BL[li] - 14, width: w + 4, height: 19, rx: 4, class: c }, g);
+    sty(T(g, x + w / 2, BL[li] + 17, lab, "off-t" + (lc ? " " + lc : "")), "font-family:var(--sans);font-weight:600");
+    appear(g, reveal(x), ND, 0.97);
+  });
+  [ [0, "IN · ORG 0.68 ✕"], [TL[0].indexOf("LT-77410"), "LT · MISC 0.58 ✕"]].forEach(([i, lab]) => {
+    const x = TX + i * CW, g = el("g", {}, nl);
+    line(g, `M${x},${BL[0] - 17} L${x + 2 * CW},${BL[0] - 17}`, "ln-bad");
+    sty(T(g, x, BL[0] - 23, lab, "m bad-t"), "font-size:11.5px;font-weight:600");
+    appear(g, reveal(x) + 0.02, ND, 0.97);
+  });
+  TL.forEach((s, li) => {
+    const t = T(nl, TX, BL[li], s, "tok");
+    t.setAttribute("textLength", s.length * CW);
+    t.setAttribute("lengthAdjust", "spacingAndGlyphs");
+  });
+  const nsc = el("rect", { x: 14, y: 78, width: 3, height: 104, class: "scan" }, nl);
+  el("animate", { attributeName: "x", values: "14;836;836", keyTimes: "0;0.75;1", dur: ND + "s", repeatCount: "indefinite" }, nsc);
+  line(nl, "M846,82 L846,178", "ln-soft");
+  const nres = el("g", {}, nl);
+  T(nres, 864, 108, "Similarity → KB-0450 · 0.67"); T(nres, 864, 126, "disk-encryption recovery key", "m");
+  T(nres, 864, 154, "Intent → disk_encryption"); T(nres, 864, 172, "route: Platform Engineering", "m");
+  appear(nres, 0.8, ND, 0.97);
+  [ ["cons", "Regex: anything with a format, exact"], ["k0", "Pre-trained NER: people, places, teams"],
+   ["badbox", "NER false positives on IDs it has never seen"]].forEach(([c, s], i) => {
+    R(nl, i * 390, 210, 16, 16, c).setAttribute("rx", 4);
+    T(nl, i * 390 + 26, 223, s, "m");
+  });
+
+  /* ---- Slide 6: route by document type: text layer first, then OCR, then a field gate ---- */
+  const oc = document.getElementById("s-ocr");
+  const OD = 10;
+  head(oc, 0, 10, "Enterprise document types");
+  [ ["Supplier invoice", "INV-88341 · scanned"], ["Ticket screenshot", "INC-104233 attachment"],
+   ["Policy or contract", "POL-SEC-012 · born-digital"], ["Request form", "checkboxes, handwriting"],
+   ["Engineering document", "ENG-SPEC-0417 · drawings"]].forEach(([a, b], i) => {
+    const y = 20 + i * 44;
+    card(oc, 0, y, 232, 40, "k0", a, b);
+    line(oc, `M232,${y + 20} C254,${y + 20} 254,120 274,120`, "ln-soft");
+  });
+  el("polygon", { points: "330,76 386,120 330,164 274,120", class: "box2" }, oc);
+  T(oc, 330, 117, "already", "cell-t"); T(oc, 330, 132, "text?", "cell-t");
+  line(oc, "M330,76 L330,40 L440,40", "ln arrow"); T(oc, 338, 60, "yes", "m");
+  card(oc, 440, 14, 220, 52, "cons", "Extract the text layer", "faster, cheaper, exact");
+  line(oc, "M386,120 L440,120", "ln arrow"); T(oc, 394, 112, "no", "m");
+  card(oc, 440, 92, 220, 56, "k1", "OCR engine", "text · layout · confidence");
+  line(oc, "M660,120 L700,120", "ln arrow");
+  line(oc, "M660,40 L785,40 L785,92", "ln arrow");
+  card(oc, 700, 92, 170, 56, "k3", "Extract fields", "regex · NER · LLM");
+  line(oc, "M870,120 L890,120", "ln arrow");
+  el("polygon", { points: "935,82 980,120 935,158 890,120", class: "lag" }, oc);
+  T(oc, 935, 124, "gate", "cell-t");
+  T(oc, 935, 56, "key fields above", "m mid"); T(oc, 935, 72, "threshold, valid?", "m mid");
+  line(oc, "M980,120 C995,120 995,66 1010,66", "ln arrow");
+  line(oc, "M980,120 C995,120 995,176 1010,176", "ln arrow");
+  card(oc, 1010, 40, 150, 52, "k4", "System of record", "on pass · ERP, ITSM");
+  card(oc, 1010, 150, 150, 52, "lag", "Human review", "on fail · → eval set");
+  seqDot(oc, "d0", "M232,40 C254,40 254,120 274,120 L440,120 L660,120 L700,120 L870,120 L890,120 L980,120 C995,120 995,176 1010,176", OD, 0.02, 0.46);
+  seqDot(oc, "d2", "M232,128 C254,128 254,120 274,120 L330,120 L330,40 L660,40 L785,40 L785,120 L870,120 L980,120 C995,120 995,66 1010,66", OD, 0.52, 0.96);
+
+  /* ---- Slide 7: Tesseract character error rate, and the field gate ---- */
+  const ce = document.getElementById("s-cer");
+  const BASE = 192, SC = 300;  // CER 0.5 → 150 px
+  head(ce, 0, 12, "Character error rate · Tesseract 5.5.3 · Lab 02");
+  const cfg = [ ["d1", "psm 3 (default)", 410], ["d0", "psm 4", 540], ["d2", "preprocessed + psm 4", 612]];
+  cfg.forEach(([c, s, x]) => { el("rect", { x, y: 2, width: 12, height: 12, rx: 3, class: c }, ce); T(ce, x + 18, 12, s, "m"); });
+  [0, 0.1, 0.2, 0.3, 0.4, 0.5].forEach(v => {
+    const y = BASE - v * SC;
+    line(ce, `M44,${y} L748,${y}`, "ln-soft");
+    T(ce, 38, y + 4, v.toFixed(1), "off-t end");
+  });
+  [ ["INV-88341", "clean invoice", [0.403, 0.004, 0.011]], ["INV-88342", "degraded scan", [0.499, 0.492, 0.029]],
+   ["INC-104233", "ticket printout", [0.002, 0.000, 0.008]], ["INC-104251", "phone photo", [0.191, 0.209, 0.129]]].forEach(([id, sub, vals], g) => {
+    const gx = 64 + g * 172;
+    vals.forEach((v, k) => {
+      const h = Math.max(1.5, v * SC), x = gx + k * 46;
+      const b = el("rect", { x, y: BASE - h, width: 40, height: h, rx: 3, class: cfg[k][0] }, ce);
+      el("animate", { attributeName: "height", values: `0;${h};${h}`, keyTimes: "0;0.15;1", dur: "8s", repeatCount: "indefinite" }, b);
+      el("animate", { attributeName: "y", values: `${BASE};${BASE - h};${BASE - h}`, keyTimes: "0;0.15;1", dur: "8s", repeatCount: "indefinite" }, b);
+      T(ce, x + 20, BASE - h - 5, v.toFixed(3), "off-t");
+    });
+    sty(T(ce, gx + 66, BASE + 18, id, "t mid"), "font-size:13px");
+    T(ce, gx + 66, BASE + 34, sub, "m mid");
+  });
+  sty(T(ce, 134, 168, "layout ✓", "m mid ok-t"), "font-weight:700");
+  sty(T(ce, 351, 160, "image ✓", "m mid ok-t"), "font-weight:700");
+  T(ce, 800, 16, "Gate on fields, not on the page");
+  T(ce, 800, 34, "INV-88342 · psm 11 · representative", "m");
+  const thrX = 930 + 60 * 2.1;
+  [ ["Invoice ID", "INV-88342", 93, "pass"], ["Total", "1,497.24", 41, "→ review · truth 1,491.24"],
+   ["Due date", "21 0ct 2026", 55, "→ review · truth 21 Oct 2026"]].forEach(([f, v, c, out], i) => {
+    const y = 56 + i * 56, ok = c >= 60;
+    T(ce, 800, y + 14, f);
+    T(ce, 800, y + 32, v, "m mono");
+    R(ce, 930, y, 210, 22, "box2").setAttribute("rx", 4);
+    R(ce, 930, y, c * 2.1, 22, ok ? "cons" : "badbox").setAttribute("rx", 4);
+    sty(T(ce, 930 + c * 2.1 - 6, y + 16, String(c), "t end"), "font-size:13px");
+    sty(T(ce, 1140, y + 40, out, "m end " + (ok ? "ok-t" : "bad-t")), "font-weight:600");
+    line(ce, `M${thrX},${y - 5} L${thrX},${y + 27}`, "thr");
+  });
+  T(ce, thrX, 47, "gate: 60", "m mid warn-t");
+
+  /* ---- Slide 8: causal self-attention on four tokens (exact for the guide's seeded toy) ---- */
+  const at = document.getElementById("s-attn");
+  const AD = 8, toks = ["laptop", "asks", "recovery", "key"];
+  const AW = [ [1, 0, 0, 0], [1, 0, 0, 0], [0.17, 0.36, 0.47, 0], [0.05, 0.35, 0.04, 0.56]];
+  const MX = 76, MY = 44, CWd = 54, CH = 38;
+  head(at, 0, 12, "Attention weights · row = query token");
+  toks.forEach((s, j) => T(at, MX + j * (CWd + 4) + CWd / 2, MY - 8, s, "off-t"));
+  AW.forEach((row, i) => {
+    T(at, MX - 8, MY + i * (CH + 4) + CH / 2 + 4, toks[i], "off-t end");
+    row.forEach((w, j) => {
+      const x = MX + j * (CWd + 4), y = MY + i * (CH + 4);
+      if (j > i) { R(at, x, y, CWd, CH, "gone").setAttribute("rx", 4); return; }
+      R(at, x, y, CWd, CH, "box2").setAttribute("rx", 4);
+      sty(R(at, x, y, CWd, CH, "hm"), `fill-opacity:${(0.08 + 0.85 * w).toFixed(2)}`).setAttribute("rx", 4);
+      sty(T(at, x + CWd / 2, y + CH / 2 + 4, w.toFixed(2), "cell-t"), w > 0.5 ? "fill:var(--slide)" : "");
+    });
+  });
+  T(at, MX, MY + 4 * (CH + 4) + 14, "upper triangle masked: no peeking ahead", "m");
+  const TXs = [430, 530, 630, 730], TY = 176;
+  sty(T(at, 580, 30, "softmax(Q·Kᵀ / √d) · V", "t mid mono"), "font-size:15px");
+  T(at, 580, 50, "each row: how much one token draws from the others", "m mid");
+  toks.forEach((s, i) => card(at, TXs[i] - 44, TY, 88, 34, "box", s, null, true));
+  AW.forEach((row, i) => {
+    const g = el("g", {}, at);
+    R(g, MX - 4, MY + i * (CH + 4) - 3, 4 * (CWd + 4), CH + 6, "frame").setAttribute("rx", 6);
+    R(g, TXs[i] - 47, TY - 3, 94, 40, "frame").setAttribute("rx", 8);
+    row.forEach((w, j) => {
+      if (j > i || w === 0) return;
+      const self = i === j, h = 30 + (i - j) * 24;
+      const d = self ? `M${TXs[i] - 14},${TY} C${TXs[i] - 34},${TY - 52} ${TXs[i] + 34},${TY - 52} ${TXs[i] + 14},${TY}`
+                     : `M${TXs[i]},${TY} Q${(TXs[i] + TXs[j]) / 2},${TY - 2 * h} ${TXs[j]},${TY}`;
+      sty(line(g, d, "ln-acc"), `stroke-width:${(1 + w * 9).toFixed(1)};stroke-opacity:${(0.35 + 0.6 * w).toFixed(2)}`);
+      sty(T(g, self ? TXs[i] : (TXs[i] + TXs[j]) / 2, self ? TY - 44 : TY - h - 6, w.toFixed(2), "t mid"), "font-size:12.5px");
+    });
+    phase(g, i, 4, AD);
+  });
+  head(at, 830, 12, "What it costs you");
+  [ ["Compute grows ~n²", "long prompts add latency", "box"],
+   ["Prompt in parallel, output in series", "the KV cache yields one token per step", "box"],
+   ["Output tokens cost more", "Claude Opus 5.5: $4 in vs $20 out per MTok", "lag"]].forEach(([a, b, c], i) =>
+    card(at, 830, 26 + i * 64, 330, 54, c, a, b));
+
+  /* ---- Slide 9: the generation loop, and temperature on one triage decision ---- */
+  const tp = document.getElementById("s-temp");
+  const PD = 8;
+  [ ["Context tokens", "system + messages", "k0"], ["Forward pass", "logits per token", "k3"],
+   ["softmax(z / T)", "→ probabilities", "k3"], ["Pick next token", "sample or greedy", "k3"]].forEach(([a, b, c], i) => {
+    card(tp, i * 165, 92, 140, 56, c, a, b, true);
+    if (i) line(tp, `M${i * 165 - 25},120 L${i * 165},120`, "ln arrow");
+  });
+  line(tp, "M565,92 C565,30 70,30 70,92", "ln-acc arrow-acc");
+  T(tp, 318, 22, "not finished: append the token and go again", "m mid");
+  line(tp, "M565,148 L565,182", "ln arrow");
+  T(tp, 575, 172, "finished", "m");
+  card(tp, 440, 182, 250, 46, "k2", "Response", "text · stop reason · usage", true);
+  dot(tp, "d0", "M70,120 L565,120 L565,92 C565,30 70,30 70,92 L70,120", 4, 0, 6);
+  head(tp, 680, 12, "Next-token odds for one ticket's priority");
+  T(tp, 680, 30, "at T = 1.0 it comes back P1 one time in three", "m");
+  const PB = 200;
+  [ ["0.2", [0.924, 0.076, 0.000, 0.000]], ["0.7", [0.631, 0.309, 0.056, 0.004]],
+   ["1.0", [0.550, 0.334, 0.101, 0.015]], ["1.5", [0.470, 0.337, 0.151, 0.043]]].forEach(([t, ps], k) => {
+    const px = 682 + k * 120;
+    const fr = R(tp, px - 6, 40, 116, 194, "frame"); phase(fr, k, 4, PD);
+    T(tp, px + 52, 60, "T = " + t, "t mid");
+    ps.forEach((p, b) => {
+      const x = px + 4 + b * 26, h = Math.max(1.5, p * 120);
+      el("rect", { x, y: PB - h, width: 20, height: h, rx: 2, class: b === 1 ? "d1" : "d0" }, tp);
+      sty(T(tp, x + 10, PB - h - 4, p.toFixed(2), "off-t"), "font-size:9.5px");
+      T(tp, x + 10, PB + 16, ["P2", "P1", "P3", "P4"][b], "off-t");
+    });
+  });
+
+  /* ---- Slide 10: what fills the window, where recall dips, what tokens cost ---- */
+  const cx = document.getElementById("s-ctx");
+  const BW = 760, BY = 150;
+  head(cx, 0, 12, "One request's context window · ≈ 1M tokens · proportions illustrative");
+  line(cx, "M0,46 C190,46 240,122 380,122 C520,122 570,46 760,46", "ln-acc");
+  T(cx, 0, 38, "lost in the middle (Liu et al., 2023)", "m");
+  T(cx, 760, 38, "recall: start and end are used best", "m end");
+  line(cx, "M380,124 L380,150", "thr");
+  T(cx, 392, 142, "needle: CHG-20931 root cause at 50%", "m");
+  let sx = 0;
+  [ ["instructions + tools", 0.08, "k1"], ["history", 0.14, "box2"], ["retrieved docs + OCR text", 0.40, "k0"],
+   ["current message", 0.05, "k0"], ["unused", 0.20, "ghost"], ["output + thinking (cap 128K)", 0.13, "k2"]].forEach(([s, f, c], i, all) => {
+    const w = f * BW, r = R(cx, sx, BY, w - 2, 40, c), mid = sx + w / 2, ly2 = i % 2 ? 228 : 210;
+    r.setAttribute("rx", 4);
+    appear(r, 0.03 + i * 0.07, 8, 0.97);
+    line(cx, `M${mid},192 L${mid},${ly2 - 12}`, "ln-soft");
+    T(cx, i === 0 ? 0 : i === all.length - 1 ? BW : mid, ly2, s, "m" + (i === 0 ? "" : i === all.length - 1 ? " end" : " mid"));
+    sx += w;
+  });
+  const ndl = el("circle", { cx: 380, cy: BY + 20, r: 6, class: "bad-t" }, cx);
+  el("animate", { attributeName: "r", values: "5;9;5", dur: "2s", repeatCount: "indefinite" }, ndl);
+  head(cx, 830, 12, "Same complaint, four languages");
+  [ ["en", 16, "1.00×"], ["de", 20, "1.25×"], ["hi", 22, "1.38×"], ["ja", 25, "1.56×"]].forEach(([l, n, m], i) => {
+    const y = 28 + i * 34;
+    T(cx, 852, y + 16, l, "t end");
+    R(cx, 862, y, n * 7, 22, "k3").setAttribute("rx", 4);
+    T(cx, 870 + n * 7, y + 16, `${n} tokens · ${m}`, "m");
+  });
+  T(cx, 830, 178, "o200k_base · exact counts · Lab 01", "m");
+  T(cx, 830, 208, "A 900K-token prompt on Opus 5.5");
+  T(cx, 830, 226, "costs $3.60 of input, on every call", "m");
+
+  /* ---- Slide 11: hallucination triggers in, a grounding check out ---- */
+  const hl = document.getElementById("s-hal");
+  const HD = 10;
+  [ ["False premise", "no-GIL default?"], ["Unseen document", "KB-0042"], ["Citation request", "DOIs"],
+   ["Private fact", "Q2 P1 count"], ["Knowledge cutoff", "latest SDK"], ["Forced format", "po_number"]].forEach(([a, b], i) => {
+    const y = 4 + i * 38, p = `M250,${y + 15} C275,${y + 15} 275,115 300,115`;
+    R(hl, 0, y, 250, 30, "k0");
+    sty(T(hl, 12, y + 20, a, "t"), "font-size:13.5px");
+    T(hl, 238, y + 20, b, "m end");
+    line(hl, p, "ln-soft");
+    seqDot(hl, "d0", p, HD, 0.02 + i * 0.06, 0.08 + i * 0.06, 5);
+  });
+  R(hl, 300, 80, 160, 70, "badbox");
+  T(hl, 380, 111, "Fluent, specific", "t mid"); sty(T(hl, 380, 131, "and wrong", "t mid bad-t"), "font-size:14px");
+  line(hl, "M460,115 L500,115", "ln arrow");
+  head(hl, 500, 70, "Engineer around it");
+  card(hl, 500, 85, 160, 60, "k0", "KB-0042.md", "+ the question", true);
+  line(hl, "M660,115 L700,115", "ln arrow");
+  card(hl, 700, 85, 180, 60, "k3", "LLM + schema", "GroundedAnswer", true);
+  T(hl, 790, 166, "code checks the quote", "m mid");
+  [ ["cons", "Grounded", "quote found in KB-0042", 4], ["cons", "Abstained", "supported = false", 89],
+   ["badbox", "UNVERIFIED", "quote not in the article", 174]].forEach(([c, a, b, y], i) => {
+    const q = `C920,115 920,${y + 26} 960,${y + 26}`;
+    card(hl, 960, y, 200, 52, c, a, b);
+    line(hl, `M880,115 ${q}`, "ln arrow");
+    seqDot(hl, i === 2 ? "bad-t" : "d2", `M500,115 L880,115 ${q}`, HD, 0.42 + i * 0.19, 0.58 + i * 0.19);
+  });
+
+  /* ---- Slide 12: one sentence in six languages, two encoders; then 28 tickets ---- */
+  const em = document.getElementById("s-emb");
+  const ED = 8, xs = v => 20 + v * 670;
+  head(em, 0, 12, "Cosine to “The VPN client rejects my new password” (en = 1.0)");
+  [0, 0.25, 0.5, 0.75, 1].forEach(v => { line(em, `M${xs(v)},40 L${xs(v)},196`, "ln-soft"); T(em, xs(v), 214, v.toFixed(2), "off-t"); });
+  [ ["English-only · all-MiniLM-L6-v2", 84, [ ["de", 0.43], ["fr", 0.46], ["es", 0.37], ["hi", 0.31], ["ja", 0.25]], false],
+   ["Multilingual · paraphrase-multilingual-MiniLM-L12-v2", 164, [ ["de", 0.97], ["fr", 0.96], ["es", 0.99], ["hi", 0.97], ["ja", 0.95]], true]]
+    .forEach(([name, y, pts, tight]) => {
+      T(em, 20, y - 30, name);
+      line(em, `M20,${y} L${xs(1)},${y}`, "ln");
+      el("circle", { cx: xs(1), cy: y, r: 8, class: "d4" }, em);
+      T(em, xs(1), y - 13, "en", "off-t");
+      pts.sort((a, b) => a[1] - b[1]).forEach(([l, v], k) => {
+        const c = el("circle", { cx: xs(v), cy: y, r: 6, class: "d0" }, em);
+        el("animate", { attributeName: "cx", values: `${xs(0)};${xs(v)};${xs(v)}`, keyTimes: "0;0.18;1", dur: ED + "s", repeatCount: "indefinite" }, c);
+        if (!tight) T(em, xs(v), k % 2 ? y + 22 : y - 12, `${l} ${v.toFixed(2)}`, "off-t");
+      });
+      if (tight) T(em, xs(0.95) - 12, y - 10, "de · fr · es · hi · ja: 0.95–0.99", "m end");
+    });
+  head(em, 760, 12, "28 tickets → 7 KB articles · 6 languages");
+  [ ["English-only", "57% correct", 23, 46], ["Multilingual", "100% correct", 0, 124]].forEach(([n, acc, human, y]) => {
+    T(em, 760, y, n); T(em, 872, y, acc, "m");
+    for (let i = 0; i < 28; i++) {
+      const sq = R(em, 760 + (i % 14) * 17, y + 10 + Math.floor(i / 14) * 17, 13, 13, i < human ? "lag" : "cons");
+      sq.setAttribute("rx", 3);
+      appear(sq, 0.05 + i * 0.012, ED, 0.97);
+    }
+    T(em, 1008, y + 32, `${human} of 28 → human`);
+  });
+  [ ["lag", "to a human: best score < 0.35", 196], ["cons", "article suggested: score ≥ 0.35", 218]].forEach(([c, s, y]) => {
+    R(em, 760, y - 11, 13, 13, c).setAttribute("rx", 3);
+    T(em, 782, y, s, "m");
+  });
+
+  /* ---- Slide 13: Lab 03's four scenarios on the agent-type × tier grid ---- */
+  const se = document.getElementById("s-sel");
+  const SD = 8, GX0 = 190, GW = 194, RY = [42, 108, 174];
+  head(se, 0, 14, "Tier · USD per MTok");
+  [ ["Single-call classifier", "Module 2"], ["Workflow · pipeline", "Lab 02 · Module 2"], ["RAG assistant", "Module 3"],
+   ["Tool-using agent", "Modules 2 and 4"], ["Multi-agent system", "Module 4"]].forEach(([a, b], c) => {
+    sty(T(se, GX0 + c * GW + GW / 2, 16, a, "t mid"), "font-size:14px");
+    T(se, GX0 + c * GW + GW / 2, 33, b, "m mid");
+  });
+  [ ["Frontier", "$4–10 in · $20–50 out", "Fable 5.1 · Opus 5.5 · Astra"], ["Balanced", "$1–2 in · $5–10 out", "Sonnet 5.5 · Sol · Terra"],
+   ["Fast", "$0.10 in · $0.50 out", "Haiku 5.5 · GPT-6 Luna"]].forEach(([a, b, m], r) => {
+    T(se, 0, RY[r] + 19, a);
+    T(se, 0, RY[r] + 36, b, "m");
+    sty(T(se, 0, RY[r] + 52, m, "m"), "font-size:11.5px");
+    for (let c = 0; c < 4; c++) R(se, GX0 + c * GW + 4, RY[r], GW - 8, 60, "ghost");
+  });
+  R(se, GX0 + 4 * GW + 4, RY[0], GW - 8, 192, "ghost");
+  ["supervisor + specialists", "mixed tiers", "built in Module 4"].forEach((s, i) => T(se, GX0 + 4 * GW + GW / 2, 122 + i * 18, s, "m mid"));
+  [ ["UC-1 · triage", "$13 / month", 0, 2], ["UC-3 · invoices", "$86–173 / month · batch", 1, 1],
+   ["UC-4 · IT help", "$779 / month", 2, 1], ["UC-2 · root cause", "$798 / month · HITL", 3, 0]].forEach(([a, b, c, r], k) => {
+    const g = el("g", {}, se);
+    card(g, GX0 + c * GW + 10, RY[r] + 4, GW - 20, 52, "hub", a, b, true);
+    appear(g, 0.06 + k * 0.18, SD, 0.97);
+  });
+  line(se, `M${GX0},250 L1150,250`, "ln arrow");
+  T(se, 670, 266, "more autonomy → more cost, latency and risk", "m mid");
+  T(se, 0, 266, "Lab 03 · USD / month · list prices, 27 Oct 2026", "m");
+
+  /* ---- Slide 14: where each Responsible AI principle lands in the pipeline ---- */
+  const ra = document.getElementById("s-rai");
+  const PY = 78;
+  card(ra, 0, PY, 170, 64, "k0", "Ticket · invoice", "names, IBANs inside", true);
+  card(ra, 210, PY, 190, 64, "box", "Redact · region", "before any API call", true);
+  card(ra, 440, PY, 210, 64, "k3", "Model call", "log model, version, reason", true);
+  card(ra, 690, PY, 190, 64, "lag", "Validate · gate", "confidence · arithmetic", true);
+  card(ra, 930, 52, 230, 50, "k4", "System of record", "ERP · ITSM", true);
+  card(ra, 930, 120, 230, 50, "lag", "Human review", "low confidence or failed check", true);
+  line(ra, "M170,110 L210,110", "ln arrow"); line(ra, "M400,110 L440,110", "ln arrow"); line(ra, "M650,110 L690,110", "ln arrow");
+  line(ra, "M880,110 C905,110 905,77 930,77", "ln arrow"); line(ra, "M880,110 C905,110 905,145 930,145", "ln arrow");
+  [ ["Privacy", 210, 190], ["Transparency", 440, 210], ["Safety & reliability", 690, 190]].forEach(([s, x, w]) => {
+    R(ra, x, 4, w, 32, "unrep");
+    sty(T(ra, x + w / 2, 25, s, "t mid"), "font-size:14px");
+    line(ra, `M${x + w / 2},36 L${x + w / 2},${PY}`, "ln-soft");
+  });
+  [ ["Accountability", "model upgrade = CHG-…: owner, rollback, evals", 210, 440, 545],
+   ["Fairness", "per-language evaluation slices and thresholds", 690, 470, 785]].forEach(([a, b, x, w, cm]) => {
+    R(ra, x, 184, w, 44, "unrep");
+    sty(T(ra, x + 14, 211, a, "t"), "font-size:14px");
+    T(ra, x + 130, 211, b, "m");
+    line(ra, `M${cm},184 L${cm},${PY + 64}`, "ln-soft");
+  });
+  seqDot(ra, "d0", "M85,110 L880,110 C905,110 905,77 930,77", 8, 0.04, 0.44);
+  seqDot(ra, "d0", "M85,110 L880,110 C905,110 905,145 930,145", 8, 0.54, 0.94);
+
+  /* ---- Slide 15: lab environment ---- */
+  const lb = document.getElementById("labenv");
+  card(lb, 140, 6, 200, 60, "hub", "Jupyter notebooks", "labs/module-01", true);
+  [ ["OpenAI", "Responses API", "k4"], ["Claude", "Messages API", "k4"], ["Tesseract 5.x", "local binary", "k1"],
+   ["SmolLM2 · ST", "local HF cache", "k1"]].forEach(([a, b, c], i) => {
+    const p = `M240,66 L${i * 122 + 57},110`;
+    card(lb, i * 122, 110, 114, 60, c, a, b, true);
+    line(lb, p, "ln arrow");
+    seqDot(lb, "d0", p, 8, 0.02 + i * 0.2, 0.16 + i * 0.2, 5);
+  });
+  card(lb, 0, 226, 220, 60, "box2", "data/", "samples · tickets · KB · catalogue", true);
+  card(lb, 260, 226, 220, 60, "k5", "Instructor demo", "Azure AI Vision Read", true);
+  line(lb, "M240,66 L240,198 L110,198 L110,226", "ln arrow");
+  line(lb, "M260,256 L222,256", "ln-soft arrow");
+  sty(T(lb, 370, 216, "← shares *.azure.json (optional)", "m mid"), "font-size:11.5px");
+
+  /* ---- Quiz ---- */
+  document.querySelectorAll(".q").forEach(q => q.addEventListener("click", () => q.classList.toggle("open")));
+
+  /* ---- Deck navigation ---- */
+  const deck = document.getElementById("deck");
+  const slides = [...document.querySelectorAll(".slide")];
+  const N = slides.length;
+  slides.forEach((s, i) => {
+    const f = document.createElement("div");
+    f.className = "foot";
+    f.innerHTML = `<span><b>Module 1</b> · GenAI, NLP, OCR &amp; LLM Fundamentals</span><span>${String(i + 1).padStart(2, "0")} / ${N}</span>`;
+    s.appendChild(f);
+  });
+  let cur = 0;
+  function fit() {
+    const s = Math.min(window.innerWidth / 1320, window.innerHeight / 750);
+    deck.style.transform = `scale(${s})`;
+  }
+  function motion() {
+    for (let k = 0; k < N; k++) {
+      const on = k === cur;
+      slides[k].querySelectorAll("svg").forEach(svg => {
+        if (!svg.pauseAnimations) return;
+        if (on) svg.unpauseAnimations();
+        else svg.pauseAnimations();
+      });
+    }
+  }
+  function go(i) {
+    cur = Math.max(0, Math.min(N - 1, i));
+    slides.forEach((s, k) => { s.classList.toggle("active", k === cur); s.classList.toggle("before", k < cur); });
+    document.getElementById("counter").textContent = `${cur + 1} / ${N}`;
+    document.getElementById("progress").style.width = ((cur + 1) / N * 100) + "%";
+    const n = slides[cur].querySelector("aside.notes");
+    document.getElementById("notesText").textContent = n ? n.textContent : "";
+    if (location.hash !== "#" + (cur + 1)) history.replaceState(null, "", "#" + (cur + 1));
+    motion();
+  }
+  function toggleTheme() {
+    const r = document.documentElement;
+    const dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    r.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("aai-m1-deck-theme", r.dataset.theme); } catch (e) {}
+  }
+  try { const t = localStorage.getItem("aai-m1-deck-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  const toggleNotes = () => document.getElementById("notesPanel").classList.toggle("show");
+  const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+
+  document.getElementById("prev").onclick = () => go(cur - 1);
+  document.getElementById("next").onclick = () => go(cur + 1);
+  document.getElementById("notesBtn").onclick = toggleNotes;
+  document.getElementById("themeBtn").onclick = toggleTheme;
+  document.getElementById("fsBtn").onclick = fullscreen;
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(k)) { e.preventDefault(); go(cur + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(k)) { e.preventDefault(); go(cur - 1); }
+    else if (k === "Home") go(0);
+    else if (k === "End") go(N - 1);
+    else if (k === "n" || k === "N") toggleNotes();
+    else if (k === "t" || k === "T") toggleTheme();
+    else if (k === "f" || k === "F") fullscreen();
+  });
+  let tx = null;
+  document.addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (tx == null) return; const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 50) go(cur + (dx < 0 ? 1 : -1)); tx = null;
+  });
+  window.addEventListener("resize", fit);
+  window.addEventListener("hashchange", () => go((parseInt(location.hash.slice(1), 10) || 1) - 1));
+  document.querySelectorAll(".slide svg").forEach(svg => { if (svg.pauseAnimations) svg.pauseAnimations(); });
+  fit();
+  go((parseInt(location.hash.slice(1), 10) || 1) - 1);
+  document.documentElement.classList.add("deck-ready");
+})();
+</script>
+</body>
+</html>

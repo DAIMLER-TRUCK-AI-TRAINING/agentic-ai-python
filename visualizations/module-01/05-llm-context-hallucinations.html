@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Windows &amp; Hallucinations</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .tok { font-family: var(--mono); font-size: 13px; }
+  .lab { font-family: var(--mono); font-size: 11.5px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .say { font-size: 13.5px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>5 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 5</div>
+  <h1>A next-token sampler with a fixed-size memory</h1>
+  <p class="lede">An LLM picks each token by sampling from a probability distribution, and it sees only what fits in its context
+    window on <em>this</em> call. Drag temperature and top-p to reshape the distribution. Then switch to <b>Context window</b>, push the
+    conversation past 6 turns with <b>Trim oldest</b>, and watch the assistant confidently invent an asset ID.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-v="sample" aria-pressed="true">Next-token sampling</button>
+        <button data-v="window" aria-pressed="false">Context window</button>
+      </div>
+    </div>
+    <div class="controls" id="ctlSample">
+      <label class="range">Temperature <input type="range" id="temp" min="0" max="2" step="0.05" value="1" aria-label="Temperature"> <b id="tempOut" class="mono">1.00</b></label>
+      <label class="range">Top-p <input type="range" id="topp" min="0.05" max="1" step="0.05" value="1" aria-label="Top-p"> <b id="toppOut" class="mono">1.00</b></label>
+      <button class="primary" id="sample">Sample ×10</button>
+      <button id="clear">Clear samples</button>
+    </div>
+    <div class="controls" id="ctlWindow" hidden>
+      <label class="range">Conversation turns <input type="range" id="turns" min="1" max="12" step="1" value="4" aria-label="Conversation turns"> <b id="turnsOut" class="mono">4</b></label>
+      <div class="seg" id="strategy">
+        <button data-v="trim" aria-pressed="true">Trim oldest</button>
+        <button data-v="summary" aria-pressed="false">Summarise older turns</button>
+        <button data-v="reject" aria-pressed="false">Send everything</button>
+      </div>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 340" role="img" aria-label="Next-token probability bars, or a context-window budget bar with the assistant's answer"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Hallucination triggers you will probe in the lab</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Trigger</th><th>Example in our scenario</th><th>Why it happens</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td><b>Missing context</b></td><td>“Which laptop did I report?” after turn 1 was trimmed</td><td>The model predicts plausible tokens; there is no “lookup failed” signal</td><td>Keep key facts in state or a summary; validate IDs against the asset register</td></tr>
+        <tr><td><b>Unknown internal ID</b></td><td>“What does KB-0999 say?” (no such article)</td><td>It continues the familiar pattern of a KB article</td><td>Retrieve first; instruct “say not found”; check cited IDs exist</td></tr>
+        <tr><td><b>False premise</b></td><td>“Why did CHG-20931 cause the outage?” (it did not)</td><td>The model follows the framing it is given</td><td>Ask it to verify premises against retrieved records</td></tr>
+        <tr><td><b>After the training cutoff</b></td><td>“What changed in last week’s VPN client release?”</td><td>Parametric knowledge is frozen at training time</td><td>Retrieval or tools for anything recent</td></tr>
+        <tr><td><b>Exact recall and arithmetic</b></td><td>“Add up the 37 line items on INV-88341”</td><td>It predicts digits rather than computing them</td><td>Extract to structured data, compute in Python</td></tr>
+        <tr><td><b>Sampling</b></td><td>“lease” or “warranty” at high temperature</td><td>Probability mass sits on unlikely continuations</td><td>Where you can set it, keep it low; assert on structure, not wording</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Where the sampling knobs actually live</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Where you run the model</th><th><code>temperature</code> / <code>top_p</code> / <code>top_k</code></th><th>What to do instead</th></tr></thead>
+      <tbody>
+        <tr><td>Open-weights model via HuggingFace <code>generate()</code></td><td>All available with <code>do_sample=True</code></td><td>The best place to see temperature effects directly</td></tr>
+        <tr><td>OpenAI GPT-5-family models</td><td>Rejected on many models while reasoning is active; some accept them with reasoning effort <code>none</code></td><td>Check the model’s API reference before relying on them</td></tr>
+        <tr><td>Anthropic Claude, current models</td><td>Non-default values return a 400; with API version <code>2026-10-21</code>, sending them at all returns a 400</td><td>Get consistency from prompts, structured outputs and evals</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> the model is stateless. Every call resends what it needs, and the context window is
+    one budget shared by the system prompt, retrieved documents, history <em>and</em> the answer. Decide explicitly what to keep (state,
+    summaries, retrieval) rather than letting truncation decide for you (Module 2 memory; Module 4 context engineering).</div>
+  <div class="callout warn"><b>Common trap:</b> “temperature 0 makes it deterministic.” Greedy decoding removes sampling, but serving
+    infrastructure can still vary outputs between calls, and current Claude models do not expose the knob at all. Test structure (the
+    schema validates, the cited ID exists), never exact wording.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="04-transformer-attention.html"><small>← Previous</small>Transformer architecture &amp; attention</a>
+    <a class="next" href="06-embeddings-multilingual-similarity.html"><small>Next →</small>Embeddings &amp; multilingual semantic similarity</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data in the running scenario (course-map §8.3). Logits are invented for the top 8 candidates
+// of a much larger vocabulary; the 8,000-token window is a toy chosen to make overflow visible.
+const DATA = {
+  prompt: 'INC-104233 root cause: the VPN gateway rejected connections because of an expired ___',
+  cands: [['certificate', 4.2], ['licence', 2.7], ['password', 2.3], ['token', 2.0], ['subscription', 1.3], ['session', 1.1], ['warranty', 0.1], ['lease', -0.5]],
+  window: 8000, reserve: 1000, system: 600, kb: 1800, turn: 700, question: 200, summary: 300,
+  fact: 'LT-4471', wrong: 'LT-4417'
+};
+
+const S = { mode: 'sample', temp: 1, topp: 1, samples: [], seed: 7, turns: 4, strategy: 'trim', busy: false };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const stats = document.getElementById('stats'), detail = document.getElementById('detail');
+
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function dist() {
+  const logits = DATA.cands.map(c => c[1]);
+  let p = S.temp < 0.01 ? logits.map((_, i) => (i === 0 ? 1 : 0)) : softmax(logits, S.temp);
+  const order = p.map((x, i) => [x, i]).sort((a, b) => b[0] - a[0]);
+  const keep = new Set(); let cum = 0;
+  for (const [x, i] of order) { keep.add(i); cum += x; if (cum >= S.topp - 1e-9) break; }
+  const z = p.reduce((a, x, i) => a + (keep.has(i) ? x : 0), 0);
+  return { raw: p, final: p.map((x, i) => (keep.has(i) ? x / z : 0)), keep };
+}
+
+function renderSample() {
+  const d = dist();
+  el('text', { x: 20, y: 24, class: 'say', text: DATA.prompt }, svg);
+  DATA.cands.forEach(([t], k) => {
+    const y = 44 + k * 34, inN = d.keep.has(k), w = d.final[k];
+    el('text', { x: 20, y: y + 17, class: 'tok', fill: inN ? 'var(--text)' : 'var(--muted)', text: t }, svg);
+    el('rect', { x: 140, y: y + 5, width: 520, height: 16, rx: 3, fill: 'var(--surface)' }, svg);
+    el('rect', { x: 140, y: y + 5, width: 520 * d.raw[k], height: 16, rx: 3, fill: 'var(--p5)', 'fill-opacity': .25 }, svg);
+    if (inN) el('rect', { x: 140, y: y + 5, width: 520 * w, height: 16, rx: 3, fill: 'var(--p3)' }, svg);
+    el('text', { x: 668, y: y + 18, class: 'lab', fill: inN ? 'var(--text)' : 'var(--muted)', text: inN ? w.toFixed(3) : 'cut by top-p' }, svg);
+  });
+  el('text', { x: 760, y: 56, class: 'hdr', text: 'Sampled tokens' }, svg);
+  const counts = {}; S.samples.forEach(t => counts[t] = (counts[t] || 0) + 1);
+  Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([t, n], k) =>
+    el('text', { x: 760, y: 82 + k * 22, class: 'lab', text: `${t} ×${n}` }, svg));
+  if (!S.samples.length) el('text', { x: 760, y: 82, class: 'lab muted', text: 'press Sample ×10' }, svg);
+  const H = -d.final.reduce((a, x) => a + (x > 0 ? x * Math.log2(x) : 0), 0);
+  stats.innerHTML = `<div class="stat"><b>${d.final[0].toFixed(2)}</b><span>P(“certificate”)</span></div>` +
+    `<div class="stat"><b>${d.keep.size}</b><span>tokens in the nucleus</span></div>` +
+    `<div class="stat"><b>${H.toFixed(2)}</b><span>entropy (bits)</span></div>` +
+    `<div class="stat"><b>${S.samples.length ? (100 * S.samples.filter(t => t !== 'certificate').length / S.samples.length).toFixed(0) + ' %' : '–'}</b><span>samples that are not the top token</span></div>`;
+  detail.innerHTML = `<h3>${S.temp < 0.01 ? 'Greedy decoding: always the top token' : S.temp < 1 ? 'Low temperature sharpens the distribution' : S.temp > 1 ? 'High temperature flattens the distribution' : 'Temperature 1: the model’s raw distribution'}</h3>` +
+    `<p>Faint bars are the probabilities after temperature; solid bars are what is actually sampled after top-p keeps the smallest set whose probability reaches ${S.topp.toFixed(2)} and renormalises. ` +
+    `Current Claude models and many OpenAI reasoning models fix these values server-side; you can set them yourself on open-weights models.</p>`;
+}
+
+function renderWindow() {
+  const B = DATA.window - DATA.reserve, fixed = DATA.system + DATA.kb + DATA.question;
+  const all = S.turns, fitN = Math.floor((B - fixed) / DATA.turn);
+  let kept = all, summary = false, over = 0;
+  if (S.strategy === 'trim') kept = Math.min(all, fitN);
+  else if (S.strategy === 'summary' && all > fitN) { summary = true; kept = Math.floor((B - fixed - DATA.summary) / DATA.turn); }
+  else if (S.strategy === 'reject') over = Math.max(0, fixed + all * DATA.turn - B);
+  const firstKept = all - kept + 1, factIn = firstKept === 1 || summary;
+  const segs = [['system', DATA.system, 'var(--p5)'], ['KB-0042', DATA.kb, 'var(--p2)']];
+  if (summary) segs.push([`summary T1–T${all - kept}`, DATA.summary, 'var(--warn)']);
+  for (let t = firstKept; t <= all; t++) segs.push([`T${t}`, DATA.turn, 'var(--p0)', t === 1]);
+  segs.push(['Q', DATA.question, 'var(--accent)'], ['reserved for output', DATA.reserve, 'var(--p3)']);
+  const total = segs.reduce((a, s) => a + s[1], 0), scale = 820 / Math.max(DATA.window, total);
+  el('text', { x: 40, y: 26, class: 'hdr', text: `Context window: ${DATA.window.toLocaleString('en-GB')} tokens (toy)` }, svg);
+  let x = 40;
+  segs.forEach(([lab, n, c, hasFact]) => {
+    const w = n * scale;
+    el('rect', { x, y: 40, width: w - 1, height: 44, rx: 4, fill: c, 'fill-opacity': .25, stroke: c }, svg);
+    const short = lab.startsWith('summary') ? 'sum.' : lab.split(' ')[0];
+    const txt = lab.length * 6.9 < w - 6 ? lab : short.length * 6.9 < w - 6 ? short : '';
+    if (txt) el('text', { x: x + w / 2, y: 66, 'text-anchor': 'middle', class: 'lab', text: txt }, svg);
+    if (hasFact || (summary && lab.startsWith('summary'))) el('text', { x: x + w / 2, y: 100, 'text-anchor': 'middle', class: 'lab', fill: 'var(--ok)', text: '★ ' + DATA.fact }, svg);
+    x += w;
+  });
+  el('rect', { x: 40, y: 36, width: DATA.window * scale, height: 52, rx: 6, fill: 'none', stroke: 'var(--text)', 'stroke-width': 2 }, svg);
+  if (over) {
+    el('rect', { x: 40 + DATA.window * scale, y: 36, width: total * scale - DATA.window * scale, height: 52, rx: 4, fill: 'var(--bad)', 'fill-opacity': .15, stroke: 'var(--bad)', 'stroke-dasharray': '5 4' }, svg);
+  }
+  if (S.strategy === 'trim' && kept < all) {
+    el('text', { x: 40, y: 130, class: 'lab', fill: 'var(--bad)', text: 'Dropped from this call:' }, svg);
+    for (let t = 1; t < firstKept; t++) {
+      el('rect', { x: 215 + (t - 1) * 54, y: 116, width: 48, height: 22, rx: 4, fill: 'var(--bad-soft)', stroke: 'var(--bad)', 'stroke-dasharray': '3 3' }, svg);
+      el('text', { x: 239 + (t - 1) * 54, y: 131, 'text-anchor': 'middle', class: 'lab', fill: 'var(--bad)', text: `T${t}${t === 1 ? '★' : ''}` }, svg);
+    }
+  }
+  el('text', { x: 40, y: 180, class: 'say', text: `T1 (user): “VPN keeps dropping on my laptop ${DATA.fact}.”` + (all > 1 ? `  …  ${all - 1} more turn${all > 2 ? 's' : ''} about the VPN  …` : '') }, svg);
+  el('text', { x: 40, y: 210, class: 'say', text: `T${all + 1} (user): “Which laptop did I say was affected?”` }, svg);
+  let verdict;
+  if (over) {
+    verdict = 'error';
+    el('rect', { x: 40, y: 228, width: 820, height: 88, rx: 8, fill: 'var(--bad-soft)', stroke: 'var(--bad)' }, svg);
+    el('text', { x: 56, y: 252, class: 'hdr', fill: 'var(--bad)', text: `Request rejected: input ${(fixed + all * DATA.turn).toLocaleString('en-GB')} + reserved output ${DATA.reserve.toLocaleString('en-GB')} > ${DATA.window.toLocaleString('en-GB')} tokens` }, svg);
+    el('text', { x: 56, y: 276, class: 'lab', text: 'OpenAI   HTTP 400   error.code: "context_length_exceeded"' }, svg);
+    el('text', { x: 56, y: 298, class: 'lab', text: 'Claude   HTTP 400   invalid_request_error: "prompt is too long: … tokens > … maximum"' }, svg);
+  } else {
+    verdict = factIn ? 'grounded' : 'hallucinated';
+    const c = factIn ? 'var(--ok)' : 'var(--bad)';
+    el('rect', { x: 40, y: 228, width: 820, height: 60, rx: 8, fill: factIn ? 'var(--ok-soft)' : 'var(--bad-soft)', stroke: c }, svg);
+    el('text', { x: 56, y: 254, class: 'say', text: factIn ? `Assistant: “You reported laptop ${DATA.fact}, in your first message.”`
+      : `Assistant: “That was laptop ${DATA.wrong}. I’ve flagged it for VPN re-enrolment.”` }, svg);
+    el('text', { x: 56, y: 276, class: 'lab', fill: c, text: factIn ? (summary ? 'grounded: the fact survived inside the summary' : 'grounded: turn 1 is still in the window')
+      : `hallucinated: turn 1 was trimmed, so the model produced a plausible ID with full confidence` }, svg);
+  }
+  stats.innerHTML = `<div class="stat"><b>${(fixed + kept * DATA.turn + (summary ? DATA.summary : 0)).toLocaleString('en-GB')}</b><span>input tokens sent (budget ${B.toLocaleString('en-GB')})</span></div>` +
+    `<div class="stat"><b>${over ? all : kept} / ${all}</b><span>turns in the request</span></div>` +
+    `<div class="stat"><b style="color:${factIn || over ? 'var(--ok)' : 'var(--bad)'}">${factIn || over ? 'yes' : 'no'}</b><span>${DATA.fact} in context</span></div>` +
+    `<div class="stat"><b style="color:${verdict === 'grounded' ? 'var(--ok)' : 'var(--bad)'}">${verdict}</b><span>answer</span></div>`;
+  detail.innerHTML = `<h3>${DATA.window.toLocaleString('en-GB')}-token toy window: ${fitN} turns fit after system prompt, KB excerpt, question and ${DATA.reserve.toLocaleString('en-GB')} reserved output tokens</h3>` +
+    `<p>Current models offer far larger windows (Claude’s current models: 1M tokens), but the trade-off is the same: every token you send costs money and latency, and facts buried in long contexts are recalled less reliably. The API never “remembers” turn 1; your application decides what to resend.</p>`;
+  return verdict;
+}
+
+function render() {
+  svg.innerHTML = '';
+  document.getElementById('ctlSample').hidden = S.mode !== 'sample';
+  document.getElementById('ctlWindow').hidden = S.mode !== 'window';
+  return S.mode === 'sample' ? renderSample() : renderWindow();
+}
+
+async function sample10() {
+  if (S.busy) return; S.busy = true;
+  const d = dist(), rnd = mulberry32(S.seed++), got = [];
+  for (let n = 0; n < 10; n++) {
+    let r = rnd(), k = 0;
+    while (k < d.final.length - 1 && (r -= d.final[k]) > 0) k++;
+    const chip = el('g', {}, svg);
+    el('rect', { x: -4, y: -13, width: 96, height: 20, rx: 5, fill: 'var(--p3)' }, chip);
+    el('text', { x: 44, y: 2, 'text-anchor': 'middle', class: 'lab', fill: '#fff', text: DATA.cands[k][0] }, chip);
+    await tween(chip, 140, 57 + k * 34, 760, 70, 160);
+    chip.remove(); got.push(DATA.cands[k][0]); S.samples.push(DATA.cands[k][0]);
+  }
+  S.busy = false; render();
+  logLine(logEl, `T=${S.temp.toFixed(2)}, top-p=${S.topp.toFixed(2)}: ${got.join(', ')}`, got.some(t => t !== 'certificate'));
+}
+
+function knob(id, key, out) {
+  document.getElementById(id).addEventListener('input', e => {
+    S[key] = +e.target.value; S.samples = [];
+    document.getElementById(out).textContent = S[key].toFixed(2);
+    render();
+    const d = dist();
+    logLine(logEl, `${key === 'temp' ? 'Temperature' : 'Top-p'} ${S[key].toFixed(2)} → P(certificate) ${d.final[0].toFixed(2)}, nucleus ${d.keep.size} tokens`);
+  });
+}
+knob('temp', 'temp', 'tempOut'); knob('topp', 'topp', 'toppOut');
+document.getElementById('sample').onclick = sample10;
+document.getElementById('clear').onclick = () => { S.samples = []; render(); logLine(logEl, 'Samples cleared'); };
+bindSeg('mode', v => { S.mode = v; render(); logLine(logEl, v === 'sample' ? 'Mode: next-token sampling' : 'Mode: context window'); });
+bindSeg('strategy', v => { S.strategy = v; const r = render(); logLine(logEl, `Overflow strategy: ${v} → answer ${r}`, r !== 'grounded'); });
+document.getElementById('turns').addEventListener('input', e => {
+  S.turns = +e.target.value; document.getElementById('turnsOut').textContent = S.turns;
+  const r = render(); logLine(logEl, `${S.turns} turns, ${S.strategy} → answer ${r}`, r !== 'grounded');
+});
+render();
+logLine(logEl, 'Illustrative distribution and toy window. Nothing here calls a model.');
+
+renderQuiz('quiz', [
+  { q: 'Why can the assistant forget the laptop ID from turn 1, even though it “read” it earlier in the conversation?',
+    options: ['Because the model’s memory fills up after a fixed number of turns and is wiped.',
+      'Because each API call is stateless: the model sees only what the application sends on that call, and once turn 1 is trimmed it is simply not there.',
+      'Because the provider deletes old messages from the model after an hour.',
+      'Because the model chose to ignore it as unimportant.'],
+    answer: 1,
+    explain: 'There is no hidden memory between calls. Your application resends the history every time, and when it trims, the fact is gone. Memory and context management are application features (Module 2, Module 4).' },
+  { q: 'With <b>Trim oldest</b> at 7 turns, the assistant answered “LT-4417”. What happened?',
+    options: ['The model has a bug in how it copies IDs.',
+      'Temperature was too high.',
+      'Turn 1 no longer fitted in the input budget and was dropped, so the model produced a plausible-looking ID instead of saying it did not know.',
+      'The KB excerpt overwrote the asset ID.'],
+    answer: 2,
+    explain: 'Six 700-token turns fit after the system prompt, KB excerpt, question and reserved output. At 7, turn 1 drops out. Nothing in the model signals “lookup failed”, which is why hallucinations sound so confident. <b>Summarise older turns</b> keeps the fact.' },
+  { q: 'At temperature 1.00 and top-p 0.90, how many candidate tokens can actually be sampled?',
+    options: ['1', '2', '4', '8'],
+    answer: 2,
+    explain: 'Top-p keeps the smallest set whose probabilities reach 0.90: certificate 0.62 + licence 0.14 + password 0.09 + token 0.07 ≈ 0.92. The other four are cut and the four kept are renormalised.' },
+  { q: 'You port lab code that sets <code>temperature=0.2</code> to a current Claude model for “consistent” triage labels. What happens, and what should you do?',
+    options: ['The request returns a 400; remove the parameter and get consistency from a fixed label set, structured output and evals that assert on structure.',
+      'It works exactly as before.',
+      'Claude silently clamps it to 0.',
+      'Set <code>top_p=0.2</code> instead, which Claude still accepts.'],
+    answer: 0,
+    explain: 'Current Claude models reject non-default sampling values, and API version <code>2026-10-21</code> rejects the fields entirely. Many OpenAI reasoning models behave similarly. Design for consistency through constraints and validation, not sampling knobs.' },
+  { q: 'Users of the Enterprise Operations Assistant ask about KB articles that may not exist (“What does KB-0999 say?”). Which design best prevents invented answers?',
+    options: ['Tell the model in the system prompt to “never hallucinate”.',
+      'Use the largest model available; bigger models never invent IDs.',
+      'Lower the temperature to 0.',
+      'Retrieve first and pass only real articles as context, instruct it to answer “not found” when nothing matches, and check that every cited ID exists before showing the answer.'],
+    answer: 3,
+    explain: 'Grounding plus verification is the reliable pattern: the model can only cite what you retrieved, and your code checks the citation. Instructions alone and bigger models reduce the rate but do not remove it (Module 3 builds this).' }
+]);
+</script>
+</body>
+</html>

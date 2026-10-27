@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic AI Module 1 Visualizations</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .topics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 24px; }
+  .topic { display: block; text-decoration: none; color: var(--text); transition: border-color .15s, transform .15s; }
+  .topic:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .topic .num { font-family: var(--mono); color: var(--accent); font-size: 13px; font-weight: 600; }
+  .topic h3 { margin: 6px 0; }
+  .topic p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+  .topic .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  ol.hands { margin: 0; padding-left: 20px; }
+  ol.hands li + li { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span>Agentic AI Systems Engineering</span>
+    <div class="nav"><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Module 1 · Phase 1 · 6 hours</div>
+  <h1>GenAI, NLP, OCR &amp; LLM Fundamentals</h1>
+  <p class="lede">Interactive visualizations for each Module 1 topic. Each page has a hands-on simulation you can
+    play with, followed by a 5-question self-quiz with explanations. All data is illustrative; nothing calls a live model.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0"><b style="color:var(--text)">Objective:</b>
+    Apply NLP, multilingual embeddings, and OCR (open-source and cloud) in enterprise document intelligence workflows.</p>
+
+  <div class="topics">
+    <a class="card topic" href="01-genai-landscape-foundation-models.html">
+      <div class="num">01</div><h3>GenAI landscape &amp; foundation models</h3>
+      <p>Drop six IT-ops use cases into the AI ⊃ ML ⊃ DL ⊃ GenAI rings to find the smallest tool that solves each, then walk the enterprise AI stack and swap the model provider.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="02-nlp-pipeline.html">
+      <div class="num">02</div><h3>The NLP pipeline</h3>
+      <p>Step three support tickets through tokenisation, POS tagging, NER, semantic similarity and intent detection, then switch off the custom entity rules and watch a routing decision fall apart.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="03-ocr-enterprise-documents.html">
+      <div class="num">03</div><h3>OCR for enterprise documents</h3>
+      <p>Run an invoice and a ticket form through Tesseract, Azure AI Vision and AWS Textract, add scan noise and preprocessing, and compare raw characters with structured fields.</p>
+      <div class="tags"><span class="pill">toggle</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="04-transformer-attention.html">
+      <div class="num">04</div><h3>Transformer architecture &amp; attention</h3>
+      <p>Click any token to see where it attends, change one word to watch “it” switch referent, and apply the causal mask to see what a decoder cannot see yet.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="05-llm-context-hallucinations.html">
+      <div class="num">05</div><h3>LLM architecture: context windows, hallucinations &amp; limits</h3>
+      <p>Drag temperature and top-p over a next-token distribution, then grow a conversation past the context window and find the overflow strategy that makes the assistant invent an asset ID.</p>
+      <div class="tags"><span class="pill">slider</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="06-embeddings-multilingual-similarity.html">
+      <div class="num">06</div><h3>Embeddings &amp; multilingual semantic similarity</h3>
+      <p>Pick a ticket in English, German, French or Spanish, rank its neighbours by cosine similarity, and compare a multilingual model with an English-only one at your duplicate threshold.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="07-model-selection-responsible-ai.html">
+      <div class="num">07</div><h3>Model selection &amp; Responsible AI</h3>
+      <p>Set volume, quality, latency and data-residency constraints for four IT scenarios, see which model tier clears them at the lowest cost, and close the Responsible AI gaps in the decision record.</p>
+      <div class="tags"><span class="pill">builder</span><span class="pill">5-question quiz</span></div>
+    </a>
+  </div>
+
+  <h2>Hands-on for this module</h2>
+  <div class="card">
+    <ol class="hands">
+      <li>Enterprise use-case mapping: teams match agent type to model family across 4 IT scenarios <span class="pill">30 min</span></li>
+      <li>LLM behaviour exploration: hallucination triggers, context-window edge cases, temperature effects <span class="pill">45 min</span></li>
+      <li>OCR lab: generic OCR (Tesseract) on invoice/support-ticket samples + cloud OCR (Azure AI Vision) output comparison demo <span class="pill">45 min</span></li>
+      <li>Multilingual embeddings &amp; semantic similarity mini-lab using Sentence Transformers <span class="pill">30 min</span></li>
+      <li>Model selection exercise: cost vs capability decision matrix for a given enterprise scenario <span class="pill">15 min</span></li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

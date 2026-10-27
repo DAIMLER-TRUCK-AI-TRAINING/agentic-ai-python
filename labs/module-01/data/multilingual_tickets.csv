@@ -1,0 +1,29 @@
+ticket_id,language,text,gold_kb
+INC-104301,en,Changed my password this morning and now the VPN keeps saying my credentials are wrong.,KB-0042
+INC-104302,de,Seit der Passwortänderung heute früh lehnt der VPN-Client meine Anmeldedaten ab.,KB-0042
+INC-104303,ja,今朝パスワードを変更してから、VPNに接続しようとすると認証エラーになります。,KB-0042
+INC-104304,hi,आज सुबह पासवर्ड बदलने के बाद से VPN मेरे लॉगिन विवरण को गलत बता रहा है।,KB-0042
+INC-104305,fr,Mon compte est bloqué après plusieurs tentatives de connexion échouées.,KB-0107
+INC-104306,es,Me equivoqué varias veces al escribir la contraseña y ahora mi cuenta está bloqueada.,KB-0107
+INC-104307,en,I mistyped my password a few times and now the system says my account is locked.,KB-0107
+INC-104308,de,Nach mehreren fehlgeschlagenen Anmeldeversuchen ist mein Konto gesperrt.,KB-0107
+INC-104309,es,Mis documentos se quedan en la cola de impresión y la impresora de la oficina no imprime nada.,KB-0213
+INC-104310,ja,共有プリンターに印刷ジョブを送っても、キューに溜まったまま印刷されません。,KB-0213
+INC-104311,fr,Les impressions restent bloquées dans la file d'attente de l'imprimante partagée.,KB-0213
+INC-104312,hi,ऑफिस के साझा प्रिंटर पर भेजे गए प्रिंट जॉब कतार में ही अटके रहते हैं।,KB-0213
+INC-104313,en,"The supplier invoice total is higher than the amount on our purchase order, so I can't approve it.",KB-0318
+INC-104314,de,Der Rechnungsbetrag des Lieferanten stimmt nicht mit der Bestellung überein.,KB-0318
+INC-104315,fr,La facture du fournisseur ne correspond pas au bon de commande : le montant est différent.,KB-0318
+INC-104316,ja,仕入先の請求書の金額が発注書と一致しません。,KB-0318
+INC-104317,hi,लैपटॉप चालू करते ही डिस्क एन्क्रिप्शन की रिकवरी कुंजी माँग रहा है।,KB-0450
+INC-104318,es,Al encender el portátil me pide la clave de recuperación del cifrado de disco.,KB-0450
+INC-104319,en,After a firmware update my laptop boots to a screen asking for a 48-digit recovery key.,KB-0450
+INC-104320,de,Beim Hochfahren fragt mein Laptop nach dem Wiederherstellungsschlüssel für die Festplattenverschlüsselung.,KB-0450
+INC-104321,ja,メールを送信しても送信トレイに残ったままで、相手に届きません。,KB-0521
+INC-104322,fr,Mes e-mails restent dans la boîte d'envoi et ne partent pas.,KB-0521
+INC-104323,hi,मेरे ईमेल आउटबॉक्स में ही अटके रहते हैं और भेजे नहीं जाते।,KB-0521
+INC-104324,en,Emails I send are stuck in my outbox and I got a warning that my mailbox is nearly full.,KB-0521
+INC-104325,de,"Die MFA-Push-Benachrichtigung kommt auf meinem Handy nicht an, deshalb kann ich mich nicht anmelden.",KB-0608
+INC-104326,es,No me llegan las notificaciones push de MFA al teléfono para aprobar el inicio de sesión.,KB-0608
+INC-104327,ja,多要素認証のプッシュ通知がスマートフォンに届きません。,KB-0608
+INC-104328,hi,लॉगिन मंज़ूर करने के लिए MFA पुश नोटिफिकेशन मेरे फ़ोन पर नहीं आ रहा है।,KB-0608

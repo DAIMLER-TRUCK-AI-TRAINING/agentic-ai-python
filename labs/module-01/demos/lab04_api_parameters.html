@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 4 — API Parameters &amp; Token Economics</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 32px; text-align: center; border-bottom: 1px solid #334155; }
+  .header h1 { font-size: 1.8rem; color: #f8fafc; margin-bottom: 8px; }
+  .header p  { color: #94a3b8; font-size: 1rem; }
+  .badge { display: inline-block; background: #06b6d4; color: #0f172a; font-size: 0.75rem; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; font-weight: 700; }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.25rem; color: #f1f5f9; margin-bottom: 8px; }
+  p.section-sub { color: #64748b; font-size: 0.88rem; margin-bottom: 24px; }
+
+  /* Temperature visualizer */
+  .temp-layout { display: grid; grid-template-columns: 320px 1fr; gap: 28px; align-items: start; }
+  .temp-controls { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+  .temp-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 8px; display: block; }
+  .temp-value { font-size: 2.4rem; font-weight: 800; color: #22d3ee; text-align: center; margin: 12px 0; }
+  input[type="range"] { width: 100%; accent-color: #06b6d4; margin: 4px 0; }
+  .temp-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.5; min-height: 48px; text-align: center; margin: 8px 0; }
+  .temp-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .temp-preset { padding: 5px 10px; border-radius: 6px; border: 1.5px solid #334155; background: #0f172a; color: #94a3b8; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .temp-preset:hover { border-color: #06b6d4; color: #22d3ee; }
+  .temp-preset.active { background: #06b6d4; border-color: #06b6d4; color: #0f172a; font-weight: 700; }
+
+  .dist-container { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+  .dist-title { font-size: 0.82rem; color: #94a3b8; margin-bottom: 16px; }
+  .dist-bars { display: flex; align-items: flex-end; gap: 6px; height: 160px; }
+  .dist-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .dist-bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.4s ease, background 0.3s; min-height: 4px; }
+  .dist-tok { font-size: 0.7rem; color: #64748b; }
+  .dist-prob { font-size: 0.65rem; color: #475569; }
+  .dist-legend { margin-top: 14px; font-size: 0.75rem; color: #64748b; text-align: center; }
+
+  /* Parameter reference table */
+  .param-table { width: 100%; border-collapse: collapse; }
+  .param-table th { background: #1e293b; padding: 10px 14px; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; border-bottom: 1px solid #334155; }
+  .param-table td { padding: 12px 14px; border-bottom: 1px solid #1e293b; font-size: 0.83rem; vertical-align: top; }
+  .param-table tr:last-child td { border-bottom: none; }
+  .param-table tr:hover td { background: rgba(6,182,212,0.03); }
+  .param-name { font-family: 'Consolas', monospace; color: #7dd3fc; font-size: 0.82rem; }
+  .param-type { font-size: 0.72rem; color: #818cf8; }
+  .param-default { font-family: 'Consolas', monospace; font-size: 0.78rem; color: #fb923c; }
+  .param-desc { color: #94a3b8; line-height: 1.5; }
+  .param-tip { font-size: 0.75rem; color: #64748b; margin-top: 4px; font-style: italic; }
+  .param-table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+
+  /* Cost calculator */
+  .calc-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .calc-controls { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+  .calc-result  { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+
+  .calc-field { margin-bottom: 16px; }
+  .calc-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 6px; display: block; }
+  select, input[type="number"] {
+    width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+    color: #e2e8f0; padding: 9px 12px; font-size: 0.85rem; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  select:focus, input:focus { border-color: #06b6d4; }
+
+  .cost-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #0f172a; }
+  .cost-row:last-child { border-bottom: none; }
+  .cost-key { font-size: 0.83rem; color: #94a3b8; }
+  .cost-val { font-size: 0.9rem; font-weight: 600; color: #f1f5f9; font-family: 'Consolas', monospace; }
+  .cost-total { background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 14px; text-align: center; margin-top: 16px; }
+  .cost-total-num { font-size: 2rem; font-weight: 800; color: #22d3ee; }
+  .cost-total-label { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
+
+  /* Streaming comparison */
+  .stream-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .stream-card { background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; padding: 20px; }
+  .stream-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-weight: 700; }
+  .stream-demo { background: #0f172a; border-radius: 8px; padding: 14px; font-family: 'Consolas', monospace; font-size: 0.8rem; color: #cbd5e1; line-height: 1.7; min-height: 100px; }
+  .token-span { display: inline; }
+  .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #06b6d4; color: #0f172a; }
+  .btn-primary:hover { background: #22d3ee; }
+
+  /* Quiz */
+  .quiz-card { background: #1e293b; border-radius: 14px; padding: 24px; margin-bottom: 16px; border: 1px solid #334155; }
+  .quiz-card .question { font-size: 1rem; color: #f1f5f9; margin-bottom: 16px; font-weight: 500; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn { background: #0f172a; border: 1.5px solid #334155; border-radius: 8px; padding: 10px 16px; color: #94a3b8; font-size: 0.88rem; cursor: pointer; text-align: left; transition: all 0.15s; }
+  .opt-btn:hover:not(:disabled) { border-color: #06b6d4; color: #e2e8f0; }
+  .opt-btn.correct   { border-color: #10b981 !important; background: rgba(16,185,129,0.1); color: #6ee7b7; }
+  .opt-btn.incorrect { border-color: #ef4444 !important; background: rgba(239,68,68,0.1);  color: #fca5a5; }
+  .feedback { margin-top: 12px; font-size: 0.85rem; padding: 12px 14px; border-radius: 8px; display: none; line-height: 1.5; }
+  .feedback.show { display: block; }
+  .feedback.ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border-left: 3px solid #10b981; }
+  .feedback.bad { background: rgba(239,68,68,0.1);  color: #fca5a5; border-left: 3px solid #ef4444; }
+  .score-banner { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(6,182,212,0.05)); border: 1px solid #06b6d4; border-radius: 14px; padding: 24px; text-align: center; display: none; }
+  .score-banner.show { display: block; }
+  .score-num { font-size: 2.5rem; font-weight: 800; color: #22d3ee; }
+  .score-label { font-size: 0.9rem; color: #94a3b8; margin-top: 4px; }
+
+  .info-box { background: rgba(6,182,212,0.07); border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 14px 16px; font-size: 0.83rem; color: #94a3b8; line-height: 1.6; }
+  .info-box strong { color: #22d3ee; }
+
+  @media (max-width: 700px) { .temp-layout { grid-template-columns: 1fr; } .calc-layout { grid-template-columns: 1fr; } .stream-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">Module 4 · Lab 4</div>
+  <h1>API Parameters &amp; Token Economics</h1>
+  <p>Tune temperature, sampling, and token settings — then estimate costs with the interactive calculator</p>
+</div>
+
+<div class="main">
+
+  <!-- Section 1: Temperature Visualizer -->
+  <section>
+    <h2 class="section-title">Temperature &amp; Output Randomness</h2>
+    <p class="section-sub">Temperature controls how the model samples from its probability distribution over tokens. Drag the slider to see how it shifts the distribution. <strong style="color:#fbbf24;">Note:</strong> GPT-5 and o-series reasoning models ignore temperature — they sample with fixed internal settings. Tune <code style="background:#1e293b;color:#22d3ee;padding:1px 6px;border-radius:4px;font-size:0.82rem;">reasoning_effort</code> for those.</p>
+
+    <div class="temp-layout">
+      <div class="temp-controls">
+        <span class="temp-label">Temperature</span>
+        <div class="temp-value" id="tempDisplay">0.7</div>
+        <input type="range" id="tempSlider" min="0" max="2" step="0.05" value="0.7" oninput="updateTemp(this.value)">
+        <p class="temp-desc" id="tempDesc">Balanced — good for general tasks, conversational Q&A, and analysis.</p>
+
+        <div class="temp-presets">
+          <div class="temp-preset" onclick="setTemp(0)">0.0 Extract</div>
+          <div class="temp-preset" onclick="setTemp(0.2)">0.2 Code</div>
+          <div class="temp-preset active" onclick="setTemp(0.7)">0.7 Chat</div>
+          <div class="temp-preset" onclick="setTemp(1.0)">1.0 Creative</div>
+          <div class="temp-preset" onclick="setTemp(1.5)">1.5 Wild</div>
+        </div>
+      </div>
+
+      <div class="dist-container">
+        <div class="dist-title">Token probability distribution (simplified). Higher bars = more likely to be chosen.</div>
+        <div class="dist-bars" id="distBars"></div>
+        <div class="dist-legend" id="distLegend">Drag the slider to see how temperature reshapes probability distributions</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Parameter Reference -->
+  <section>
+    <h2 class="section-title">API Parameter Reference</h2>
+    <p class="section-sub">Key parameters for the Chat Completions API. Understanding these lets you optimize quality, cost, and latency.</p>
+
+    <div class="param-table-wrap">
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description &amp; When to Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="param-name">temperature</span></td>
+            <td><span class="param-type">float</span></td>
+            <td><span class="param-default">1.0</span></td>
+            <td><span class="param-desc">Sampling randomness. 0=deterministic, 2=max creative.</span><div class="param-tip">Set 0.0 for extraction/classification. 0.7 for chat. <strong>Ignored on GPT-5 / o-series reasoning models</strong> — use reasoning_effort instead.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">max_completion_tokens</span></td>
+            <td><span class="param-type">int</span></td>
+            <td><span class="param-default">∞</span></td>
+            <td><span class="param-desc">Maximum tokens in the response (renamed from <code>max_tokens</code>). On reasoning models, this caps reasoning + visible output combined.</span><div class="param-tip">On GPT-5/o-series, budget for reasoning tokens too — a "high" effort task may eat 1000s before any visible output appears. Equivalent: max_output_tokens on the Responses API.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">reasoning_effort</span></td>
+            <td><span class="param-type">str</span></td>
+            <td><span class="param-default">"medium"</span></td>
+            <td><span class="param-desc">GPT-5 / o-series only. How much hidden reasoning the model does before answering: <code>"minimal"</code> · <code>"low"</code> · <code>"medium"</code> · <code>"high"</code>.</span><div class="param-tip">"minimal" for classification / simple lookups. "high" for math proofs, agent planning. Each step up roughly 2–5× the latency and reasoning-token cost.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">verbosity</span></td>
+            <td><span class="param-type">str</span></td>
+            <td><span class="param-default">"medium"</span></td>
+            <td><span class="param-desc">GPT-5 only. Controls the length of the visible answer: <code>"low"</code> · <code>"medium"</code> · <code>"high"</code>. Independent of reasoning_effort.</span><div class="param-tip">"low" for terse production output. Pair with reasoning_effort="high" when you want deep thinking but short answers.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">top_p</span></td>
+            <td><span class="param-type">float</span></td>
+            <td><span class="param-default">1.0</span></td>
+            <td><span class="param-desc">Nucleus sampling — limits token selection to the smallest set whose cumulative probability exceeds top_p. Alternative to temperature.</span><div class="param-tip">Don't change both temperature AND top_p at once. Also ignored on reasoning models.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">frequency_penalty</span></td>
+            <td><span class="param-type">float</span></td>
+            <td><span class="param-default">0.0</span></td>
+            <td><span class="param-desc">Penalizes tokens that appear frequently in the response so far (-2.0 to 2.0). Reduces repetition of the same words.</span><div class="param-tip">Use 0.1–0.5 when responses repeat the same phrases. Not supported on reasoning models.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">presence_penalty</span></td>
+            <td><span class="param-type">float</span></td>
+            <td><span class="param-default">0.0</span></td>
+            <td><span class="param-desc">Penalizes tokens that have appeared at all in the response (-2.0 to 2.0). Encourages introducing new topics.</span><div class="param-tip">Use 0.1–0.5 to encourage more diverse, wide-ranging responses. Not supported on reasoning models.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">stop</span></td>
+            <td><span class="param-type">str | list</span></td>
+            <td><span class="param-default">null</span></td>
+            <td><span class="param-desc">Up to 4 stop sequences. Generation halts when any is produced. The stop string itself is NOT included in the response.</span><div class="param-tip">Use ["###", "\n\n"] to stop at section breaks. Good for few-shot prompts.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">seed</span></td>
+            <td><span class="param-type">int</span></td>
+            <td><span class="param-default">null</span></td>
+            <td><span class="param-desc">Best-effort determinism. Same seed + same inputs → higher probability of same output. Not 100% guaranteed.</span><div class="param-tip">Use for reproducible experiments and regression testing your prompts.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">stream</span></td>
+            <td><span class="param-type">bool</span></td>
+            <td><span class="param-default">false</span></td>
+            <td><span class="param-desc">Stream tokens as they're generated. Reduces perceived latency for users. Same total cost as non-streaming.</span><div class="param-tip">Enable for chat UIs. Chat Completions yields token deltas (<code>chunk.choices[0].delta.content</code>); Responses yields typed events (<code>response.output_text.delta</code>, etc).</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">previous_response_id</span></td>
+            <td><span class="param-type">str</span></td>
+            <td><span class="param-default">null</span></td>
+            <td><span class="param-desc">Responses API only. Pass the .id from the prior response to chain conversation turns server-side.</span><div class="param-tip">Use for multi-turn assistants on GPT-5/o-series so reasoning items are preserved across turns.</div></td>
+          </tr>
+          <tr>
+            <td><span class="param-name">store</span></td>
+            <td><span class="param-type">bool</span></td>
+            <td><span class="param-default">true</span></td>
+            <td><span class="param-desc">Responses API only. Whether OpenAI stores the request/response on the server (30-day retention).</span><div class="param-tip">Set <code>store=False</code> for data-residency-sensitive flows. You'll then need to resend history yourself.</div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Section 3: Cost Calculator -->
+  <section>
+    <h2 class="section-title">Token Cost Calculator</h2>
+    <p class="section-sub">Estimate API costs before building your application. Token costs are the primary cost driver in LLM applications.</p>
+
+    <div class="calc-layout">
+      <div class="calc-controls">
+        <div class="calc-field">
+          <label class="calc-label">Model</label>
+          <select id="calcModel" onchange="calcCost()">
+            <optgroup label="GPT-5 (reasoning)">
+              <option value="gpt-5">gpt-5 ($1.25 / $10.00 per 1M)</option>
+              <option value="gpt-5-mini" selected>gpt-5-mini ($0.25 / $2.00 per 1M)</option>
+              <option value="gpt-5-nano">gpt-5-nano ($0.05 / $0.40 per 1M)</option>
+            </optgroup>
+            <optgroup label="GPT-4.1 (1M context)">
+              <option value="gpt-4.1">gpt-4.1 ($2.00 / $8.00 per 1M)</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini ($0.40 / $1.60 per 1M)</option>
+              <option value="gpt-4.1-nano">gpt-4.1-nano ($0.10 / $0.40 per 1M)</option>
+            </optgroup>
+            <optgroup label="GPT-4o (multimodal)">
+              <option value="gpt-4o">gpt-4o ($2.50 / $10.00 per 1M)</option>
+              <option value="gpt-4o-mini">gpt-4o-mini ($0.15 / $0.60 per 1M)</option>
+            </optgroup>
+            <optgroup label="o-series (reasoning)">
+              <option value="o3">o3 ($2.00 / $8.00 per 1M)</option>
+              <option value="o4-mini">o4-mini ($1.10 / $4.40 per 1M)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="calc-field">
+          <label class="calc-label">Reasoning tokens per request &nbsp;<span style="color:#64748b;font-size:0.7rem;">(GPT-5 / o-series only)</span></label>
+          <input type="number" id="calcReason" value="0" min="0" oninput="calcCost()">
+        </div>
+        <div class="calc-field">
+          <label class="calc-label">Avg. Input Tokens per Request</label>
+          <input type="number" id="calcIn" value="500" min="1" oninput="calcCost()">
+        </div>
+        <div class="calc-field">
+          <label class="calc-label">Avg. Output Tokens per Request</label>
+          <input type="number" id="calcOut" value="200" min="1" oninput="calcCost()">
+        </div>
+        <div class="calc-field">
+          <label class="calc-label">Requests per Day</label>
+          <input type="number" id="calcReqs" value="1000" min="1" oninput="calcCost()">
+        </div>
+      </div>
+
+      <div class="calc-result">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:14px;">Cost Breakdown</div>
+        <div class="cost-row">
+          <span class="cost-key">Tokens per request</span>
+          <span class="cost-val" id="rTok">—</span>
+        </div>
+        <div class="cost-row">
+          <span class="cost-key">Cost per request</span>
+          <span class="cost-val" id="rReq">—</span>
+        </div>
+        <div class="cost-row">
+          <span class="cost-key">Daily cost</span>
+          <span class="cost-val" id="rDay">—</span>
+        </div>
+        <div class="cost-row">
+          <span class="cost-key">Monthly cost (30d)</span>
+          <span class="cost-val" id="rMonth">—</span>
+        </div>
+        <div class="cost-row">
+          <span class="cost-key">Annual cost</span>
+          <span class="cost-val" id="rYear">—</span>
+        </div>
+
+        <div class="cost-total">
+          <div class="cost-total-num" id="costTotal">$0.00</div>
+          <div class="cost-total-label">monthly cost estimate</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>Cost reduction tips:</strong>
+      <br>• Default to a <strong>mini</strong> or <strong>nano</strong> tier — escalate only if quality is insufficient.
+      <br>• On GPT-5/o-series, drop <code style="color:#22d3ee;font-size:0.78rem;">reasoning_effort</code> to <code>"low"</code> or <code>"minimal"</code> for simple tasks — slashes hidden reasoning-token cost.
+      <br>• Set <code style="color:#22d3ee;font-size:0.78rem;">max_completion_tokens</code> to limit output length.
+      <br>• <strong>Prompt caching</strong> is automatic — identical input prefixes get ~50–90% off on cached input tokens. Put stable instructions <em>first</em>.
+      <br>• Use the <strong>Batch API</strong> (<code style="color:#22d3ee;font-size:0.78rem;">/v1/batches</code>) for non-interactive jobs: 50% off, 24-hour SLA.
+    </div>
+  </section>
+
+  <!-- Section 4: Streaming -->
+  <section>
+    <h2 class="section-title">Streaming vs Non-Streaming</h2>
+    <p class="section-sub">Streaming delivers tokens as they're generated, reducing perceived latency in user-facing applications. Same total cost, very different UX.</p>
+
+    <div class="stream-grid">
+      <div class="stream-card">
+        <div class="stream-label" style="color:#ef4444;">Non-Streaming</div>
+        <div class="stream-demo" id="noStreamDemo" style="color:#475569;">Waiting for complete response...</div>
+        <div style="font-size:0.78rem;color:#64748b;margin-top:10px;line-height:1.5;">User waits 2–5s with no feedback. The full response appears all at once. Bad UX for chat interfaces.</div>
+      </div>
+      <div class="stream-card" style="border-color:#10b981;">
+        <div class="stream-label" style="color:#10b981;">Streaming</div>
+        <div class="stream-demo" id="streamDemo" style="color:#475569;">Waiting to start...</div>
+        <div style="font-size:0.78rem;color:#64748b;margin-top:10px;line-height:1.5;">Tokens appear as generated. First token arrives in ~300ms. Feels much faster even though total time is the same.</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:16px;">
+      <button class="btn btn-primary" onclick="runStreamDemo()">▶ Run Demo</button>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>Streaming — Chat Completions:</strong><br>
+      <code style="color:#34d399;">stream = client.chat.completions.create(model="gpt-4.1-mini", messages=[...], stream=True)</code><br>
+      <code style="color:#34d399;">for chunk in stream:</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;text = chunk.choices[0].delta.content or ""</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;print(text, end="", flush=True)</code><br><br>
+      <strong>Streaming — Responses API (typed events):</strong><br>
+      <code style="color:#34d399;">with client.responses.stream(model="gpt-4.1-mini", input="...") as stream:</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;for event in stream:</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;&nbsp;&nbsp;if event.type == "response.output_text.delta":</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print(event.delta, end="", flush=True)</code><br>
+      <code style="color:#34d399;">&nbsp;&nbsp;final = stream.get_final_response()</code>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section>
+    <h2 class="section-title">Self-Check Quiz</h2>
+    <p class="section-sub">5 questions · Select an answer to see immediate feedback</p>
+
+    <div class="quiz-card" id="q1">
+      <div class="question">1. You set max_completion_tokens=50 and finish_reason returns "length". What happened and what should you do?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q1',false)">A. The model ran out of knowledge — retry with a smarter model</button>
+        <button class="opt-btn" onclick="answer(this,'q1',true)">B. The response was truncated at 50 tokens — increase max_completion_tokens to get the complete response</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">C. The model found a 50-token response that perfectly answered the question</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">D. The context window was exceeded — shorten your input</button>
+      </div>
+      <div class="feedback" id="fb_q1"></div>
+    </div>
+
+    <div class="quiz-card" id="q2">
+      <div class="question">2. OpenAI recommends not changing both temperature AND top_p at the same time. Why?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q2',false)">A. Both parameters control the same thing — one will be ignored</button>
+        <button class="opt-btn" onclick="answer(this,'q2',true)">B. Both parameters affect sampling randomness — combining them makes behavior unpredictable and harder to tune</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">C. Using both doubles API cost</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">D. The API will return an error if both are set to non-default values</button>
+      </div>
+      <div class="feedback" id="fb_q2"></div>
+    </div>
+
+    <div class="quiz-card" id="q3">
+      <div class="question">3. Your chatbot response repeats phrases like "certainly!" and "of course!" excessively. Which parameter best addresses this?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q3',false)">A. Lower temperature — reduces randomness</button>
+        <button class="opt-btn" onclick="answer(this,'q3',true)">B. Increase frequency_penalty — penalizes tokens that have already appeared frequently</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">C. Increase presence_penalty — encourages new topics</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">D. Decrease max_tokens — shorter responses have less repetition</button>
+      </div>
+      <div class="feedback" id="fb_q3"></div>
+    </div>
+
+    <div class="quiz-card" id="q4">
+      <div class="question">4. Does enabling streaming reduce the total API cost compared to non-streaming?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q4',false)">A. Yes — streaming sends fewer tokens overall</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">B. Yes — streaming uses a different billing tier</button>
+        <button class="opt-btn" onclick="answer(this,'q4',true)">C. No — streaming and non-streaming cost the same. Streaming only reduces perceived latency.</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">D. Streaming actually costs more due to connection overhead</button>
+      </div>
+      <div class="feedback" id="fb_q4"></div>
+    </div>
+
+    <div class="quiz-card" id="q5">
+      <div class="question">5. You're building a code-explanation feature on gpt-5-mini and want the model to spend more thinking time on hard problems. Which parameter helps?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q5',false)">A. temperature — bump it to 1.5 to make the model "try harder"</button>
+        <button class="opt-btn" onclick="answer(this,'q5',true)">B. reasoning_effort — set it to "high" to allocate more hidden reasoning tokens</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">C. max_completion_tokens — raising it forces the model to think more</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">D. seed — using seed=0 enables deep-reasoning mode</button>
+      </div>
+      <div class="feedback" id="fb_q5"></div>
+    </div>
+
+    <div class="score-banner" id="scoreBanner">
+      <div class="score-num" id="scoreNum">0/5</div>
+      <div class="score-label">Quiz complete! Review any incorrect answers above.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// --- Temperature Visualizer ---
+const tokens = ['the', 'a', 'an', 'one', 'this', 'some', 'that', 'every'];
+const baseProbs = [0.38, 0.22, 0.14, 0.10, 0.07, 0.05, 0.03, 0.01];
+const colors = ['#06b6d4','#22d3ee','#67e8f9','#a5f3fc','#818cf8','#34d399','#fbbf24','#fb923c'];
+
+const tempDescs = {
+  0:    "Deterministic — always picks the highest-probability token. Same input → same output every time.",
+  0.2:  "Near-deterministic — very low creativity. Ideal for code generation and factual extraction.",
+  0.5:  "Focused — slight variation. Good for structured writing with some flexibility.",
+  0.7:  "Balanced — good for general tasks, conversational Q&A, and analysis.",
+  1.0:  "Default sampling — moderate creativity. Good for marketing copy and varied responses.",
+  1.5:  "High creativity — generates surprising and diverse outputs. May be less coherent.",
+  2.0:  "Maximum entropy — nearly uniform distribution. Very random, often incoherent. Not recommended."
+};
+
+function softmax(logits, temp) {
+  if (temp === 0) {
+    const max = Math.max(...logits);
+    return logits.map(l => l === max ? 1.0 : 0.0);
+  }
+  const scaled = logits.map(l => Math.exp(Math.log(l + 0.001) / temp));
+  const sum = scaled.reduce((a,b) => a+b, 0);
+  return scaled.map(s => s / sum);
+}
+
+function updateTemp(val) {
+  const t = parseFloat(val);
+  document.getElementById('tempDisplay').textContent = t.toFixed(2);
+
+  // Find closest desc
+  const keys = Object.keys(tempDescs).map(Number).sort((a,b)=>a-b);
+  const closest = keys.reduce((prev, curr) => Math.abs(curr - t) < Math.abs(prev - t) ? curr : prev);
+  document.getElementById('tempDesc').textContent = tempDescs[closest];
+
+  // Update presets
+  document.querySelectorAll('.temp-preset').forEach(el => el.classList.remove('active'));
+  const presetMap = {'0.0':0,'0.2':0.2,'0.7':0.7,'1.0':1.0,'1.5':1.5};
+  document.querySelectorAll('.temp-preset').forEach(el => {
+    const presetVal = parseFloat(el.onclick.toString().match(/[\d.]+/)?.[0]);
+    if (Math.abs(presetVal - t) < 0.01) el.classList.add('active');
+  });
+
+  // Update distribution
+  const probs = softmax(baseProbs, t);
+  const maxProb = Math.max(...probs);
+  const bars = document.getElementById('distBars');
+  bars.innerHTML = probs.map((p, i) => {
+    const h = Math.max(4, Math.round(p / maxProb * 140));
+    const pct = (p * 100).toFixed(1);
+    return `<div class="dist-bar-wrap">
+      <div class="dist-prob">${pct}%</div>
+      <div class="dist-bar" style="height:${h}px;background:${colors[i]};"></div>
+      <div class="dist-tok">${tokens[i]}</div>
+    </div>`;
+  }).join('');
+
+  if (t === 0) {
+    document.getElementById('distLegend').textContent = 'At temperature=0: always picks "the" (highest probability). No variation possible.';
+  } else if (t >= 1.5) {
+    document.getElementById('distLegend').textContent = 'At high temperatures: probabilities flatten — any token is almost equally likely. Very unpredictable.';
+  } else {
+    document.getElementById('distLegend').textContent = 'The most likely next token is "the". Higher temperature makes other tokens more competitive.';
+  }
+}
+
+function setTemp(val) {
+  document.getElementById('tempSlider').value = val;
+  updateTemp(val);
+}
+
+updateTemp(0.7);
+
+// --- Cost Calculator ---  (USD per 1M tokens)
+const pricing = {
+  'gpt-5':         { in: 1.25, out: 10.00 },
+  'gpt-5-mini':    { in: 0.25, out:  2.00 },
+  'gpt-5-nano':    { in: 0.05, out:  0.40 },
+  'gpt-4.1':       { in: 2.00, out:  8.00 },
+  'gpt-4.1-mini':  { in: 0.40, out:  1.60 },
+  'gpt-4.1-nano':  { in: 0.10, out:  0.40 },
+  'gpt-4o':        { in: 2.50, out: 10.00 },
+  'gpt-4o-mini':   { in: 0.15, out:  0.60 },
+  'o3':            { in: 2.00, out:  8.00 },
+  'o4-mini':       { in: 1.10, out:  4.40 },
+};
+
+function calcCost() {
+  const model = document.getElementById('calcModel').value;
+  const inTok = parseInt(document.getElementById('calcIn').value) || 0;
+  const outTok = parseInt(document.getElementById('calcOut').value) || 0;
+  const reasonTok = parseInt(document.getElementById('calcReason').value) || 0;
+  const reqs = parseInt(document.getElementById('calcReqs').value) || 0;
+  const p = pricing[model];
+  // Reasoning tokens are billed at the output rate
+  const perReq = (inTok * p.in + (outTok + reasonTok) * p.out) / 1_000_000;
+  const daily = perReq * reqs;
+  const monthly = daily * 30;
+  const annual = daily * 365;
+
+  document.getElementById('rTok').textContent = (inTok + outTok + reasonTok).toLocaleString();
+  document.getElementById('rReq').textContent = '$' + perReq.toFixed(6);
+  document.getElementById('rDay').textContent = '$' + daily.toFixed(4);
+  document.getElementById('rMonth').textContent = '$' + monthly.toFixed(2);
+  document.getElementById('rYear').textContent = '$' + annual.toFixed(2);
+  document.getElementById('costTotal').textContent = '$' + monthly.toFixed(2);
+}
+
+calcCost();
+
+// --- Streaming Demo ---
+const sampleText = "The OpenAI API enables you to build powerful AI applications. It provides access to state-of-the-art language models through a simple HTTP interface. You can use it for text generation, classification, extraction, and much more.";
+
+let demoRunning = false;
+function runStreamDemo() {
+  if (demoRunning) return;
+  demoRunning = true;
+
+  const noStream = document.getElementById('noStreamDemo');
+  const stream = document.getElementById('streamDemo');
+
+  noStream.textContent = 'Waiting for complete response...';
+  noStream.style.color = '#475569';
+  stream.textContent = '';
+  stream.style.color = '#cbd5e1';
+
+  const words = sampleText.split(' ');
+  let i = 0;
+
+  // Stream: add word by word
+  const streamInterval = setInterval(() => {
+    if (i < words.length) {
+      stream.textContent += (i > 0 ? ' ' : '') + words[i];
+      i++;
+    } else {
+      clearInterval(streamInterval);
+    }
+  }, 60);
+
+  // No stream: show all at once after delay
+  setTimeout(() => {
+    noStream.textContent = sampleText;
+    noStream.style.color = '#cbd5e1';
+    setTimeout(() => { demoRunning = false; }, 1000);
+  }, words.length * 60 + 200);
+}
+
+// --- Quiz ---
+const feedbacks = {
+  q1: { ok: "Correct! finish_reason='length' means the response hit the max_completion_tokens cap and was cut off. Increase the cap to get the full response.", bad: "finish_reason='length' means truncation at max_completion_tokens. The model had more to say. Increase the cap." },
+  q2: { ok: "Correct! Both temperature and top_p control sampling randomness through different mechanisms. Adjusting both simultaneously makes it impossible to predict or reason about the combined effect.", bad: "Both parameters control how tokens are sampled. Using both creates compounded, unpredictable behavior. Change only one at a time." },
+  q3: { ok: "Correct! frequency_penalty penalizes tokens that have appeared frequently so far, directly reducing repetitive phrases.", bad: "frequency_penalty penalizes tokens based on how often they've already appeared — perfect for reducing repetitive words and phrases." },
+  q4: { ok: "Correct! Streaming doesn't reduce cost — it's the same number of tokens, same billing. Streaming only improves the user experience by showing tokens as they arrive.", bad: "Streaming does NOT reduce cost. It sends the same number of tokens. The benefit is purely UX: lower perceived latency." },
+  q5: { ok: "Correct! reasoning_effort controls how many hidden reasoning tokens GPT-5/o-series models spend before answering. \"high\" means deeper thinking, longer latency, and more output-rate tokens billed.", bad: "On GPT-5 and o-series, the parameter you want is reasoning_effort (minimal/low/medium/high). temperature is ignored on these models, and raising max_completion_tokens just allows more output — it doesn't make the model reason more." }
+};
+
+let answers = {};
+function answer(btn, qId, correct) {
+  if (answers[qId] !== undefined) return;
+  answers[qId] = correct;
+  const allBtns = btn.parentElement.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => b.disabled = true);
+  btn.classList.add(correct ? 'correct' : 'incorrect');
+  if (!correct) {
+    allBtns.forEach(b => { if (b.onclick.toString().includes('true')) b.classList.add('correct'); });
+  }
+  const fb = document.getElementById('fb_' + qId);
+  fb.textContent = correct ? '✓ ' + feedbacks[qId].ok : '✗ ' + feedbacks[qId].bad;
+  fb.className = 'feedback show ' + (correct ? 'ok' : 'bad');
+  if (Object.keys(answers).length === 5) {
+    const score = Object.values(answers).filter(Boolean).length;
+    document.getElementById('scoreNum').textContent = score + '/5';
+    document.getElementById('scoreBanner').classList.add('show');
+  }
+}
+</script>
+</body>
+</html>

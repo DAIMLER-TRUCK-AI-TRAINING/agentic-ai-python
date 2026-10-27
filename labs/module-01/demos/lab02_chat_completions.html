@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 2 — Chat Completions API</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 32px; text-align: center; border-bottom: 1px solid #334155; }
+  .header h1 { font-size: 1.8rem; color: #f8fafc; margin-bottom: 8px; }
+  .header p  { color: #94a3b8; font-size: 1rem; }
+  .badge { display: inline-block; background: #06b6d4; color: #0f172a; font-size: 0.75rem; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; font-weight: 700; }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.25rem; color: #f1f5f9; margin-bottom: 8px; }
+  p.section-sub { color: #64748b; font-size: 0.88rem; margin-bottom: 24px; }
+
+  /* Role cards */
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+  .role-card { background: #1e293b; border: 1.5px solid #334155; border-radius: 14px; padding: 20px; }
+  .role-icon { font-size: 1.8rem; margin-bottom: 10px; }
+  .role-name { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  .role-desc { font-size: 0.82rem; color: #94a3b8; line-height: 1.5; margin-bottom: 10px; }
+  .role-code { background: #0f172a; border-radius: 6px; padding: 8px 10px; font-family: 'Consolas', monospace; font-size: 0.75rem; line-height: 1.5; border-left: 3px solid; }
+
+  /* Conversation builder */
+  .conv-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .conv-builder { }
+  .conv-preview { }
+
+  .msg-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; min-height: 200px; }
+  .msg-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; position: relative; }
+  .msg-role-badge { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 99px; flex-shrink: 0; margin-top: 2px; }
+  .role-sys  { background: rgba(129,140,248,0.15); color: #818cf8; }
+  .role-user { background: rgba(6,182,212,0.15); color: #22d3ee; }
+  .role-asst { background: rgba(52,211,153,0.15); color: #34d399; }
+  .msg-text  { font-size: 0.83rem; color: #cbd5e1; line-height: 1.5; flex: 1; }
+  .msg-del   { color: #ef4444; cursor: pointer; font-size: 0.9rem; opacity: 0.5; flex-shrink: 0; margin-top: 2px; }
+  .msg-del:hover { opacity: 1; }
+
+  .add-msg-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 8px; align-items: start; }
+  select, input[type="text"], textarea {
+    width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+    color: #e2e8f0; padding: 9px 12px; font-size: 0.85rem; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  select:focus, input:focus, textarea:focus { border-color: #06b6d4; }
+  textarea { resize: vertical; min-height: 64px; }
+
+  .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #06b6d4; color: #0f172a; }
+  .btn-primary:hover { background: #22d3ee; }
+  .btn-secondary { background: #1e293b; border: 1.5px solid #334155; color: #94a3b8; }
+  .btn-secondary:hover { border-color: #06b6d4; color: #e2e8f0; }
+
+  .code-preview { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 18px; font-family: 'Consolas', monospace; font-size: 0.78rem; line-height: 1.7; color: #cbd5e1; overflow: auto; min-height: 380px; white-space: pre; }
+  .kw { color: #818cf8; }
+  .str { color: #34d399; }
+  .key { color: #7dd3fc; }
+  .cm { color: #475569; font-style: italic; }
+  .fn { color: #fbbf24; }
+
+  /* Context window visual */
+  .cw-container { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+  .cw-bar-wrap { height: 32px; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; gap: 2px; margin-bottom: 12px; }
+  .cw-seg { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.7); transition: width 0.4s; white-space: nowrap; overflow: hidden; }
+  .cw-legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .cw-leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #94a3b8; }
+  .cw-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .cw-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 16px; }
+  .cw-stat { background: #0f172a; border-radius: 8px; padding: 12px 14px; text-align: center; }
+  .cw-stat-num { font-size: 1.4rem; font-weight: 800; }
+  .cw-stat-label { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+
+  /* Strategy cards */
+  .strat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 14px; }
+  .strat-card { background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; padding: 16px; }
+  .strat-title { font-size: 0.9rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .strat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .strat-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.5; }
+
+  /* Quiz */
+  .quiz-card { background: #1e293b; border-radius: 14px; padding: 24px; margin-bottom: 16px; border: 1px solid #334155; }
+  .quiz-card .question { font-size: 1rem; color: #f1f5f9; margin-bottom: 16px; font-weight: 500; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn { background: #0f172a; border: 1.5px solid #334155; border-radius: 8px; padding: 10px 16px; color: #94a3b8; font-size: 0.88rem; cursor: pointer; text-align: left; transition: all 0.15s; }
+  .opt-btn:hover:not(:disabled) { border-color: #06b6d4; color: #e2e8f0; }
+  .opt-btn.correct   { border-color: #10b981 !important; background: rgba(16,185,129,0.1); color: #6ee7b7; }
+  .opt-btn.incorrect { border-color: #ef4444 !important; background: rgba(239,68,68,0.1);  color: #fca5a5; }
+  .feedback { margin-top: 12px; font-size: 0.85rem; padding: 12px 14px; border-radius: 8px; display: none; line-height: 1.5; }
+  .feedback.show { display: block; }
+  .feedback.ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border-left: 3px solid #10b981; }
+  .feedback.bad { background: rgba(239,68,68,0.1);  color: #fca5a5; border-left: 3px solid #ef4444; }
+  .score-banner { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(6,182,212,0.05)); border: 1px solid #06b6d4; border-radius: 14px; padding: 24px; text-align: center; display: none; }
+  .score-banner.show { display: block; }
+  .score-num { font-size: 2.5rem; font-weight: 800; color: #22d3ee; }
+  .score-label { font-size: 0.9rem; color: #94a3b8; margin-top: 4px; }
+
+  .info-box { background: rgba(6,182,212,0.07); border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 14px 16px; font-size: 0.83rem; color: #94a3b8; line-height: 1.6; margin-top: 16px; }
+  .info-box strong { color: #22d3ee; }
+
+  @media (max-width: 700px) { .role-grid { grid-template-columns: 1fr; } .conv-layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">Module 4 · Lab 2</div>
+  <h1>Chat Completions &amp; Responses API</h1>
+  <p>Master message roles, multi-turn conversations, and the two ways OpenAI handles state — stateless (Chat Completions) and stateful (Responses)</p>
+</div>
+
+<div class="main">
+
+  <!-- Section 1: Message Roles -->
+  <section>
+    <h2 class="section-title">The Three Message Roles</h2>
+    <p class="section-sub">Every message in the Chat Completions API must have a role. The role tells the model who is "speaking" and how to interpret that message.</p>
+
+    <div class="role-grid">
+      <div class="role-card" style="border-color:#818cf8;">
+        <div class="role-icon">🧭</div>
+        <div class="role-name" style="color:#818cf8;">system</div>
+        <div class="role-desc">Sets the model's persona, behavioral rules, and constraints for the entire conversation. Processed first, before any user messages. Persists across all turns.</div>
+        <div class="role-code" style="border-color:#818cf8;color:#c4b5fd;">
+{<br>
+&nbsp;&nbsp;"role": "system",<br>
+&nbsp;&nbsp;"content": "You are a concise technical assistant. Answer in under 3 sentences."<br>
+}
+        </div>
+      </div>
+
+      <div class="role-card" style="border-color:#22d3ee;">
+        <div class="role-icon">👤</div>
+        <div class="role-name" style="color:#22d3ee;">user</div>
+        <div class="role-desc">Input from the human — questions, instructions, or content to process. This is the primary "turn" in the conversation. Alternates with assistant messages.</div>
+        <div class="role-code" style="border-color:#22d3ee;color:#67e8f9;">
+{<br>
+&nbsp;&nbsp;"role": "user",<br>
+&nbsp;&nbsp;"content": "Explain what an API is."<br>
+}
+        </div>
+      </div>
+
+      <div class="role-card" style="border-color:#34d399;">
+        <div class="role-icon">🤖</div>
+        <div class="role-name" style="color:#34d399;">assistant</div>
+        <div class="role-desc">The model's previous responses. Include these when building multi-turn conversations so the model knows what it said before. Without them, each call is independent.</div>
+        <div class="role-code" style="border-color:#34d399;color:#86efac;">
+{<br>
+&nbsp;&nbsp;"role": "assistant",<br>
+&nbsp;&nbsp;"content": "An API is an interface that allows software components to communicate."<br>
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>Key insight (Chat Completions):</strong> The Chat Completions API has no memory between calls. To maintain conversation history, you must include all previous messages (user + assistant turns) in each request. This means context grows with every turn — and so does the cost.<br><br>
+      <strong>Alternative (Responses API):</strong> The newer Responses API can store turns server-side. Pass <code style="color:#22d3ee">previous_response_id=&lt;prior&gt;</code> and OpenAI threads the conversation for you — no need to resend history. See the <em>Stateful Chaining</em> section below.
+    </div>
+  </section>
+
+  <!-- Section 1b: Responses API stateful chaining -->
+  <section>
+    <h2 class="section-title">Stateful Chaining — the Responses API Alternative</h2>
+    <p class="section-sub">Same three-turn dialog, two very different code paths. Toggle to compare.</p>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button id="apiTabChat" class="btn btn-primary" onclick="showApi('chat')" style="background:#22d3ee;">Chat Completions (stateless)</button>
+      <button id="apiTabResp" class="btn btn-secondary" onclick="showApi('responses')">Responses (stateful)</button>
+    </div>
+
+    <div id="apiPanelChat" class="code-preview" style="min-height:auto;">
+<span class="cm"># Chat Completions — you maintain history client-side</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = <span class="fn">OpenAI</span>()
+
+history = [{<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"You are a Python tutor."</span>}]
+
+<span class="kw">def</span> <span class="fn">chat</span>(user_msg: <span class="fn">str</span>) -> <span class="fn">str</span>:
+    history.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_msg})
+    response = client.chat.completions.<span class="fn">create</span>(
+        <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+        <span class="key">messages</span>=history,            <span class="cm"># resend EVERY prior message every call</span>
+    )
+    reply = response.choices[<span class="str">0</span>].message.content
+    history.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: reply})
+    <span class="kw">return</span> reply
+
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"What is a list comprehension?"</span>))
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"Show me an example with squares."</span>))
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"How does that differ from a generator?"</span>))
+
+<span class="cm"># Cost: turn 3 sends turns 1+2+3 in the payload — grows linearly</span>
+    </div>
+
+    <div id="apiPanelResp" class="code-preview" style="min-height:auto;display:none;">
+<span class="cm"># Responses API — OpenAI stores history server-side</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = <span class="fn">OpenAI</span>()
+
+last_id: <span class="fn">str</span> | <span class="kw">None</span> = <span class="kw">None</span>
+
+<span class="kw">def</span> <span class="fn">chat</span>(user_msg: <span class="fn">str</span>) -> <span class="fn">str</span>:
+    <span class="kw">global</span> last_id
+    response = client.responses.<span class="fn">create</span>(
+        <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+        <span class="key">instructions</span>=<span class="str">"You are a Python tutor."</span>,
+        <span class="key">input</span>=user_msg,             <span class="cm"># just the NEW message — no history!</span>
+        <span class="key">previous_response_id</span>=last_id, <span class="cm"># chain to the previous turn</span>
+    )
+    last_id = response.id           <span class="cm"># remember for the next call</span>
+    <span class="kw">return</span> response.output_text
+
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"What is a list comprehension?"</span>))
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"Show me an example with squares."</span>))
+<span class="fn">print</span>(<span class="fn">chat</span>(<span class="str">"How does that differ from a generator?"</span>))
+
+<span class="cm"># Cost: each call sends only the new user message — payload stays small</span>
+<span class="cm"># Bonus: reasoning items from GPT-5/o-series are preserved across turns</span>
+    </div>
+
+    <div class="strat-grid" style="margin-top:20px;">
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#22d3ee;"></div>Chat Completions wins when</div>
+        <div class="strat-desc">You need full client-side control of history (compress, redact, branch). You're targeting non-OpenAI providers that follow the chat-completions shape. You want a simple stateless model where any call can be retried in isolation.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#a78bfa;"></div>Responses wins when</div>
+        <div class="strat-desc">You're building an agent or multi-turn assistant. You use GPT-5 / o-series and need reasoning items preserved across turns. You want built-in tools (web_search, file_search, code_interpreter) without writing executors.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#34d399;"></div>Hybrid is fine</div>
+        <div class="strat-desc">You can use both in the same app. Some teams use Responses for end-user chat and Chat Completions for batch/back-office workflows. Migrate gradually — the APIs are not wire-compatible but they're not exclusive either.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#fbbf24;"></div>Storage caveat</div>
+        <div class="strat-desc">Responses persistence defaults to <code style="color:#22d3ee;font-size:0.78rem;">store=True</code> with ~30-day retention on OpenAI's servers. Pass <code style="color:#22d3ee;font-size:0.78rem;">store=False</code> for data-residency-sensitive flows — but then you must resend history yourself, just like Chat Completions.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Conversation Builder -->
+  <section>
+    <h2 class="section-title">Interactive Conversation Builder</h2>
+    <p class="section-sub">Build a multi-turn conversation by adding messages. The Python code updates in real time.</p>
+
+    <div class="conv-layout">
+      <div class="conv-builder">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Message History</div>
+        <div class="msg-list" id="msgList"></div>
+
+        <div class="add-msg-row" style="margin-bottom:10px;">
+          <select id="newRole">
+            <option value="system">system</option>
+            <option value="user" selected>user</option>
+            <option value="assistant">assistant</option>
+          </select>
+          <textarea id="newContent" placeholder="Message content..." rows="2"></textarea>
+          <div>
+            <button class="btn btn-primary" onclick="addMessage()" style="white-space:nowrap;">Add ＋</button>
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="resetConversation()" style="margin-top:4px;width:100%;">Reset to example</button>
+
+        <!-- Context window meter -->
+        <div style="margin-top:20px;">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Estimated Context Usage (gpt-4.1-mini, 1M limit shown)</div>
+          <div class="cw-container">
+            <div class="cw-bar-wrap">
+              <div class="cw-seg" id="cwSystem" style="background:#818cf8;width:1%;"></div>
+              <div class="cw-seg" id="cwConversation" style="background:#22d3ee;width:1%;"></div>
+              <div class="cw-seg" id="cwFree" style="background:#1e3a5f;width:98%;color:#334155;"></div>
+            </div>
+            <div class="cw-legend">
+              <div class="cw-leg-item"><div class="cw-dot" style="background:#818cf8;"></div>System prompt</div>
+              <div class="cw-leg-item"><div class="cw-dot" style="background:#22d3ee;"></div>Conversation history</div>
+              <div class="cw-leg-item"><div class="cw-dot" style="background:#1e3a5f;border:1px solid #334155;"></div>Available</div>
+            </div>
+            <div class="cw-stats">
+              <div class="cw-stat"><div class="cw-stat-num" id="cwTok" style="color:#22d3ee;">~0</div><div class="cw-stat-label">Est. tokens used</div></div>
+              <div class="cw-stat"><div class="cw-stat-num" id="cwPct" style="color:#34d399;">0%</div><div class="cw-stat-label">Context used</div></div>
+              <div class="cw-stat"><div class="cw-stat-num" id="cwTurns" style="color:#818cf8;">0</div><div class="cw-stat-label">Turns</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="conv-preview">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">Generated Python Code</div>
+        <div class="code-preview" id="convCode"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Context Management Strategies -->
+  <section>
+    <h2 class="section-title">Context Window Management</h2>
+    <p class="section-sub">As conversations grow, token costs and latency increase. Use these strategies to manage context window usage in production.</p>
+
+    <div class="strat-grid">
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#06b6d4;"></div>Sliding Window</div>
+        <div class="strat-desc">Keep only the last N turns. Drop the oldest user+assistant pairs when the total token count exceeds a threshold. Simple and effective.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#818cf8;"></div>Summarization</div>
+        <div class="strat-desc">Periodically summarize older conversation history into a single condensed message. Trade detail for token efficiency. Good for very long sessions.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#34d399;"></div>Message Trimming</div>
+        <div class="strat-desc">Remove or truncate individual messages that exceed a per-message token budget. Use tiktoken to count tokens before building your messages array.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#fbbf24;"></div>Stateless per Turn</div>
+        <div class="strat-desc">For task-based apps (not chat), don't maintain history at all. Each API call is independent. Use RAG to inject relevant context instead of raw history.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#a78bfa;"></div>Responses Chaining</div>
+        <div class="strat-desc">Switch to the Responses API and pass <code style="color:#22d3ee;font-size:0.78rem;">previous_response_id</code>. OpenAI stores history server-side; per-call payload stays small. Best for agents and reasoning models.</div>
+      </div>
+      <div class="strat-card">
+        <div class="strat-title"><div class="strat-dot" style="background:#ef4444;"></div>Prompt Caching</div>
+        <div class="strat-desc">Long system prompt or instructions? OpenAI auto-caches identical input prefixes — repeated calls get ~50–90% input-token discount. No code change; works on both APIs.</div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>Counting tokens:</strong> Use the <code style="color:#22d3ee">tiktoken</code> library (<code style="color:#22d3ee">uv add tiktoken</code>) to count tokens before making API calls.
+      <br><code style="color:#34d399;">import tiktoken; enc = tiktoken.encoding_for_model("gpt-4.1-mini"); tokens = len(enc.encode(text))</code>
+      <br><br>
+      Newer models (GPT-5, o-series) use the <code style="color:#22d3ee">o200k_base</code> encoding — fall back to <code style="color:#34d399;">tiktoken.get_encoding("o200k_base")</code> if the model name isn't recognized.
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section>
+    <h2 class="section-title">Self-Check Quiz</h2>
+    <p class="section-sub">5 questions · Select an answer to see immediate feedback</p>
+
+    <div class="quiz-card" id="q1">
+      <div class="question">1. You make two separate API calls with the same system prompt and user question. Will the second call "remember" the first?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q1',false)">A. Yes — OpenAI maintains session state between API calls</button>
+        <button class="opt-btn" onclick="answer(this,'q1',true)">B. No — each API call is stateless; you must include history in the messages array</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">C. Only if you pass the same session_id parameter</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">D. Yes, but only within the same 24-hour window</button>
+      </div>
+      <div class="feedback" id="fb_q1"></div>
+    </div>
+
+    <div class="quiz-card" id="q2">
+      <div class="question">2. You want the model to respond as a formal legal document reviewer for all turns in a conversation. Which role should hold this instruction?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q2',false)">A. user — put it at the start of every user message</button>
+        <button class="opt-btn" onclick="answer(this,'q2',true)">B. system — it persists for the entire conversation without repetition</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">C. assistant — the model should tell itself what role to play</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">D. It doesn't matter — all roles have the same effect</button>
+      </div>
+      <div class="feedback" id="fb_q2"></div>
+    </div>
+
+    <div class="quiz-card" id="q3">
+      <div class="question">3. A user asks a follow-up question referencing something from 5 turns ago. What must you do to ensure the model understands the reference?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q3',false)">A. Nothing — OpenAI stores all previous messages automatically</button>
+        <button class="opt-btn" onclick="answer(this,'q3',true)">B. Include all previous user and assistant messages in the messages array</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">C. Set remember=True in the API call parameters</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">D. Make the follow-up question completely self-contained</button>
+      </div>
+      <div class="feedback" id="fb_q3"></div>
+    </div>
+
+    <div class="quiz-card" id="q4">
+      <div class="question">4. You're building a multi-turn assistant on gpt-5-mini and want to skip the per-call history bookkeeping. Which Responses API parameter chains turns together?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q4',false)">A. session_id — pass the same string on every call</button>
+        <button class="opt-btn" onclick="answer(this,'q4',true)">B. previous_response_id — pass the .id of the prior response</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">C. messages — include the full conversation history</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">D. thread_id — references a saved conversation thread</button>
+      </div>
+      <div class="feedback" id="fb_q4"></div>
+    </div>
+
+    <div class="quiz-card" id="q5">
+      <div class="question">5. On the Responses API, what replaces the system message used by Chat Completions?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q5',false)">A. A system_prompt parameter at the top level</button>
+        <button class="opt-btn" onclick="answer(this,'q5',true)">B. The instructions parameter</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">C. The first item of the input list must always have role="system"</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">D. There is no equivalent — set the persona on every user message</button>
+      </div>
+      <div class="feedback" id="fb_q5"></div>
+    </div>
+
+    <div class="score-banner" id="scoreBanner">
+      <div class="score-num" id="scoreNum">0/5</div>
+      <div class="score-label">Quiz complete! Review any incorrect answers above.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+let messages = [];
+
+function estimateTokens(text) {
+  // Rough estimate: ~4 chars per token
+  return Math.ceil(text.length / 4);
+}
+
+function resetConversation() {
+  messages = [
+    { role: 'system', content: 'You are a helpful Python tutor. Keep answers concise and include code examples.' },
+    { role: 'user', content: 'What is a list comprehension?' },
+    { role: 'assistant', content: 'A list comprehension creates a list in one line: [expr for item in iterable if condition].' },
+    { role: 'user', content: 'Can you give me an example with squares?' }
+  ];
+  renderAll();
+}
+
+function addMessage() {
+  const role = document.getElementById('newRole').value;
+  const content = document.getElementById('newContent').value.trim();
+  if (!content) return;
+  messages.push({ role, content });
+  document.getElementById('newContent').value = '';
+  renderAll();
+}
+
+function deleteMessage(idx) {
+  messages.splice(idx, 1);
+  renderAll();
+}
+
+function renderAll() {
+  renderMsgList();
+  renderCode();
+  renderContextMeter();
+}
+
+function renderMsgList() {
+  const list = document.getElementById('msgList');
+  if (messages.length === 0) {
+    list.innerHTML = '<div style="color:#475569;font-size:0.82rem;padding:20px 0;text-align:center;font-style:italic;">No messages yet. Add one below.</div>';
+    return;
+  }
+  list.innerHTML = messages.map((m, i) => `
+    <div class="msg-item">
+      <span class="msg-role-badge role-${m.role === 'assistant' ? 'asst' : m.role}">${m.role}</span>
+      <span class="msg-text">${escHtml(m.content)}</span>
+      <span class="msg-del" onclick="deleteMessage(${i})">✕</span>
+    </div>
+  `).join('');
+}
+
+function renderCode() {
+  const msgJson = messages.map(m =>
+    `    <span class="key">{</span>\n        <span class="str">"role"</span>: <span class="str">"${m.role}"</span>,\n        <span class="str">"content"</span>: <span class="str">"${escHtml(m.content).replace(/\n/g,'\\n')}"</span>\n    <span class="key">}</span>`
+  ).join(',\n');
+
+  document.getElementById('convCode').innerHTML =
+`<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = <span class="fn">OpenAI</span>()
+
+<span class="cm"># Include all previous messages for conversation history</span>
+messages = [
+${msgJson}
+]
+
+response = client.chat.completions.<span class="fn">create</span>(
+    <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+    <span class="key">messages</span>=messages,
+    <span class="key">temperature</span>=<span class="str">0.7</span>,
+    <span class="key">max_completion_tokens</span>=<span class="str">512</span>
+)
+
+<span class="cm"># Get the assistant's reply</span>
+reply = response.choices[<span class="str">0</span>].message.content
+
+<span class="cm"># Add reply to history for next turn</span>
+messages.<span class="fn">append</span>({<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: reply})
+
+<span class="fn">print</span>(reply)`;
+}
+
+function showApi(which) {
+  const chat = document.getElementById('apiPanelChat');
+  const resp = document.getElementById('apiPanelResp');
+  const btnC = document.getElementById('apiTabChat');
+  const btnR = document.getElementById('apiTabResp');
+  if (which === 'chat') {
+    chat.style.display = ''; resp.style.display = 'none';
+    btnC.className = 'btn btn-primary'; btnC.style.background = '#22d3ee';
+    btnR.className = 'btn btn-secondary'; btnR.style.background = '';
+  } else {
+    chat.style.display = 'none'; resp.style.display = '';
+    btnR.className = 'btn btn-primary'; btnR.style.background = '#a78bfa';
+    btnC.className = 'btn btn-secondary'; btnC.style.background = '';
+  }
+}
+
+function renderContextMeter() {
+  const limit = 1047576;   // gpt-4.1 family — 1M tokens
+  let sysTokens = 0, convTokens = 0;
+  let turns = 0;
+  messages.forEach(m => {
+    const t = estimateTokens(m.content) + 4;
+    if (m.role === 'system') sysTokens += t;
+    else { convTokens += t; if (m.role === 'user') turns++; }
+  });
+  const total = sysTokens + convTokens;
+  const sysPct = Math.max(0.5, (sysTokens / limit * 100).toFixed(1));
+  const convPct = Math.max(0.5, (convTokens / limit * 100).toFixed(1));
+  const freePct = Math.max(0, 100 - parseFloat(sysPct) - parseFloat(convPct));
+
+  document.getElementById('cwSystem').style.width = sysPct + '%';
+  document.getElementById('cwConversation').style.width = convPct + '%';
+  document.getElementById('cwFree').style.width = freePct + '%';
+  document.getElementById('cwTok').textContent = '~' + total.toLocaleString();
+  document.getElementById('cwPct').textContent = (total/limit*100).toFixed(1) + '%';
+  document.getElementById('cwTurns').textContent = turns;
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+resetConversation();
+
+// Quiz
+const feedbacks = {
+  q1: { ok: "Correct! The OpenAI API is stateless. Each call starts fresh unless you include conversation history in the messages array.", bad: "The OpenAI API is stateless — it has no memory between calls. You must explicitly include prior messages to maintain conversation context." },
+  q2: { ok: "Correct! The system role sets persistent instructions for the entire conversation without needing to repeat them in every user message.", bad: "The system role is the right place for persistent instructions. It applies to all turns automatically without consuming user message space." },
+  q3: { ok: "Correct! To maintain context, every API call must include the full conversation history (all user and assistant messages) in the messages array.", bad: "OpenAI has no memory — you must include all previous user and assistant messages so the model can understand back-references." },
+  q4: { ok: "Correct! Pass the .id of the prior response as previous_response_id and OpenAI threads the conversation server-side. No more resending the full message list.", bad: "On the Responses API, previous_response_id chains turns. Pass response.id from one call as previous_response_id on the next." },
+  q5: { ok: "Correct! The Responses API uses a top-level instructions= parameter instead of a system message inside messages[]. It plays the same persona-setting role.", bad: "Responses uses instructions= at the top level. There is no system role in the simple input form. (You can still send roles in the list form, but instructions is the canonical persona slot.)" }
+};
+
+let answers = {};
+function answer(btn, qId, correct) {
+  if (answers[qId] !== undefined) return;
+  answers[qId] = correct;
+  const allBtns = btn.parentElement.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => b.disabled = true);
+  btn.classList.add(correct ? 'correct' : 'incorrect');
+  if (!correct) {
+    allBtns.forEach(b => { if (b.onclick.toString().includes('true')) b.classList.add('correct'); });
+  }
+  const fb = document.getElementById('fb_' + qId);
+  fb.textContent = correct ? '✓ ' + feedbacks[qId].ok : '✗ ' + feedbacks[qId].bad;
+  fb.className = 'feedback show ' + (correct ? 'ok' : 'bad');
+  if (Object.keys(answers).length === 5) {
+    const score = Object.values(answers).filter(Boolean).length;
+    document.getElementById('scoreNum').textContent = score + '/5';
+    document.getElementById('scoreBanner').classList.add('show');
+  }
+}
+</script>
+</body>
+</html>

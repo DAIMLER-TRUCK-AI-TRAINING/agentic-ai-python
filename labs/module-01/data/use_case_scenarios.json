@@ -1,0 +1,131 @@
+[
+  {
+    "id": "UC-1",
+    "title": "Service Desk ticket triage and routing",
+    "team": "Service Desk",
+    "description": "Classify every new ticket by category and priority (P1-P4) and route it to the right resolver group within seconds of submission. Tickets arrive in six languages.",
+    "regions": [
+      "EU",
+      "US",
+      "APAC"
+    ],
+    "languages": [
+      "en",
+      "de",
+      "fr",
+      "es",
+      "hi",
+      "ja"
+    ],
+    "requests_per_day": 6000,
+    "avg_input_tokens": 900,
+    "avg_output_tokens": 80,
+    "max_input_tokens": 4000,
+    "latency_slo_seconds": 2,
+    "needs_tools": false,
+    "needs_documents": false,
+    "batch_eligible": false,
+    "cacheable_prefix_share": 0.7,
+    "data_sensitivity": "internal",
+    "residency": "data stays in the region it was raised in",
+    "accuracy_bar": "95% routing accuracy on the labelled ticket set",
+    "sample_request": {
+      "system": "You are the Service Desk triage service. Classify the ticket into one category from: Network Access, Identity, Endpoint, Email, Printing, Finance Systems, Other. Assign a priority P1-P4 using the attached priority matrix. Reply with JSON only.",
+      "user": "Ticket INC-104301: Changed my password this morning and now the VPN keeps saying my credentials are wrong."
+    }
+  },
+  {
+    "id": "UC-2",
+    "title": "Major-incident root-cause assistant",
+    "team": "Network Ops",
+    "description": "Help L2 engineers during a P1: read correlated alerts and log excerpts, query the CMDB and the change calendar, propose likely causes with evidence, and draft the incident update. A human approves every action.",
+    "regions": [
+      "EU",
+      "US"
+    ],
+    "languages": [
+      "en"
+    ],
+    "requests_per_day": 120,
+    "avg_input_tokens": 60000,
+    "avg_output_tokens": 2500,
+    "max_input_tokens": 300000,
+    "latency_slo_seconds": 90,
+    "needs_tools": true,
+    "needs_documents": true,
+    "batch_eligible": false,
+    "cacheable_prefix_share": 0.3,
+    "data_sensitivity": "confidential",
+    "residency": "EU incident data stays in the EU",
+    "accuracy_bar": "Every proposed cause cites the alert, log line or change record behind it",
+    "sample_request": {
+      "system": "You are the major-incident assistant for Network Ops. Use the tools to search logs, look up configuration items and list recent changes. Propose at most three likely causes, each with cited evidence. Never execute a change: draft it for human approval.",
+      "user": "P1 INC-104233-NET: packet loss above 30% on the EU-West core since 02:10 UTC. Alerts and the last 2,000 log lines are attached. CHG-20931 ran a firmware update on core switches at 02:00 UTC."
+    }
+  },
+  {
+    "id": "UC-3",
+    "title": "Invoice and contract field extraction",
+    "team": "Finance",
+    "description": "Extract supplier, PO number, totals and payment terms from scanned invoices and contract annexes into the ERP staging table overnight. A missing field must come back as null, never as a guess.",
+    "regions": [
+      "EU"
+    ],
+    "languages": [
+      "en",
+      "de",
+      "fr"
+    ],
+    "requests_per_day": 1500,
+    "avg_input_tokens": 3500,
+    "avg_output_tokens": 400,
+    "max_input_tokens": 20000,
+    "latency_slo_seconds": 3600,
+    "needs_tools": false,
+    "needs_documents": true,
+    "batch_eligible": true,
+    "cacheable_prefix_share": 0.5,
+    "data_sensitivity": "confidential: financial data that can contain personal data",
+    "residency": "EU only",
+    "accuracy_bar": "99% field accuracy; null when a field is absent",
+    "sample_request": {
+      "system": "Extract the invoice fields defined by the JSON schema from the OCR text. Use null for any field that is not printed. Do not infer or calculate values that are not on the page.",
+      "user": "OCR text of INV-88342: INVOICE / Bluefin Network Supplies Ltd / Invoice number: INV-88342 / Invoice date: 21 Sep 2026 / PO number: / ... / Total EUR 1,491.24"
+    }
+  },
+  {
+    "id": "UC-4",
+    "title": "Multilingual employee IT help assistant",
+    "team": "Platform Engineering",
+    "description": "Answer employees' IT questions in their own language from the knowledge base, cite the KB article used, and hand over to a human when unsure.",
+    "regions": [
+      "EU",
+      "US",
+      "APAC"
+    ],
+    "languages": [
+      "en",
+      "de",
+      "fr",
+      "es",
+      "hi",
+      "ja"
+    ],
+    "requests_per_day": 3000,
+    "avg_input_tokens": 6000,
+    "avg_output_tokens": 350,
+    "max_input_tokens": 30000,
+    "latency_slo_seconds": 6,
+    "needs_tools": true,
+    "needs_documents": true,
+    "batch_eligible": false,
+    "cacheable_prefix_share": 0.6,
+    "data_sensitivity": "internal",
+    "residency": "data stays in the region it was raised in",
+    "accuracy_bar": "Every answer cites a KB article or escalates to the Service Desk",
+    "sample_request": {
+      "system": "You are the IT help assistant. Answer in the user's language using only the knowledge-base passages provided. Cite the KB ID for every instruction. If the passages do not answer the question, say so and offer to open a ticket.",
+      "user": "今朝パスワードを変更してから、VPNに接続しようとすると認証エラーになります。どうすればいいですか？"
+    }
+  }
+]

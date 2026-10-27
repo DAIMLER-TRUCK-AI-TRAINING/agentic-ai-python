@@ -1,0 +1,8 @@
+kb_id,title,summary,owner_team
+KB-0042,VPN client rejects credentials after a password change,"After you change your password, the VPN client may keep offering the cached old password and reject the connection. Wait for directory sync, clear the saved credential and reconnect.",Network Ops
+KB-0107,Account locked after repeated failed sign-ins,Too many failed sign-in attempts lock the account for 30 minutes. Use the self-service portal to unlock it or ask the Service Desk to verify your identity.,Service Desk
+KB-0213,Print jobs stuck in a shared printer queue,Jobs that stay in the queue usually point to a stalled print spooler or an offline printer. Restart the queue from the print portal or report the printer's asset tag.,Service Desk
+KB-0318,Supplier invoice does not match the purchase order,"When an invoice total, quantity or price differs from the purchase order, put the invoice on hold, record the variance and ask procurement to confirm before approval.",Finance
+KB-0450,Laptop asks for the disk-encryption recovery key at start-up,"Firmware updates or hardware changes can trigger the encryption recovery screen. Verify the user's identity, retrieve the recovery key from the device record and never send it by email.",Platform Engineering
+KB-0521,Outgoing email stuck in the outbox,"Messages stay in the outbox when the mailbox is over quota or the mail client is offline. Free up space, archive old items and check the connection.",Service Desk
+KB-0608,MFA push notifications not arriving,"If approval prompts do not reach your phone, check that notifications are allowed, the phone's clock is correct and the authenticator app is registered. Use a one-time code in the meantime.",Platform Engineering

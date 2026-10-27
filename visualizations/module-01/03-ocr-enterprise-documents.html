@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCR for Enterprise Documents</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .ocr-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+  .ocr-grid .cli-preview { margin: 0; min-height: 100%; font-size: 12px; max-height: 392px; overflow: auto; white-space: pre; }
+  .doc-print { font-family: var(--mono); font-size: 13px; white-space: pre; }
+  .doc-hand { font-family: "Segoe Script", "Bradley Hand", "Comic Sans MS", cursive; font-size: 15px; white-space: pre; }
+  .tag { font-family: var(--mono); font-size: 9.5px; font-weight: 700; }
+  .cmt { color: var(--muted); }
+  .bad-t { color: var(--bad); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>3 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 3</div>
+  <h1>Characters are not fields</h1>
+  <p class="lede">Traditional OCR gives you characters; AI-assisted OCR also gives you layout and structure: key–value pairs,
+    tables, handwriting. Switch engines on the invoice and the ticket form, then choose <b>Phone photo</b> and toggle
+    preprocessing to see what Tesseract needs, and what preprocessing cannot fix.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="doc">
+        <button data-v="invoice" aria-pressed="true">Invoice INV-88341</button>
+        <button data-v="form" aria-pressed="false">Ticket form INC-104233</button>
+      </div>
+      <div class="seg" id="engine">
+        <button data-v="tess" aria-pressed="true">Tesseract (local)</button>
+        <button data-v="azure" aria-pressed="false">Azure AI Vision Read</button>
+        <button data-v="textract" aria-pressed="false">AWS Textract</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="scan">
+        <button data-v="clean" aria-pressed="true">Clean PDF render</button>
+        <button data-v="noisy" aria-pressed="false">Phone photo (skewed, noisy)</button>
+      </div>
+      <button class="toggle" id="pre" aria-pressed="false">Preprocess (deskew + binarise): off</button>
+    </div>
+    <div class="ocr-grid">
+      <div class="stage"><svg id="svg" viewBox="0 0 440 360" role="img" aria-label="Scanned document with word boxes coloured by OCR confidence"></svg></div>
+      <pre class="cli-preview" id="out" aria-label="Representative engine output"></pre>
+    </div>
+    <div class="legend"><span><i style="background:var(--ok)"></i>confidence ≥ 0.90</span><span><i style="background:var(--warn)"></i>0.75–0.90</span>
+      <span><i style="background:var(--bad)"></i>&lt; 0.75 (normalised)</span><span><i style="background:var(--p2);opacity:.5"></i>structured field (Textract)</span></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Three engines, side by side</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>Tesseract</th><th>Azure AI Vision (Read)</th><th>AWS Textract</th></tr></thead>
+      <tbody>
+        <tr><td>Where it runs</td><td>Locally; open source (Apache 2.0)</td><td>Azure resource in a region you choose</td><td>AWS service in a region you choose</td></tr>
+        <tr><td>Python entry point</td><td><code>pytesseract.image_to_string</code>, <code>image_to_data</code></td><td><code>ImageAnalysisClient.analyze(…, visual_features=[VisualFeatures.READ])</code></td><td><code>boto3</code>: <code>detect_document_text</code>, <code>analyze_document</code>, <code>analyze_expense</code></td></tr>
+        <tr><td>Output</td><td>Text; word boxes with <code>conf</code> 0–100</td><td>blocks → lines → words, <code>boundingPolygon</code>, <code>confidence</code> 0–1</td><td><code>Blocks</code> (LINE, WORD, KEY_VALUE_SET, TABLE, CELL), <code>Confidence</code> 0–100; <code>SummaryFields</code> for expenses</td></tr>
+        <tr><td>Structure</td><td>Page segmentation modes (<code>--psm</code>) only</td><td>Reading-order lines; for fields and tables use Azure AI Document Intelligence (prebuilt invoice, layout)</td><td>Forms, tables, expenses and queries built in</td></tr>
+        <tr><td>Handwriting</td><td>Weak: trained for print</td><td>Supported</td><td>Supported (<code>TextType: HANDWRITING</code>)</td></tr>
+        <tr><td>Cost and residency</td><td>Your compute; data never leaves the host</td><td>Per transaction; data stays in the resource’s region</td><td>Per page and feature; data stays in the chosen region</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> treat OCR output like untrusted input. Validate every field you act on:
+    line items must sum to the total, IDs must match their pattern (<code>^INV-\d{5}$</code>, <code>^INC-\d{6}$</code>), dates must
+    parse. Route anything that fails to a human queue instead of into the ERP.</div>
+
+  <h2>Enterprise document types</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Document</th><th>Layout challenge</th><th>What you extract</th><th>Good fit</th></tr></thead>
+      <tbody>
+        <tr><td>Invoices, receipts</td><td>Tables, totals, a different template per vendor</td><td>Vendor, ID, dates, total, line items</td><td>Expense/invoice models (Textract AnalyzeExpense, Document Intelligence prebuilt invoice)</td></tr>
+        <tr><td>Support-ticket forms, scanned emails</td><td>Key–value fields, handwriting</td><td>Ticket ID, asset, team, free-text issue</td><td>Forms models plus handwriting-capable OCR</td></tr>
+        <tr><td>Contracts, policies (<code>CTR-2026-118</code>, <code>POL-SEC-012</code>)</td><td>Long multi-column text, clauses, signatures</td><td>Clauses, parties, dates; then retrieval (Module 3)</td><td>Read/layout OCR, then chunking</td></tr>
+        <tr><td>Engineering specs (<code>ENG-SPEC-0417</code>)</td><td>Tables, diagrams, rotated labels</td><td>Part numbers, tolerances, revisions</td><td>Layout models plus human review for drawings</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><b>Common trap:</b> one confidence threshold for every engine. Tesseract and Textract report 0–100,
+    Azure reports 0–1. A raw “≥ 0.9” rule accepts every Tesseract word. Normalise first, then calibrate the threshold per
+    engine on your own documents.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="02-nlp-pipeline.html"><small>← Previous</small>The NLP pipeline</a>
+    <a class="next" href="04-transformer-attention.html"><small>Next →</small>Transformer architecture &amp; attention</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data in the running scenario (course-map §8.3). Output shapes mirror pytesseract,
+// Azure AI Vision Image Analysis 4.0 (READ) and boto3 Textract; values are synthetic and representative.
+const DATA = {
+  invoice: {
+    lines: ['Kestrel Office Supply Ltd', 'INVOICE INV-88341', 'Date: 2026-09-14  Due: 2026-10-14', 'Bill to: Service Desk, EU',
+      'Item              Qty     Price', 'Laptop dock USB-C  4     180.00', 'Licence renewal    1   1,250.00', 'TOTAL EUR              1,970.00'],
+    hand: [],
+    errors: { '1:1': ['INV-8834l', 41, true], '2:3': ['2026-1O-14', 55, true], '5:2': ['USB-G', 58, false], '6:3': ['1,25O.00', 52, true], '7:0': ['T0TAL', 63, true] },
+    fields: [[0, 0, 3, 'VENDOR_NAME'], [1, 1, 1, 'INVOICE_RECEIPT_ID'], [2, 1, 1, 'INVOICE_RECEIPT_DATE'], [2, 3, 3, 'DUE_DATE'], [7, 2, 2, 'TOTAL'],
+      [5, 0, 2, 'ITEM'], [6, 0, 1, 'ITEM']],
+    textract: ['# textract.analyze_expense(Document={"Bytes": image})', 'ExpenseDocuments[0].SummaryFields', '  Type.Text             ValueDetection.Text        Conf',
+      '  VENDOR_NAME           Kestrel Office Supply Ltd  99.1', '  INVOICE_RECEIPT_ID    INV-88341                  98.7',
+      '  INVOICE_RECEIPT_DATE  2026-09-14                 99.0', '  DUE_DATE              2026-10-14                 98.2',
+      '  TOTAL                 1,970.00                   99.4', 'LineItemGroups[0].LineItems[*].LineItemExpenseFields',
+      '  ITEM=Laptop dock USB-C   QUANTITY=4   PRICE=180.00', '  ITEM=Licence renewal     QUANTITY=1   PRICE=1,250.00'],
+    nFields: 7
+  },
+  form: {
+    lines: ['IT SUPPORT REQUEST FORM', 'Ticket no: INC-104233', 'Team: Network Ops', 'Asset: LT-4471', 'Region: EU    Priority: P2',
+      'Issue (handwritten):', 'VPN drops every 10 min,', 'error 809 on login'],
+    hand: [6, 7],
+    errors: { '1:2': ['INC-1O4233', 47, true], '3:1': ['LT-447l', 44, true], '4:3': ['PZ', 51, true],
+      '6:0': ['VPH', 38, false], '6:1': ['dnops', 33, false], '6:2': ['evey', 41, false], '6:3': ['1O', 45, false], '6:4': ['mim,', 36, false],
+      '7:0': ['errar', 40, false], '7:1': ['8O9', 44, false], '7:3': ['lagin', 39, false] },
+    fields: [[1, 2, 2, 'Ticket no'], [2, 1, 2, 'Team'], [3, 1, 1, 'Asset'], [4, 1, 1, 'Region'], [4, 3, 3, 'Priority'], [6, 0, 4, 'Issue'], [7, 0, 3, 'Issue']],
+    textract: ['# textract.analyze_document(Document={"Bytes": image},', '#                          FeatureTypes=["FORMS"])',
+      'KEY_VALUE_SET pairs (KEY → VALUE)            Conf', '  Ticket no:  → INC-104233                      97.9', '  Team:       → Network Ops                     98.4',
+      '  Asset:      → LT-4471                         97.2', '  Region:     → EU                              96.8', '  Priority:   → P2                              96.1',
+      '  Issue (handwritten): → VPN drops every 10 min,', '      error 809 on login                       86.5', 'WORD blocks in the Issue value carry TextType: HANDWRITING'],
+    nFields: 6
+  }
+};
+
+const S = { doc: 'invoice', engine: 'tess', scan: 'clean', pre: false };
+const svg = document.getElementById('svg'), out = document.getElementById('out');
+const logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const CW = 7.8, X0 = 40, Y0 = 52, DY = 36;
+const hash = s => { let x = 7; for (const c of s) x = (x * 131 + c.charCodeAt(0)) % 10007; return x / 10007; };
+
+function words() {
+  const d = DATA[S.doc], res = [];
+  d.lines.forEach((line, li) => {
+    const re = /\S+/g; let m, wi = 0;
+    while ((m = re.exec(line))) {
+      const key = `${li}:${wi}`, hand = d.hand.includes(li), err = d.errors[key], h = hash(S.doc + key + S.engine);
+      let read = m[0], conf;
+      if (S.engine === 'tess') {
+        const misread = err && (hand || (S.scan === 'noisy' && !(S.pre && err[2])));
+        if (misread) { read = err[0]; conf = S.pre && !hand ? 72 : err[1]; }
+        else conf = hand ? 58 : S.scan === 'clean' ? 90 + 6 * h : S.pre ? 84 + 10 * h : 74 + 14 * h;
+        conf = Math.round(conf);
+      } else {
+        const base = hand ? .84 + .09 * h : S.scan === 'clean' ? .975 + .02 * h : .90 + .07 * h;
+        conf = S.engine === 'azure' ? +base.toFixed(3) : +(base * 100 - .4).toFixed(1);
+      }
+      const norm = S.engine === 'azure' ? conf : conf / 100;
+      res.push({ li, wi, truth: m[0], read, conf, norm, start: m.index, len: m[0].length, hand });
+      wi++;
+    }
+  });
+  return res;
+}
+
+function render() {
+  const d = DATA[S.doc], W = words(), noisy = S.scan === 'noisy', cleaned = S.engine === 'tess' && S.pre;
+  svg.innerHTML = '';
+  const defs = el('defs', {}, svg);
+  const f = el('filter', { id: 'blur' }, defs); el('feGaussianBlur', { stdDeviation: .5 }, f);
+  const page = el('g', { transform: noisy && !cleaned ? 'rotate(-2.2 220 180)' : '' }, svg);
+  el('rect', { x: 20, y: 14, width: 400, height: 330, rx: 4, fill: noisy && !cleaned ? '#e6e3da' : '#fbfaf6', stroke: '#c9c5b9' }, page);
+  if (noisy && !cleaned) for (let i = 0; i < 70; i++)
+    el('circle', { cx: 25 + 390 * hash('x' + i), cy: 20 + 320 * hash('y' + i), r: .6 + 1.2 * hash('r' + i), fill: '#7a766c', opacity: .5 }, page);
+  const ink = el('g', { filter: noisy && !cleaned ? 'url(#blur)' : '' }, page);
+  const lineEls = d.lines.map((line, li) => {
+    const hand = d.hand.includes(li);
+    const t = el('text', { x: X0, y: Y0 + li * DY, class: hand ? 'doc-hand' : 'doc-print', fill: hand ? '#2448a8' : '#1d1d1d',
+      style: li === 0 ? 'font-weight:700' : '', text: line }, ink);
+    t.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+    return t;
+  });
+  W.forEach(w => {   // measure real glyph positions so boxes fit any installed font
+    const t = lineEls[w.li];
+    try { w.x = X0 + (w.start ? t.getSubStringLength(0, w.start) : 0); w.w = t.getSubStringLength(w.start, w.len); }
+    catch (e) { w.x = X0 + w.start * CW; w.w = w.len * CW; }
+  });
+  W.forEach(w => {
+    const c = w.norm >= .9 ? 'var(--ok)' : w.norm >= .75 ? 'var(--warn)' : 'var(--bad)';
+    el('rect', { x: w.x - 2, y: Y0 + w.li * DY - 14, width: w.w + 4, height: 19, rx: 3, fill: c, 'fill-opacity': .12, stroke: c, 'stroke-width': 1 }, page);
+  });
+  if (S.engine === 'textract') d.fields.forEach(([li, a, b, tag]) => {
+    const ws = W.filter(w => w.li === li && w.wi >= a && w.wi <= b), x1 = ws[0].x, x2 = ws[ws.length - 1].x + ws[ws.length - 1].w;
+    el('rect', { x: x1 - 4, y: Y0 + li * DY - 17, width: x2 - x1 + 8, height: 25, rx: 4, fill: 'none', stroke: 'var(--p2)', 'stroke-width': 2 }, page);
+    el('text', { x: x1 - 3, y: Y0 + li * DY - 19, class: 'tag', fill: 'var(--p2)', text: tag }, page);
+  });
+  renderOutput(W);
+  renderStats(W);
+}
+
+function renderOutput(W) {
+  const d = DATA[S.doc], esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let txt = '';
+  if (S.engine === 'tess') {
+    const byLine = d.lines.map((_, li) => W.filter(w => w.li === li).map(w => w.read !== w.truth ? `<span class="bad-t">${esc(w.read)}</span>` : esc(w.read)).join(' '));
+    const low = W.filter(w => w.conf < 75).map(w => `${w.read} (${w.conf})`);
+    txt = `<span class="cmt"># pytesseract.image_to_string(img, config="--psm 6")</span>\n${byLine.join('\n')}\n\n` +
+      `<span class="cmt"># image_to_data(img, output_type=Output.DICT)\n# keys: level, block_num, line_num, word_num, left, top,\n#       width, height, conf (0–100), text</span>\n` +
+      `conf &lt; 75: ${low.length ? esc(low.slice(0, 3).join(', ')) + (low.length > 3 ? `\n            … and ${low.length - 3} more` : '') : 'none'}\n<span class="cmt"># No fields: you write regexes to find the ID and total.</span>`;
+  } else if (S.engine === 'azure') {
+    const show = [1, d.lines.length - 1].map(li => {
+      const ws = W.filter(w => w.li === li);
+      return `    { "text": "${esc(d.lines[li].replace(/\s+/g, ' '))}",\n      "boundingPolygon": [{"x":${Math.round(ws[0].x)},"y":${Y0 + li * DY - 14}}, …],\n      "words": [ ${ws.slice(0, 2).map(w => `{"text":"${esc(w.read)}","confidence":${w.conf}}`).join(', ')}${ws.length > 2 ? ', …' : ''} ] }`;
+    });
+    txt = `<span class="cmt"># ImageAnalysisClient.analyze(image_data=…,\n#     visual_features=[VisualFeatures.READ])</span>\n"readResult": { "blocks": [ { "lines": [\n${show[0]},\n    <span class="cmt">… ${d.lines.length - 2} more lines …</span>\n${show[1]}\n] } ] }\n\n` +
+      `<span class="cmt"># Text and positions, not fields. For invoice fields on Azure,\n# use Azure AI Document Intelligence (prebuilt invoice model).</span>`;
+  } else txt = d.textract.map((l, i) => i === 0 || l.startsWith('#') ? `<span class="cmt">${esc(l)}</span>` : esc(l)).join('\n');
+  out.innerHTML = txt;
+}
+
+function validate(W) {
+  const d = DATA[S.doc], get = (li, wi) => W.find(w => w.li === li && w.wi === wi).read;
+  if (S.doc === 'invoice') {
+    const num = s => /^[\d,]+\.\d{2}$/.test(s) ? parseFloat(s.replace(/,/g, '')) : NaN;
+    const sum = 4 * num(get(5, 4)) + 1 * num(get(6, 3)), total = num(get(7, 2));
+    if (Number.isNaN(sum) || Number.isNaN(total)) return [false, 'sum check: cannot parse an amount'];
+    return [Math.abs(sum - total) < .01, `sum check: ${sum.toFixed(2)} vs total ${total.toFixed(2)}`];
+  }
+  const id = get(1, 2);
+  return /^INC-\d{6}$/.test(id) ? [true, `ID check: ${id} matches ^INC-\\d{6}$`] : [false, `ID check: “${id}” fails ^INC-\\d{6}$`];
+}
+
+function renderStats(W) {
+  const errs = W.filter(w => w.read !== w.truth).length, low = W.filter(w => w.norm < .8).length;
+  const avg = W.reduce((a, w) => a + w.norm, 0) / W.length, [ok, msg] = validate(W);
+  const fields = S.engine === 'textract' ? DATA[S.doc].nFields : 0;
+  stats.innerHTML = `<div class="stat"><b>${W.length}</b><span>words read</span></div>` +
+    `<div class="stat"><b style="color:${errs ? 'var(--bad)' : 'var(--ok)'}">${errs}</b><span>misread words</span></div>` +
+    `<div class="stat"><b>${avg.toFixed(2)}</b><span>mean confidence (0–1)</span></div>` +
+    `<div class="stat"><b>${low}</b><span>words below 0.80</span></div>` +
+    `<div class="stat"><b>${fields}</b><span>structured fields</span></div>` +
+    `<div class="stat"><b style="color:${ok ? 'var(--ok)' : 'var(--bad)'}">${ok ? 'pass' : 'fail'}</b><span>${msg}</span></div>`;
+  return { errs, ok };
+}
+
+const names = { tess: 'Tesseract', azure: 'Azure AI Vision Read', textract: 'AWS Textract' };
+function changed(what) {
+  render();
+  const W = words(), errs = W.filter(w => w.read !== w.truth).length, [ok, msg] = validate(W);
+  logLine(logEl, `${what} → ${names[S.engine]} on ${S.doc === 'invoice' ? 'INV-88341' : 'INC-104233'} (${S.scan}${S.engine === 'tess' && S.pre ? ', preprocessed' : ''}): ` +
+    `${errs} misread, ${msg} → <b>${ok ? 'pass' : 'fail'}</b>`, !ok);
+}
+bindSeg('doc', v => { S.doc = v; changed('Document'); });
+bindSeg('engine', v => { S.engine = v; changed('Engine'); });
+bindSeg('scan', v => { S.scan = v; changed('Scan'); });
+bindToggle('pre', on => {
+  S.pre = on;
+  document.getElementById('pre').textContent = 'Preprocess (deskew + binarise): ' + (on ? 'on' : 'off');
+  if (S.engine !== 'tess') logLine(logEl, 'Note: cloud engines normalise the image themselves; this toggle affects Tesseract only.');
+  changed('Preprocessing');
+});
+render();
+logLine(logEl, 'Illustrative outputs over synthetic documents. Try Tesseract with a phone photo, then turn preprocessing on.');
+
+renderQuiz('quiz', [
+  { q: 'What is the most useful way to state the difference between traditional and AI-assisted OCR for enterprise work?',
+    options: ['Traditional OCR uses no neural networks at all, so it cannot read print.',
+      'AI-assisted OCR also understands layout and structure (key–value pairs, tables, handwriting), not just characters.',
+      'AI-assisted OCR always runs locally, traditional OCR always runs in the cloud.',
+      'There is no practical difference once the scan is clean.'],
+    answer: 1,
+    explain: 'Even Tesseract 4+ uses an LSTM recogniser, so “neural or not” is not the dividing line. The difference you feel in a pipeline is structure: Textract returned <code>TOTAL</code> and <code>INVOICE_RECEIPT_ID</code> directly, while Tesseract returned text you had to parse.' },
+  { q: 'On the phone-photo ticket form, preprocessing fixed <code>INC-1O4233</code> but the handwritten Issue lines stayed wrong. Why?',
+    options: ['Deskewing and binarisation clean the image, but they cannot make a print-trained recogniser read handwriting.',
+      'Preprocessing only works on invoices.',
+      'The handwritten lines were outside the page boundary.',
+      'Tesseract skips any line after a colon.'],
+    answer: 0,
+    explain: 'Preprocessing fixes geometry and contrast: straight lines and crisp glyphs help on print. Handwriting needs a model trained for it, such as Azure Read or Textract (<code>TextType: HANDWRITING</code>).' },
+  { q: 'Scanned contracts contain personal data and must not leave the EU. Which OCR choice is defensible?',
+    options: ['Any cloud OCR, because providers delete images after processing.',
+      'Whichever engine has the highest average confidence.',
+      'Tesseract on infrastructure you control, or a cloud OCR resource deployed in an EU region under your data-processing agreement, verified before go-live.',
+      'Send them to the cheapest region and encrypt the response.'],
+    answer: 2,
+    explain: 'Data residency is a constraint, not a preference: it filters the options before accuracy and cost are compared. Local OCR keeps data on your hosts; a cloud resource keeps it in the region you deploy it to (Module 5 covers residency controls).' },
+  { q: 'The invoice reads with a mean confidence of 0.96. Can you post the extracted total to the ERP without further checks?',
+    options: ['Yes; anything above 0.95 is reliable.',
+      'Yes, if the engine is a cloud service.',
+      'Only if the scan was a clean PDF render.',
+      'No; confidence is per word, and one wrong digit hides inside a high average. Validate fields (line items sum to the total, IDs match their pattern) and route failures to a human.'],
+    answer: 3,
+    explain: 'In the phone-photo Tesseract run, one misread amount (<code>1,25O.00</code>) broke the sum check even though most words still scored well. Business rules catch what averages hide.' },
+  { q: 'You apply one rule, “accept words with confidence ≥ 0.9”, to raw output from all three engines. What goes wrong?',
+    options: ['Nothing; all three report confidence on the same scale.',
+      'Tesseract and Textract report 0–100, Azure reports 0–1, so the rule accepts every Tesseract and Textract word, including misreads like <code>INV-8834l</code> at 41.',
+      'Azure would reject every word.',
+      'Textract would reject handwritten words only.'],
+    answer: 1,
+    explain: 'Normalise confidence to one scale, then calibrate a threshold per engine on your own documents. The legend on this page uses normalised values for exactly that reason.' }
+]);
+</script>
+</body>
+</html>

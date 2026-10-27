@@ -1,0 +1,11 @@
+[project]
+name = "teast-local-model"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dotenv>=0.9.9",
+    "ollama>=0.6.0",
+    "openai>=2.2.0",
+]

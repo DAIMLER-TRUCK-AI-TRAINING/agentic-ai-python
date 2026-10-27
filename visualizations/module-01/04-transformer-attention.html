@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transformer Attention</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .tok { font-family: var(--mono); font-size: 13px; }
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .formula { font-family: var(--mono); font-size: 15px; text-align: center; margin: 6px 0 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>4 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 4</div>
+  <h1>Attention: every token can look at every other token</h1>
+  <p class="lede">Attention lets “it” pull meaning from “packet” or “router”, which is why transformers resolve references so well,
+    and why their cost grows with the <em>square</em> of the input length. Click a token to see where it attends, flip the last
+    word between <b>malformed</b> and <b>overloaded</b>, then apply the decoder’s causal mask and watch what “it” can no longer see.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="variant">
+        <button data-v="malformed" aria-pressed="true">…it was malformed</button>
+        <button data-v="overloaded" aria-pressed="false">…it was overloaded</button>
+      </div>
+      <div class="seg" id="head">
+        <button data-v="coref" aria-pressed="true">Head: reference</button>
+        <button data-v="prev" aria-pressed="false">Head: previous token</button>
+        <button data-v="syntax" aria-pressed="false">Head: syntax</button>
+      </div>
+      <div class="seg" id="mode">
+        <button data-v="encoder" aria-pressed="true">Encoder (bidirectional)</button>
+        <button data-v="decoder" aria-pressed="false">Decoder (causal mask)</button>
+      </div>
+    </div>
+    <div class="controls">
+      <label class="range">Scale the input to <input type="range" id="len" min="0" max="5" step="1" value="0" aria-label="Input length in tokens"> <b id="lenOut" class="mono">10 tokens</b></label>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 430" role="img" aria-label="Attention arcs over the sentence and a 10 by 10 attention heatmap"></svg></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Query, key, value</h2>
+  <div class="card">
+    <div class="formula">Attention(Q, K, V) = softmax(Q·Kᵀ / √dₖ) · V</div>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:15px">Each token emits a <b>query</b> (what it is looking for), a <b>key</b>
+      (what it offers) and a <b>value</b> (the information it passes on). Query–key scores, scaled and normalised by softmax, become
+      the weights in each heatmap row (every row sums to 1). The token’s new representation is the weighted mix of values. Many
+      <b>heads</b> run in parallel, each learning a different pattern, and dozens of <b>layers</b> are stacked. The three heads here are
+      illustrative, modelled on patterns researchers have found in real models.</p>
+  </div>
+
+  <h2>Encoder, decoder, encoder–decoder</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Architecture</th><th>Attention</th><th>Example models</th><th>Typical enterprise use</th></tr></thead>
+      <tbody>
+        <tr><td><b>Encoder-only</b></td><td>Bidirectional self-attention: every token sees the whole input</td><td>BERT, RoBERTa; Sentence Transformers such as <code>all-MiniLM-L6-v2</code></td><td>Embeddings, NER, classification (Topics 2 and 6)</td></tr>
+        <tr><td><b>Decoder-only</b></td><td>Causal self-attention: each token sees only earlier tokens</td><td>OpenAI GPT and Anthropic Claude families; most open-weights LLMs</td><td>Generation, chat, tool-using agents</td></tr>
+        <tr><td><b>Encoder–decoder</b></td><td>Encoder self-attention, decoder causal self-attention, plus cross-attention from decoder to encoder</td><td>The original Transformer (2017), T5, BART, MarianMT</td><td>Translation, summarisation</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> full self-attention computes n² scores per head per layer. Doubling a prompt from
+    4,096 to 8,192 tokens quadruples that work (16.8 M → 67.1 M scores). Kernels such as FlashAttention cut memory traffic, but long
+    prompts still cost more time and money, so send what the task needs, not everything you have (Topic 5).</div>
+  <div class="callout warn"><b>Common trap:</b> reading attention weights as the model’s explanation. A heatmap shows one head in one
+    layer; the decision emerges from many heads, layers and feed-forward blocks. Use attention to build intuition, and use evals and
+    tracing (Module 5) to explain behaviour.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="03-ocr-enterprise-documents.html"><small>← Previous</small>OCR for enterprise documents</a>
+    <a class="next" href="05-llm-context-hallucinations.html"><small>Next →</small>LLM architecture: context windows, hallucinations &amp; limits</a>
+  </div>
+</div>
+
+<script>
+// Illustrative attention: hand-set logits per head, turned into weights with softmax (rows sum to 1).
+// Not extracted from a real model. The causal mask sets future positions to −∞ before softmax.
+const DATA = {
+  base: ['The', 'router', 'dropped', 'the', 'packet', 'because', 'it', 'was', null, '.'],
+  lengths: [10, 1024, 4096, 8192, 32768, 131072],
+  heads: { coref: 'reference (coreference)', prev: 'previous token', syntax: 'syntax (verb ↔ arguments)' }
+};
+
+const S = { variant: 'malformed', head: 'coref', mode: 'encoder', q: 6, len: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const tokens = () => DATA.base.map(t => t || S.variant);
+const N = 10, slot = i => 30 + i * 85, cx = i => slot(i) + 38, HX = 120, HY = 232, CELL = 19;
+
+function logits() {
+  const L = [...Array(N)].map((_, i) => [...Array(N)].map((_, j) => (i === j ? 1 : 0)));
+  const set = (i, j, v) => { L[i][j] = v; };
+  const mal = S.variant === 'malformed', enc = S.mode === 'encoder';
+  if (S.head === 'coref') {
+    if (enc) { set(6, mal ? 4 : 1, 3.5); set(6, mal ? 1 : 4, 1); set(6, 8, 1.5); }
+    else { set(6, 1, 2.2); set(6, 4, 2.2); }          // decoder: "it" cannot see the last word yet
+    set(8, mal ? 4 : 1, 3); set(8, 6, 2.5); set(7, 6, 2); set(3, 4, 1.5);
+  } else if (S.head === 'prev') {
+    for (let i = 0; i < N; i++) set(i, Math.max(0, i - 1), 3.5);
+  } else {
+    set(0, 1, 2); set(1, 0, 1.5); set(1, 2, 2.5); set(2, 1, 3); set(2, 4, 3); set(3, 4, 2); set(4, 2, 2.5); set(4, 3, 1.5);
+    set(5, 2, 2); set(5, 7, 1.5); set(6, 7, 2); set(7, 6, 2.5); set(7, 8, 2.5); set(8, 7, 2.5); set(9, 2, 2);
+  }
+  if (!enc) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) L[i][j] = -Infinity;
+  return L;
+}
+const weights = () => logits().map(row => softmax(row));
+
+function render() {
+  svg.innerHTML = '';
+  const W = weights(), tk = tokens(), row = W[S.q];
+  row.forEach((w, j) => {   // arcs from the query token to each key it attends to
+    if (w < .03) return;
+    const c = 'var(--p3)';
+    if (j === S.q) { el('circle', { cx: cx(j), cy: 98, r: 10, fill: 'none', stroke: c, 'stroke-width': 1 + 9 * w, opacity: .3 + .7 * w }, svg); return; }
+    const dx = Math.abs(cx(j) - cx(S.q)), h = Math.min(100, 16 + dx * .26), mid = (cx(j) + cx(S.q)) / 2;
+    el('path', { d: `M${cx(S.q)} 106 Q${mid} ${106 - 2 * h} ${cx(j)} 106`, fill: 'none', stroke: c, 'stroke-width': 1 + 9 * w, opacity: .3 + .7 * w, 'stroke-linecap': 'round' }, svg);
+  });
+  tk.forEach((t, i) => {
+    const masked = S.mode === 'decoder' && i > S.q, sel = i === S.q;
+    const g = clickable(el('g', { opacity: masked ? .35 : 1 }, svg), () => select(i), `Query token ${t}`);
+    el('rect', { x: slot(i), y: 110, width: 76, height: 30, rx: 7, fill: sel ? 'var(--p3)' : 'var(--surface)', stroke: sel ? 'var(--p3)' : 'var(--border)' }, g);
+    el('text', { x: cx(i), y: 130, 'text-anchor': 'middle', class: 'tok', fill: sel ? '#fff' : 'var(--text)', style: i === 8 ? 'font-weight:700' : '', text: t }, g);
+    if (!sel && row[i] >= .03) el('text', { x: cx(i), y: 156, 'text-anchor': 'middle', class: 'lab muted', text: row[i].toFixed(2) }, svg);
+  });
+  el('text', { x: 360, y: 196, class: 'hdr', text: `Heatmap · head: ${DATA.heads[S.head]}` }, svg);
+  el('text', { x: 360, y: 214, class: 'lab muted', text: 'rows = queries (click to select), columns = keys' }, svg);
+  tk.forEach((t, j) => el('text', { x: HX + j * CELL + 12, y: HY - 6, class: 'lab muted', transform: `rotate(-55 ${HX + j * CELL + 12} ${HY - 6})`, text: t }, svg));
+  W.forEach((r, i) => {
+    const g = clickable(el('g', {}, svg), () => select(i), `Heatmap row for ${tk[i]}`);
+    el('rect', { x: 20, y: HY + i * CELL, width: HX - 22, height: CELL, fill: 'transparent' }, g);
+    el('text', { x: HX - 6, y: HY + i * CELL + 14, 'text-anchor': 'end', class: 'lab', style: i === S.q ? 'font-weight:700' : '', text: tk[i] }, g);
+    r.forEach((w, j) => {
+      const masked = S.mode === 'decoder' && j > i;
+      el('rect', { x: HX + j * CELL, y: HY + i * CELL, width: CELL - 1, height: CELL - 1, rx: 2,
+        fill: masked ? 'var(--surface)' : 'var(--p3)', 'fill-opacity': masked ? 1 : Math.max(.04, w), stroke: masked ? 'var(--border)' : 'none', 'stroke-dasharray': '2 2' }, svg);
+    });
+  });
+  el('rect', { x: HX - 1, y: HY + S.q * CELL - 1, width: N * CELL + 1, height: CELL + 1, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, rx: 3 }, svg);
+  const top = row.map((w, j) => [tk[j], w, j]).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  el('text', { x: 360, y: HY + 4, class: 'hdr', text: `Where “${tk[S.q]}” attends (top 5 of row ${S.q + 1})` }, svg);
+  top.forEach(([t, w, j], k) => {
+    const y = HY + 22 + k * 30;
+    el('text', { x: 360, y: y + 12, class: 'tok', text: `${t}${j === S.q ? ' (self)' : ''}` }, svg);
+    el('rect', { x: 500, y: y + 2, width: 300, height: 14, rx: 3, fill: 'var(--surface)' }, svg);
+    el('rect', { x: 500, y: y + 2, width: 300 * w, height: 14, rx: 3, fill: 'var(--p3)' }, svg);
+    el('text', { x: 808, y: y + 14, class: 'lab', text: w.toFixed(2) }, svg);
+  });
+  if (S.mode === 'decoder') el('text', { x: 360, y: HY + 186, class: 'lab muted', text: `Causal mask: “${tk[S.q]}” sees ${S.q + 1} of 10 tokens; dashed cells are future positions.` }, svg);
+  renderStats(row, tk);
+}
+
+function renderStats(row, tk) {
+  const n = DATA.lengths[S.len], fmt = x => x >= 1e9 ? (x / 1e9).toFixed(1) + ' B' : x >= 1e6 ? (x / 1e6).toFixed(1) + ' M' : x.toLocaleString('en-GB');
+  const j = strongest(row, S.q), only = j < 0;
+  document.getElementById('lenOut').textContent = n.toLocaleString('en-GB') + ' tokens';
+  stats.innerHTML = `<div class="stat"><b>${only ? '–' : tk[j]}</b><span>${only ? `“${tk[S.q]}” can only see itself (causal mask)` : `strongest key for “${tk[S.q]}” (excl. self)`}</span></div>` +
+    `<div class="stat"><b>${only ? '1.00' : row[j].toFixed(2)}</b><span>${only ? 'weight on itself' : 'its attention weight'}</span></div>` +
+    `<div class="stat"><b>${fmt(n * n)}</b><span>scores per head per layer at ${n.toLocaleString('en-GB')} tokens</span></div>`;
+}
+
+// Index of the strongest key other than the query itself, or -1 when the mask leaves nothing else visible.
+function strongest(row, q) {
+  let best = -1;
+  row.forEach((w, k) => { if (k !== q && w > 0 && (best < 0 || w > row[best])) best = k; });
+  return best;
+}
+
+function select(i) {
+  S.q = i; render();
+  const row = weights()[i], tk = tokens(), j = strongest(row, i);
+  logLine(logEl, j < 0 ? `Query “${tk[i]}” (${S.mode}): the causal mask leaves only itself`
+    : `Query “${tk[i]}” (${S.mode}, ${S.head}) → strongest key “${tk[j]}” ${row[j].toFixed(2)}`, i === 6);
+}
+bindSeg('variant', v => { S.variant = v; select(S.q); });
+bindSeg('head', v => { S.head = v; select(S.q); });
+bindSeg('mode', v => { S.mode = v; select(S.q); });
+document.getElementById('len').addEventListener('input', e => {
+  S.len = +e.target.value; render();
+  const n = DATA.lengths[S.len];
+  logLine(logEl, `At ${n.toLocaleString('en-GB')} tokens: ${(n * n).toLocaleString('en-GB')} attention scores per head per layer (n²)`);
+});
+render();
+logLine(logEl, 'Illustrative weights. Query “it” selected: compare the two sentence endings, then switch to the causal mask.');
+
+renderQuiz('quiz', [
+  { q: 'In self-attention, what are the roles of query, key and value?',
+    options: ['Query, key and value are three copies of the same token embedding, used for redundancy.',
+      'The query is the user’s prompt, the key is the API key, and the value is the response.',
+      'Each token’s query is compared with every key to get weights; the weights then mix the values into the token’s new representation.',
+      'Keys store facts the model memorised; values store their confidence.'],
+    answer: 2,
+    explain: 'Query·key scores, scaled by √dₖ and normalised by softmax, become one heatmap row. That row weights the value vectors, and the weighted mix is what flows to the next layer.' },
+  { q: 'In encoder mode, changing “malformed” to “overloaded” moved most of the attention from “it” off “packet” and onto “router”. What makes that possible?',
+    options: ['Bidirectional attention: “it” can see the word that comes after it, so the later adjective changes how “it” is resolved.',
+      'The tokenizer re-ordered the sentence.',
+      'The model looked the sentence up in a database of known examples.',
+      'The previous-token head copied “router” forward.'],
+    answer: 0,
+    explain: 'Encoders attend in both directions. Packets are malformed, routers are overloaded, and the reference head picks that up because “it” can see the final word: about 0.68 on “packet” with “malformed”, and 0.68 on “router” with “overloaded”.' },
+  { q: 'Switch to the decoder’s causal mask. Why is the “it” row now identical for both sentence endings?',
+    options: ['Decoders ignore pronouns.',
+      'Under the causal mask “it” can only see earlier tokens, so it cannot depend on the final word; resolution happens later, when the final word attends back to “packet” or “router”.',
+      'The mask removes the reference head entirely.',
+      'Because softmax is not applied in decoders.'],
+    answer: 1,
+    explain: 'With future positions set to −∞, the “it” row splits evenly between router and packet (0.36 each). Select the last word instead: in the decoder it attends back to the right noun (0.49). This is how GPT- and Claude-style models read left to right.' },
+  { q: 'A teammate says: “Doubling the prompt from 4,096 to 8,192 tokens just doubles the attention work, like a linear scan.” What actually happens with full self-attention?',
+    options: ['It doubles, as they say.',
+      'It stays constant, because the model has a fixed size.',
+      'It halves, because longer prompts are cached.',
+      'It quadruples: n² scores per head per layer go from about 16.8 million to about 67.1 million.'],
+    answer: 3,
+    explain: 'Every token scores every other token, so the work is n². Use the slider: 4,096² ≈ 16.8 M and 8,192² ≈ 67.1 M. Optimised kernels reduce memory traffic, but long prompts still cost more latency and money.' },
+  { q: 'You need vectors for 2 million historical tickets to power duplicate detection. Which architecture fits best?',
+    options: ['A decoder-only LLM asked to write a one-line summary of each ticket.',
+      'An encoder–decoder translation model.',
+      'An encoder-only embedding model (for example a Sentence Transformers model), which reads the whole ticket bidirectionally and outputs one vector per ticket.',
+      'Any model works the same, so pick the largest available.'],
+    answer: 2,
+    explain: 'Encoders are built to represent text, not generate it: they are small, fast and run locally at this volume. Generating 2 million summaries with an LLM would be slower, costlier and still not give you vectors (Topic 6).' }
+]);
+</script>
+</body>
+</html>

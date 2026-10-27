@@ -1,0 +1,62 @@
+# Agentic AI Systems Engineering — course-wide Python dependencies
+#
+# Python 3.12+. Install once, from the repo root, with the course venv active:
+#     pip install -r labs/setup/requirements.txt
+#
+# Versions were resolved together on 2026-10-27 with `pip install --dry-run`
+# and `pip check` reports no conflicts. Re-pin as a set, never one at a time:
+# the SDK pins below are held back on purpose (see the notes).
+
+# --- Core: every module --------------------------------------------------------
+# openai is held on 2.x: llama-index-llms-openai 0.8.3 and guardrails-ai 0.11.0
+# require openai<3. Revisit when both support openai 3.x.
+openai==2.54.0
+# anthropic is held on 1.x: langchain-anthropic 1.7.6 requires anthropic<2.0.0.
+# anthropic 1.x sends API version 2023-06-01; 2.x switches to 2026-10-21.
+anthropic==1.17.0
+python-dotenv==1.2.4
+pydantic==2.14.1
+numpy==2.5.4
+pandas==3.1.0
+matplotlib==3.11.2
+jupyterlab==4.6.4
+ipykernel==7.4.0
+nbformat==5.11.1
+nbconvert==7.17.2
+
+# --- Module 1: GenAI, NLP, OCR & LLM fundamentals ------------------------------
+tiktoken==0.14.0
+torch==2.14.1
+transformers==5.21.0
+huggingface-hub==1.33.0
+sentence-transformers==6.2.0
+pytesseract==0.3.13            # needs the Tesseract binary: see labs/setup/README.md
+pillow==13.0.0
+rapidfuzz==3.14.6
+azure-ai-vision-imageanalysis==1.0.0   # instructor-led cloud OCR demo only
+
+# --- Module 2: prompts, SDKs, LangChain & single agent -------------------------
+langchain==1.4.7
+langchain-openai==1.7.3
+langchain-anthropic==1.7.6
+langchain-community==0.4.2
+langsmith==0.14.12
+langchain-tavily==0.2.18
+
+# --- Module 3: enterprise RAG & fine-tuning strategy ---------------------------
+llama-index-core==0.14.25
+llama-index-llms-openai==0.8.3
+llama-index-llms-anthropic==0.12.3
+llama-index-embeddings-openai==0.7.0
+llama-index-embeddings-huggingface==0.8.0
+faiss-cpu==1.15.1
+chromadb==1.5.9
+
+# --- Module 4: multi-agent orchestration, patterns & MCP -----------------------
+langgraph==1.2.18
+mcp==2.3.0
+redis==8.1.0                   # client only; the labs fall back to an in-memory store
+
+# --- Module 5: cloud, security, governance & evals -----------------------------
+langfuse==5.0.4
+guardrails-ai==0.11.0

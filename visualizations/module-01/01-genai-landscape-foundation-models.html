@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenAI Landscape &amp; Foundation Models</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .ring-label { font-size: 13px; font-weight: 600; }
+  .chip-text { font-size: 12.5px; }
+  .layer-title { font-size: 14px; font-weight: 600; }
+  .layer-sub { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>1 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 1</div>
+  <h1>Pick the smallest circle that solves the problem</h1>
+  <p class="lede">AI, machine learning, deep learning and generative AI are nested, not competing, and every step inward
+    buys flexibility at the price of cost, latency and determinism. Click each IT-ops use case to drop it into the
+    smallest circle that can solve it, then switch to the enterprise stack and swap the model provider.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="view">
+        <button data-v="fields" aria-pressed="true">Nested fields</button>
+        <button data-v="stack" aria-pressed="false">Enterprise AI stack</button>
+      </div>
+      <button class="primary" id="placeAll">Place all use cases</button>
+      <button id="swap" disabled>Swap provider (LLM_PROVIDER)</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 360" role="img" aria-label="Nested AI fields with use cases, or the layered enterprise AI stack"></svg></div>
+    <div class="detail" id="detail"><h3>Start here</h3><p>Click a use case on the right, or a ring label, to see why it belongs where it does.</p></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Which circle, when?</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Learns from</th><th>IT-ops example</th><th>Strength</th><th>Watch out for</th></tr></thead>
+      <tbody>
+        <tr><td><b>Rule-based AI</b></td><td>Nothing; humans write the rules</td><td>Keyword routing, escalation matrices</td><td>Deterministic, auditable, free to run</td><td>Brittle when wording varies</td></tr>
+        <tr><td><b>Machine learning</b></td><td>Labelled or unlabelled tabular data</td><td>Disk-full forecasting, anomaly detection on telemetry</td><td>Cheap, fast, measurable with precision/recall</td><td>Needs feature engineering and labelled history</td></tr>
+        <tr><td><b>Deep learning</b></td><td>Raw signals: pixels, audio, text</td><td>OCR recognisers, NER taggers, embedding models</td><td>Learns its own features from unstructured input</td><td>Needs more data and compute; harder to explain</td></tr>
+        <tr><td><b>Generative AI</b></td><td>Massive text/code corpora, then instruction tuning</td><td>Incident summaries, draft replies, agents</td><td>One model handles open-ended language tasks</td><td>Non-deterministic, costs per token, can hallucinate (Topic 5)</td></tr>
+        <tr><td><b>Foundation model</b></td><td>Pre-trained once on broad data, adapted many ways</td><td>GPT and Claude for generation; BERT-style encoders for embeddings</td><td>Reuse instead of training from scratch</td><td>Knows nothing about your internal systems unless you supply it</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> before reaching for an LLM, ask whether a rule, a classical model or a
+    small encoder already solves the task. Each step inward adds per-call cost, latency and output you must validate,
+    so spend it only where open-ended language actually earns its keep.</div>
+
+  <h2>Four ways to adapt a foundation model</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Approach</th><th>What changes</th><th>Cost to update</th><th>Where in this course</th></tr></thead>
+      <tbody>
+        <tr><td>Prompting</td><td>Instructions and examples in each request; the model is untouched</td><td>Minutes: edit a template</td><td>Module 2</td></tr>
+        <tr><td>Retrieval (RAG)</td><td>Relevant documents are fetched and added to the context at call time</td><td>Re-index changed documents</td><td>Module 3</td></tr>
+        <tr><td>Fine-tuning</td><td>The model's weights, trained on your examples</td><td>A training run plus re-evaluation</td><td>Module 3 (decision framework)</td></tr>
+        <tr><td>Tools and agents</td><td>The model calls your APIs inside a loop with guardrails</td><td>Deploy or change a tool contract</td><td>Modules 2 and 4</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><b>Common trap:</b> assuming a foundation model “was trained on everything”, so it must know
+    <code>KB-0042</code> or your change calendar. It saw broad public data up to a cutoff date. Your internal facts reach it only
+    through the prompt, retrieval or fine-tuning, so plan that path explicitly.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="index.html"><small>← Back</small>Module overview</a>
+    <a class="next" href="02-nlp-pipeline.html"><small>Next →</small>The NLP pipeline</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data in the running scenario (course-map §8.3).
+const DATA = {
+  rings: [
+    { id: 'ai',  x: 20,  y: 20,  w: 530, h: 320, c: 'var(--p5)', label: 'Artificial intelligence', lx: 32,  ly: 42,
+      text: 'Any technique that makes software act intelligently, including hand-written rules, search and planning. No training data needed. In IT ops: routing rules, escalation matrices, schedulers.' },
+    { id: 'ml',  x: 50,  y: 62,  w: 470, h: 268, c: 'var(--p0)', label: 'Machine learning', lx: 62, ly: 84,
+      text: 'Learns a function from data instead of hand-coded rules. Strongest on tabular data such as telemetry and ticket metadata: gradient-boosted trees, logistic regression, clustering.' },
+    { id: 'dl',  x: 80,  y: 104, w: 410, h: 216, c: 'var(--p1)', label: 'Deep learning', lx: 92, ly: 126,
+      text: 'Machine learning with many-layer neural networks that learn their own features from raw signals: images, audio, text. OCR recognisers, NER taggers and embedding models live here.' },
+    { id: 'gen', x: 210, y: 140, w: 270, h: 156, c: 'var(--p3)', label: 'Generative AI', lx: 222, ly: 162,
+      text: 'Deep-learning models that produce new content (text, code, images) by sampling, one token at a time for LLMs. Flexible, but non-deterministic and paid per token.' },
+    { id: 'fm',  x: 150, y: 180, w: 250, h: 118, c: 'var(--p4)', label: 'Foundation models (dashed)', lx: 158, ly: 314, dashed: true,
+      text: 'Large models pre-trained once on broad data and adapted to many tasks. They straddle the GenAI line: generative LLMs (GPT, Claude) and non-generative encoders (BERT-style, the base of Sentence Transformers).' }
+  ],
+  cases: [
+    { t: 'Route “password reset” tickets by keyword', ring: 'ai', x: 440, y: 41,
+      why: 'A keyword rule is deterministic, auditable and free to run. An LLM would add cost, latency and variable output for no gain while the wording is this predictable.' },
+    { t: 'Forecast disk-full incidents from metrics', ring: 'ml', x: 440, y: 84,
+      why: 'Three years of labelled telemetry is tabular data: a gradient-boosted tree trains in minutes, scores in microseconds and is measured with precision and recall.' },
+    { t: 'Read scanned invoice INV-88341', ring: 'dl', x: 115, y: 210,
+      why: 'Turning pixels into characters needs a neural recogniser (CNN/LSTM), which is deep learning, but nothing is generated. See Topic 3.' },
+    { t: 'Match a German ticket to English KB-0042', ring: 'fm', x: 180, y: 240,
+      why: 'A multilingual encoder derived from a pre-trained foundation model maps both texts to nearby vectors. It is not generative and is far cheaper than an LLM. See Topic 6.' },
+    { t: 'Draft a summary of INC-104233', ring: 'gen', x: 265, y: 225,
+      why: 'Writing new, fluent text is what a generative foundation model (an LLM) is for. Validate the output, because it is sampled, not looked up.' },
+    { t: 'Triage → KB lookup → structured escalation', ring: 'gen', x: 292, y: 272, agent: true,
+      why: 'An agent is a system design, not a new kind of model: an LLM plus tools, a loop and guardrails. This is the Module 2 Enterprise Operations Assistant.' }
+  ],
+  layers: [
+    { id: 'apps', y: 20,  c: 'var(--p0)', title: 'Applications & agents', sub: 'Enterprise Operations Assistant · triage bot · multi-agent workflows',
+      text: 'What users touch. You build the Enterprise Operations Assistant in Module 2 and multi-agent workflows in Module 4. Key decision: does this need an agent, or is a fixed workflow enough?' },
+    { id: 'orch', y: 84,  c: 'var(--p1)', title: 'Orchestration & frameworks', sub: 'LangChain · LlamaIndex · LangGraph · MCP',
+      text: 'Holds prompts, tools, memory, retrieval and routing (Modules 2–4). A provider-agnostic framework absorbs API differences, so swapping models is a configuration change.' },
+    { id: 'models', y: 148, c: 'var(--p3)', title: 'Foundation models', sub: 'proprietary vs open weights',
+      text: 'OpenAI GPT and Anthropic Claude families through their APIs, or open-weights models from HuggingFace that you host. Choosing among them by cost and capability is Topic 7.' },
+    { id: 'plat', y: 212, c: 'var(--p4)', title: 'Platforms & deployment', sub: 'Azure AI Foundry / Azure OpenAI · AWS Bedrock · self-hosted GPUs',
+      text: 'Decides region, data residency, quotas and network isolation (Module 5). The same model family can be reached through more than one platform.' },
+    { id: 'data', y: 276, c: 'var(--p4)', title: 'Enterprise data & systems', sub: 'SharePoint · Confluence · Jira · databases · scanned documents',
+      text: 'Where your knowledge lives. OCR (Topic 3) turns scans into text; RAG connectors (Module 3) and MCP servers (Module 4) bring it to the model.' }
+  ],
+  gov: 'Governance, security and evaluation cut across every layer: guardrails, role/team/region access control, tracing, evals and Responsible AI (Topic 7; Module 5).',
+  providers: [ { id: 'openai', name: 'OpenAI GPT', x: 300 }, { id: 'anthropic', name: 'Anthropic Claude', x: 430 }, { id: 'open', name: 'Open weights (HF)', x: 560 } ]
+};
+
+const S = { view: 'fields', placed: new Set(), provider: 'openai', busy: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const swapBtn = document.getElementById('swap'), placeBtn = document.getElementById('placeAll');
+
+function show(title, text) { detail.innerHTML = `<h3>${title}</h3><p>${text}</p>`; }
+function ringName(id) { return DATA.rings.find(r => r.id === id).label.replace(' (dashed)', ''); }
+
+function renderFields() {
+  DATA.rings.forEach(r => {
+    el('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 18, fill: r.c, 'fill-opacity': r.dashed ? .06 : .07,
+      stroke: r.c, 'stroke-width': 1.5, 'stroke-dasharray': r.dashed ? '6 5' : '' }, svg);
+    const g = clickable(el('g', {}, svg), () => show(r.label.replace(' (dashed)', ''), r.text), 'About ' + r.label);
+    el('rect', { x: r.lx - 6, y: r.ly - 15, width: r.label.length * 7.4 + 12, height: 22, rx: 6, fill: 'transparent' }, g);
+    el('text', { x: r.lx, y: r.ly, class: 'ring-label', fill: r.c, text: r.label }, g);
+  });
+  DATA.cases.forEach((c, i) => {
+    const y = 24 + i * 52, done = S.placed.has(i);
+    const g = clickable(el('g', {}, svg), () => place(i), 'Place use case: ' + c.t);
+    el('rect', { x: 575, y, width: 310, height: 40, rx: 8, fill: 'var(--surface)', stroke: done ? 'var(--ok)' : 'var(--border)' }, g);
+    el('circle', { cx: 593, cy: y + 20, r: 9, fill: done ? PCOLORS[i] : 'var(--surface-2)', stroke: PCOLORS[i] }, g);
+    el('text', { x: 593, y: y + 24, 'text-anchor': 'middle', style: 'font-size:11px;font-weight:700', fill: done ? '#fff' : PCOLORS[i], text: i + 1 }, g);
+    el('text', { x: 610, y: y + 25, class: 'chip-text', text: c.t + (done ? '  ✓' : '') }, g);
+    if (done) dot(i, c.x, c.y);
+  });
+}
+
+function dot(i, x, y) {
+  const g = el('g', { transform: `translate(${x},${y})` }, svg);
+  el('circle', { r: 9, fill: PCOLORS[i], stroke: 'var(--surface)', 'stroke-width': 2 }, g);
+  el('text', { y: 4, 'text-anchor': 'middle', style: 'font-size:11px;font-weight:700', fill: '#fff', text: i + 1 }, g);
+  if (DATA.cases[i].agent) el('text', { x: 14, y: 4, style: 'font-size:11px;font-weight:600', fill: 'var(--p3)', text: 'agent = LLM + tools + loop' }, g);
+  return g;
+}
+
+async function place(i) {
+  if (S.busy) return;
+  const c = DATA.cases[i];
+  show(`${i + 1}. ${c.t} → ${ringName(c.ring)}`, c.why);
+  if (S.placed.has(i)) return;
+  S.busy = true;
+  const epoch = S.epoch, flyer = dot(i, 593, 44 + i * 52);
+  await tween(flyer, 593, 44 + i * 52, c.x, c.y, 650);
+  S.busy = false;
+  if (epoch !== S.epoch) return;   // reset while flying
+  S.placed.add(i);
+  logLine(logEl, `Use case ${i + 1} → <b>${ringName(c.ring)}</b>${c.agent ? ' (as an agent)' : ''}`, true);
+  render();
+}
+
+function renderStack() {
+  DATA.layers.forEach(L => {
+    const g = clickable(el('g', {}, svg), () => show(L.title, L.text), 'About ' + L.title);
+    el('rect', { x: 20, y: L.y, width: 680, height: 56, rx: 10, fill: L.c, 'fill-opacity': .1, stroke: L.c, 'stroke-width': 1.5 }, g);
+    el('text', { x: 34, y: L.y + 24, class: 'layer-title', text: L.title }, g);
+    el('text', { x: 34, y: L.y + 43, class: 'layer-sub muted', text: L.sub }, g);
+  });
+  DATA.providers.forEach(p => {
+    const on = p.id === S.provider;
+    el('rect', { x: p.x, y: 160, width: 120, height: 32, rx: 7, fill: on ? 'var(--p3)' : 'var(--surface)',
+      stroke: 'var(--p3)', 'stroke-width': on ? 2 : 1 }, svg);
+    el('text', { x: p.x + 60, y: 181, 'text-anchor': 'middle', style: 'font-size:12px;font-weight:600',
+      fill: on ? '#fff' : 'var(--text)', text: p.name }, svg);
+  });
+  const g = clickable(el('g', {}, svg), () => show('Governance, security & evaluation', DATA.gov), 'About governance, security and evaluation');
+  el('rect', { x: 716, y: 20, width: 164, height: 312, rx: 10, fill: 'var(--ok)', 'fill-opacity': .1, stroke: 'var(--ok)', 'stroke-width': 1.5 }, g);
+  ['Governance,', 'security &', 'evaluation', '', 'guardrails', 'access control', 'tracing', 'evals', 'Responsible AI']
+    .forEach((t, k) => el('text', { x: 798, y: 60 + k * 24, 'text-anchor': 'middle', class: k < 3 ? 'layer-title' : 'layer-sub muted', text: t }, g));
+}
+
+function render() {
+  svg.innerHTML = '';
+  if (S.view === 'fields') renderFields(); else renderStack();
+  swapBtn.disabled = S.view !== 'stack';
+  placeBtn.disabled = S.view !== 'fields';
+  const p = DATA.providers.find(x => x.id === S.provider);
+  stats.innerHTML = `<div class="stat"><b>${S.placed.size} / 6</b><span>use cases placed</span></div>` +
+    `<div class="stat"><b>${[...S.placed].filter(i => ['gen', 'fm'].includes(DATA.cases[i].ring)).length}</b><span>need a foundation model</span></div>` +
+    `<div class="stat"><b style="font-size:15px">${p.name}</b><span>active model layer</span></div>`;
+}
+
+bindSeg('view', v => { S.view = v; render(); logLine(logEl, `View: ${v === 'fields' ? 'nested fields' : 'enterprise AI stack'}`); });
+placeBtn.onclick = async () => { const e = S.epoch; for (let i = 0; i < DATA.cases.length && e === S.epoch; i++) if (!S.placed.has(i)) await place(i); };
+swapBtn.onclick = async () => {
+  const order = DATA.providers.map(p => p.id);
+  const from = DATA.providers.find(p => p.id === S.provider);
+  const to = DATA.providers[(order.indexOf(S.provider) + 1) % order.length];
+  const epoch = S.epoch, token = el('g', {}, svg);
+  el('rect', { x: -46, y: -11, width: 92, height: 22, rx: 11, fill: 'var(--accent)' }, token);
+  el('text', { y: 4, 'text-anchor': 'middle', style: 'font-size:11px;font-weight:700', fill: '#fff', text: 'LLM_PROVIDER' }, token);
+  await tween(token, from.x + 60, 148, to.x + 60, 148, 600);
+  if (epoch !== S.epoch) return;
+  S.provider = to.id; render();
+  show('Only the model layer changed', `LLM_PROVIDER now points at <b>${to.name}</b>. Apps, orchestration and data connectors stay as they are, because the framework absorbs the API differences. You still re-run your evals: prompts, tool-calling style and refusals differ between model families.`);
+  logLine(logEl, `Swapped model layer: ${from.name} → <b>${to.name}</b>; re-run evals before shipping`, true);
+};
+document.getElementById('reset').onclick = () => {
+  S.epoch++; S.busy = false; S.placed.clear(); S.provider = 'openai'; render();
+  show('Start here', 'Click a use case on the right, or a ring label, to see why it belongs where it does.');
+  logLine(logEl, 'Reset');
+};
+render();
+logLine(logEl, 'Illustrative explorer: click a use case to place it, or a ring label to read about it.');
+
+renderQuiz('quiz', [
+  { q: 'Which statement about how these fields relate is correct?',
+    options: ['Generative AI is a subset of deep learning, which is a subset of machine learning, which is a subset of AI.',
+      'Machine learning and deep learning are alternatives to AI, chosen when rules fail.',
+      'Every foundation model is generative, so “foundation model” and “LLM” mean the same thing.',
+      'Generative AI has replaced machine learning for tabular prediction tasks.'],
+    answer: 0,
+    explain: 'The fields nest. Foundation models straddle the GenAI line: BERT-style encoders (the base of many Sentence Transformers) are foundation models that generate nothing. Tabular prediction is still classic ML territory.' },
+  { q: '“Route password reset tickets by keyword” landed in the outer AI ring only. Why is that the right call?',
+    options: ['Because LLMs cannot read the word “password”.',
+      'Because the wording is predictable, a deterministic rule is auditable and free to run, while an LLM adds cost, latency and variable output for no gain.',
+      'Because rules are more accurate than any model on every task.',
+      'Because rule-based systems are a kind of generative AI.'],
+    answer: 1,
+    explain: 'Pick the smallest circle that solves the problem. Rules are brittle when wording varies, but when it does not, they are the cheapest and most testable option. Escalate to a model only when the rule’s error rate hurts.' },
+  { q: 'Platform Engineering has three years of labelled disk telemetry and wants a 24-hour “disk full” warning. What do you build first?',
+    options: ['A prompt that asks an LLM to read the raw metrics every five minutes.',
+      'A fine-tuned LLM trained on the telemetry CSVs.',
+      'A classic ML model (for example gradient-boosted trees) on engineered features, evaluated with precision and recall.',
+      'An agent that opens a ticket whenever usage looks high.'],
+    answer: 2,
+    explain: 'Labelled tabular data with a numeric target is the textbook case for classic machine learning: cheap to train, microseconds to score and easy to evaluate. An LLM could narrate the alert later, but it should not be the predictor.' },
+  { q: 'A colleague says: “The foundation model was trained on everything, so it already knows what KB-0042 says.” What is wrong with that?',
+    options: ['Nothing; large models memorise all internal wikis during pre-training.',
+      'Pre-training used broad public data up to a cutoff; internal articles reach the model only through the prompt, retrieval (RAG) or fine-tuning.',
+      'The model knows KB-0042 but is not allowed to quote it.',
+      'Only open-weights models can learn internal content.'],
+    answer: 1,
+    explain: 'This is the most common mistake engineers carry over: treating the model like a database that already holds your data. If the article is not in the context window and was not in the training data, the model will guess (Topic 5).' },
+  { q: 'In the stack view you swap LLM_PROVIDER from OpenAI to Claude. What is the correct expectation?',
+    options: ['Every layer must be rewritten, because the two APIs share nothing.',
+      'Nothing changes at all; the outputs will be identical.',
+      'Only the data layer changes, because each provider needs different documents.',
+      'The model layer changes and a provider-agnostic framework absorbs the API differences, but you re-run your evals because behaviour differs between model families.'],
+    answer: 3,
+    explain: 'Frameworks such as LangChain make the swap a configuration change (Module 2 builds on this). Behaviour is still model-specific: prompt sensitivity, tool-calling style and refusals all vary, so your eval suite is what makes the swap safe.' }
+]);
+</script>
+</body>
+</html>

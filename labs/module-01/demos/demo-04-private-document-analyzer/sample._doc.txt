@@ -1,0 +1,15 @@
+CONFIDENTIAL MEDICAL RECORD
+Patient: John Doe (DOB: 01/15/1980)
+MRN: 123456789
+Chief Complaint: Persistent headaches for 3 weeks
+History: Patient reports severe headaches, primarily in the morning.
+No history of migraines. Recent stress at work. Sleep pattern disrupted.
+Examination: Blood pressure 140/90 (elevated). Neurological exam normal.
+Assessment: Likely tension headaches related to stress and poor sleep.
+Plan:
+1. Stress management techniques
+2. Sleep hygiene counseling
+3. BP monitoring, consider medication if remains elevated
+4. Follow-up in 2 weeks
+Dr. Sarah Smith, MD
+Date: January 15, 2025

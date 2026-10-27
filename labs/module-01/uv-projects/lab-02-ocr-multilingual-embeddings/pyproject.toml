@@ -1,0 +1,47 @@
+[project]
+name = "module01-lab02-ocr-embeddings"
+version = "0.1.0"
+description = "Module 1 · Lab 02 as a uv project: document intelligence with OCR and multilingual embeddings"
+readme = "README.md"
+requires-python = ">=3.12"
+# The same pins as labs/setup/requirements.txt, so this project and the notebook behave alike.
+dependencies = [
+    "anthropic==1.17.0",
+    "numpy==2.5.4",
+    "openai==2.54.0",
+    "pandas==3.1.0",
+    "pillow==13.0.0",
+    "pydantic==2.14.1",
+    "pytesseract==0.3.13",
+    "python-dotenv==1.2.4",
+    "rapidfuzz==3.14.6",
+    "sentence-transformers==6.2.0",
+    "torch==2.14.1",
+    "transformers==5.21.0",
+]
+
+[project.scripts]
+lab02 = "lab02.cli:main"
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "lab02"
+
+# CPU-only PyTorch on Linux and Windows: the default PyPI wheels there pull in the CUDA libraries,
+# which two small embedding models on a laptop do not need. macOS wheels come from PyPI.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

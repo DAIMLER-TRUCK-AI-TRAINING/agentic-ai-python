@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multilingual Embeddings</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .code { white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>6 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 6</div>
+  <h1>Distance means meaning, if the model can read the language</h1>
+  <p class="lede">An embedding model turns each ticket into a vector, and cosine similarity tells you how close two meanings are. A
+    multilingual model puts “VPN keeps disconnecting” next to “VPN trennt ständig die Verbindung”; an English-only model groups tickets
+    by <em>language</em> instead. Click a ticket, switch models, colour by language and move the duplicate threshold.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="model">
+        <button data-v="mm" aria-pressed="true">paraphrase-multilingual-MiniLM-L12-v2</button>
+        <button data-v="en" aria-pressed="false">all-MiniLM-L6-v2 (English-only)</button>
+      </div>
+      <div class="seg" id="colour">
+        <button data-v="topic" aria-pressed="true">Colour by issue</button>
+        <button data-v="lang" aria-pressed="false">Colour by language</button>
+      </div>
+    </div>
+    <div class="controls">
+      <label class="range">Duplicate threshold <input type="range" id="th" min="0.5" max="0.95" step="0.01" value="0.7" aria-label="Duplicate threshold"> <b id="thOut" class="mono">0.70</b></label>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 380" role="img" aria-label="Two-dimensional map of twelve tickets with links above the threshold, and a ranked neighbour list"></svg></div>
+    <div class="legend" id="legend"></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>From text to vectors in a few lines</h2>
+  <div class="grid grid-2">
+    <div class="card"><h3>Sentence Transformers (local)</h3>
+      <pre class="cli-preview code">from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer(
+    "paraphrase-multilingual-MiniLM-L12-v2")   # 384 dims
+emb = model.encode(tickets, normalize_embeddings=True)
+scores = model.similarity(emb, emb)            # cosine</pre></div>
+    <div class="card"><h3>OpenAI embeddings (API)</h3>
+      <pre class="cli-preview code">from openai import OpenAI
+
+client = OpenAI()
+resp = client.embeddings.create(
+    model="text-embedding-3-small", input=tickets)
+vectors = [d.embedding for d in resp.data]   # 1536 dims</pre></div>
+  </div>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Embedding option</th><th>Languages</th><th>Dimensions</th><th>Runs</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><code>all-MiniLM-L6-v2</code></td><td>English</td><td>384</td><td>Local</td><td>Fast baseline; weak on other languages, as the map shows</td></tr>
+        <tr><td><code>paraphrase-multilingual-MiniLM-L12-v2</code></td><td>50+</td><td>384</td><td>Local</td><td>Good multilingual default for short tickets</td></tr>
+        <tr><td><code>intfloat/multilingual-e5-base</code></td><td>~100</td><td>768</td><td>Local</td><td>Expects <code>query: </code> / <code>passage: </code> prefixes</td></tr>
+        <tr><td>OpenAI <code>text-embedding-3-small</code></td><td>Multilingual</td><td>1536 (shortenable with <code>dimensions</code>)</td><td>API</td><td>Per-token cost; text leaves your network</td></tr>
+        <tr><td>Anthropic Claude</td><td>–</td><td>–</td><td>–</td><td>No embeddings endpoint. Pair Claude for generation with any model above, or a third-party provider such as Voyage AI</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> a threshold belongs to one model. Calibrate it on labelled ticket pairs, store the
+    model name next to every vector, and when you switch models, re-embed the whole corpus. Vectors from two models live in different
+    spaces, often with different dimensions, so their cosines are meaningless together.</div>
+  <div class="callout warn"><b>Common trap:</b> trusting a high score from a model that cannot read the language. With the English-only
+    model, the German password ticket sits closest to the German <em>printer</em> ticket (0.74): shared language, not shared meaning.
+    Test with every language your users write in before you pick a model.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="05-llm-context-hallucinations.html"><small>← Previous</small>LLM architecture: context windows, hallucinations &amp; limits</a>
+    <a class="next" href="07-model-selection-responsible-ai.html"><small>Next →</small>Model selection &amp; Responsible AI</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data (course-map §8.3). Cosine scores are pre-computed and representative of how these two
+// models behave; they are not output from the real models. The 2D layout is hand-placed for readability.
+const DATA = {
+  tickets: [
+    ['en1', 'vpn', 'EN', 'VPN keeps disconnecting every few minutes'], ['de1', 'vpn', 'DE', 'VPN trennt ständig die Verbindung'],
+    ['fr1', 'vpn', 'FR', 'Le VPN se déconnecte sans arrêt'], ['en2', 'pwd', 'EN', 'I forgot my password and I’m locked out'],
+    ['es2', 'pwd', 'ES', 'Olvidé mi contraseña y mi cuenta está bloqueada'], ['de2', 'pwd', 'DE', 'Passwort vergessen, Konto gesperrt'],
+    ['en3', 'inv', 'EN', 'Invoice INV-88341 was charged twice'], ['fr3', 'inv', 'FR', 'La facture INV-88341 a été débitée deux fois'],
+    ['es3', 'inv', 'ES', 'La factura INV-88341 se cobró dos veces'], ['en4', 'prn', 'EN', 'Printer on floor 3 shows a paper jam'],
+    ['de4', 'prn', 'DE', 'Drucker im 3. Stock meldet Papierstau'], ['fr4', 'prn', 'FR', 'L’imprimante du 3e étage signale un bourrage papier']
+  ],
+  topics: { vpn: ['VPN', 'var(--p0)'], pwd: ['password', 'var(--p1)'], inv: ['invoice', 'var(--p2)'], prn: ['printer', 'var(--p4)'] },
+  langs: { EN: 'var(--p0)', DE: 'var(--p3)', FR: 'var(--p1)', ES: 'var(--p2)' },
+  sim: {
+    mm: [[1.00,0.91,0.89,0.15,0.19,0.13,0.11,0.11,0.15,0.22,0.22,0.22],[0.91,1.00,0.91,0.20,0.24,0.16,0.15,0.15,0.19,0.11,0.23,0.11],
+         [0.89,0.91,1.00,0.24,0.23,0.13,0.13,0.24,0.11,0.18,0.22,0.19],[0.15,0.20,0.24,1.00,0.91,0.91,0.15,0.15,0.19,0.11,0.18,0.11],
+         [0.19,0.24,0.23,0.91,1.00,0.85,0.13,0.13,0.18,0.17,0.22,0.25],[0.13,0.16,0.13,0.91,0.85,1.00,0.20,0.20,0.24,0.15,0.11,0.15],
+         [0.11,0.15,0.13,0.15,0.13,0.20,1.00,0.89,0.91,0.15,0.13,0.15],[0.11,0.15,0.24,0.15,0.13,0.20,0.89,1.00,0.88,0.25,0.13,0.13],
+         [0.15,0.19,0.11,0.19,0.18,0.24,0.91,0.88,1.00,0.13,0.17,0.13],[0.22,0.11,0.18,0.11,0.17,0.15,0.15,0.25,0.13,1.00,0.91,0.89],
+         [0.22,0.23,0.22,0.18,0.22,0.11,0.13,0.13,0.17,0.91,1.00,0.91],[0.22,0.11,0.19,0.11,0.25,0.15,0.15,0.13,0.13,0.89,0.91,1.00]],
+    en: [[1.00,0.58,0.55,0.13,0.12,0.06,0.24,0.19,0.08,0.20,0.15,0.15],[0.58,1.00,0.50,0.13,0.17,0.65,0.08,0.08,0.12,0.19,0.70,0.19],
+         [0.55,0.50,1.00,0.17,0.15,0.06,0.06,0.71,0.20,0.11,0.15,0.68],[0.13,0.13,0.17,1.00,0.37,0.38,0.13,0.08,0.12,0.24,0.11,0.19],
+         [0.12,0.17,0.15,0.37,1.00,0.26,0.06,0.07,0.66,0.10,0.15,0.17],[0.06,0.65,0.06,0.38,0.26,1.00,0.13,0.13,0.17,0.08,0.74,0.08],
+         [0.24,0.08,0.06,0.13,0.06,0.13,1.00,0.55,0.58,0.13,0.06,0.08],[0.19,0.08,0.71,0.08,0.07,0.13,0.55,1.00,0.46,0.17,0.06,0.63],
+         [0.08,0.12,0.20,0.12,0.66,0.17,0.58,0.46,1.00,0.06,0.10,0.07],[0.20,0.19,0.11,0.24,0.10,0.08,0.13,0.17,0.06,1.00,0.38,0.34],
+         [0.15,0.70,0.15,0.11,0.15,0.74,0.06,0.06,0.10,0.38,1.00,0.33],[0.15,0.19,0.68,0.19,0.17,0.08,0.08,0.63,0.07,0.34,0.33,1.00]]
+  },
+  pos: {
+    mm: [[90,85],[165,62],[120,135],[380,85],[455,62],[410,135],[90,255],[165,232],[120,305],[380,255],[455,232],[410,305]],
+    en: [[90,90],[340,95],[370,225],[80,205],[275,285],[420,70],[130,310],[345,300],[225,322],[205,165],[445,130],[455,262]]
+  }
+};
+
+const S = { model: 'mm', colour: 'topic', th: 0.70, sel: 5 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const M = () => DATA.sim[S.model], T = DATA.tickets, same = (i, j) => T[i][1] === T[j][1];
+const colourOf = i => S.colour === 'topic' ? DATA.topics[T[i][1]][1] : DATA.langs[T[i][2]];
+const short = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+let pointNodes = [];
+
+function counts() {
+  let tp = 0, fp = 0, fn = 0;
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) {
+    const hit = M()[i][j] >= S.th;
+    if (hit && same(i, j)) tp++; else if (hit) fp++; else if (same(i, j)) fn++;
+  }
+  return { tp, fp, fn };
+}
+
+function render() {
+  svg.innerHTML = '';
+  const P = DATA.pos[S.model];
+  el('rect', { x: 20, y: 20, width: 520, height: 340, rx: 10, fill: 'var(--surface)', stroke: 'var(--border)' }, svg);
+  el('text', { x: 32, y: 40, class: 'lab muted', text: 'illustrative 2D layout of 384-dim vectors' }, svg);
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) {
+    const s = M()[i][j]; if (s < S.th) continue;
+    const mine = i === S.sel || j === S.sel;
+    el('line', { x1: P[i][0], y1: P[i][1], x2: P[j][0], y2: P[j][1], stroke: same(i, j) ? 'var(--ok)' : 'var(--bad)',
+      'stroke-width': mine ? 3 : 1.5, opacity: mine ? 1 : .45, 'stroke-dasharray': same(i, j) ? '' : '5 4' }, svg);
+  }
+  pointNodes = T.map((t, i) => {
+    const g = clickable(el('g', { transform: `translate(${P[i][0]},${P[i][1]})` }, svg), () => select(i), `Ticket ${t[2]}: ${t[3]}`);
+    el('circle', { r: 14, fill: colourOf(i), stroke: i === S.sel ? 'var(--text)' : 'var(--surface)', 'stroke-width': i === S.sel ? 3 : 2 }, g);
+    el('text', { y: 4, 'text-anchor': 'middle', class: 'lab', fill: '#fff', style: 'font-weight:700', text: t[2] }, g);
+    el('text', { x: 18, y: 4, class: 'lab muted', text: DATA.topics[t[1]][0] }, g);
+    return g;
+  });
+  const row = M()[S.sel].map((s, j) => [s, j]).filter(([, j]) => j !== S.sel).sort((a, b) => b[0] - a[0]);
+  el('text', { x: 560, y: 22, class: 'hdr', text: `Nearest neighbours of the ${T[S.sel][2]} ticket` }, svg);
+  el('text', { x: 560, y: 40, class: 'lab muted', text: `“${short(T[S.sel][3], 44)}”` }, svg);
+  row.forEach(([s, j], k) => {
+    const y = 52 + k * 28, hit = s >= S.th, c = hit ? (same(S.sel, j) ? 'var(--ok)' : 'var(--bad)') : 'var(--p5)';
+    const g = clickable(el('g', {}, svg), () => select(j), `Select ${T[j][2]}: ${T[j][3]}`);
+    el('rect', { x: 556, y: y, width: 328, height: 24, rx: 5, fill: 'transparent' }, g);
+    el('text', { x: 560, y: y + 16, class: 'lab', fill: hit ? 'var(--text)' : 'var(--muted)', text: `${T[j][2]} ${short(T[j][3], 23)}` }, g);
+    el('rect', { x: 742, y: y + 6, width: 100, height: 12, rx: 3, fill: 'var(--surface)' }, g);
+    el('rect', { x: 742, y: y + 6, width: 100 * s, height: 12, rx: 3, fill: c }, g);
+    el('text', { x: 848, y: y + 16, class: 'lab', text: s.toFixed(2) }, g);
+  });
+  const x = 742 + 100 * S.th;
+  el('line', { x1: x, y1: 50, x2: x, y2: 362, stroke: 'var(--warn)', 'stroke-dasharray': '4 3' }, svg);
+  const c = counts(), nn = row[0];
+  document.getElementById('legend').innerHTML = (S.colour === 'topic'
+    ? Object.values(DATA.topics).map(([n, col]) => `<span><i style="background:${col}"></i>${n}</span>`).join('')
+    : Object.entries(DATA.langs).map(([n, col]) => `<span><i style="background:${col}"></i>${n}</span>`).join('')) +
+    '<span><i style="background:var(--ok)"></i>link: same issue</span><span><i style="background:var(--bad)"></i>link: different issue (false duplicate)</span>';
+  stats.innerHTML = `<div class="stat"><b style="color:var(--ok)">${c.tp} / 12</b><span>true duplicate pairs linked</span></div>` +
+    `<div class="stat"><b style="color:${c.fp ? 'var(--bad)' : 'inherit'}">${c.fp}</b><span>false links</span></div>` +
+    `<div class="stat"><b>${c.fn}</b><span>missed same-issue pairs</span></div>` +
+    `<div class="stat"><b>${T[nn[1]][2]} ${DATA.topics[T[nn[1]][1]][0]} · ${nn[0].toFixed(2)}</b><span>nearest neighbour of the selected ticket</span></div>`;
+}
+
+function select(i) {
+  S.sel = i; render();
+  const row = M()[i].map((s, j) => [s, j]).filter(([, j]) => j !== i).sort((a, b) => b[0] - a[0]), [s, j] = row[0];
+  logLine(logEl, `${T[i][2]} “${short(T[i][3], 34)}” → nearest ${T[j][2]} ${DATA.topics[T[j][1]][0]} (${s.toFixed(2)})${same(i, j) ? '' : ' <b>— different issue</b>'}`, !same(i, j));
+}
+
+bindSeg('model', async v => {
+  const from = DATA.pos[S.model], to = DATA.pos[v];
+  await Promise.all(pointNodes.map((g, i) => tween(g, from[i][0], from[i][1], to[i][0], to[i][1], 700)));
+  S.model = v; render();
+  const c = counts();
+  logLine(logEl, `Model: ${v === 'mm' ? 'multilingual' : 'English-only'} → ${c.tp}/12 true pairs, ${c.fp} false links at ${S.th.toFixed(2)}`, true);
+});
+bindSeg('colour', v => { S.colour = v; render(); logLine(logEl, `Colour by ${v === 'topic' ? 'issue' : 'language'}`); });
+document.getElementById('th').addEventListener('input', e => {
+  S.th = +e.target.value; document.getElementById('thOut').textContent = S.th.toFixed(2); render();
+  const c = counts(); logLine(logEl, `Threshold ${S.th.toFixed(2)}: ${c.tp} true, ${c.fp} false, ${c.fn} missed`);
+});
+render();
+logLine(logEl, 'Pre-computed, illustrative scores. Selected: the German password ticket. Now switch to the English-only model.');
+
+renderQuiz('quiz', [
+  { q: 'What does the cosine similarity between two ticket embeddings measure?',
+    options: ['The percentage of words the two tickets share.',
+      'The angle between the two vectors: 1 means the same direction (very similar meaning); with normalised vectors it equals their dot product.',
+      'The probability that the tickets have the same root cause.',
+      'The distance between the two ticket IDs.'],
+    answer: 1,
+    explain: 'Cosine compares direction, not length or wording. That is why <code>normalize_embeddings=True</code> lets you use a plain dot product, and why paraphrases with no shared words can still score high.' },
+  { q: 'With the English-only model, the German password ticket’s nearest neighbour is the German <em>printer</em> ticket (0.74). Why?',
+    options: ['German password and printer problems really are related.',
+      'The threshold is set too low.',
+      'Cosine similarity is unreliable for short texts.',
+      'The model cannot read German meaning, so surface features of the language dominate the vector and tickets cluster by language instead of by issue.'],
+    answer: 3,
+    explain: 'Colour by language with the English-only model: DE, FR and ES tickets form language islands. The multilingual model was trained on parallel text, so it maps translations of the same meaning to nearby vectors (0.91 for English vs German password).' },
+  { q: 'Even with the English-only model, the French and Spanish invoice tickets score 0.55–0.58 against the English one. What explains that?',
+    options: ['They share the literal token <code>INV-88341</code>, a surface overlap the model can see without understanding the language.',
+      'The English-only model secretly understands French and Spanish.',
+      'Invoices are always similar to each other.',
+      'Scores above 0.5 are random noise.'],
+    answer: 0,
+    explain: 'IDs, product names (“VPN”) and numbers are language-neutral strings, so they lift scores a little. That partial signal is easy to mistake for understanding, which is why you test every language you support.' },
+  { q: 'You move the knowledge-base index from <code>all-MiniLM-L6-v2</code> to OpenAI <code>text-embedding-3-small</code>. What must you do?',
+    options: ['Nothing; new queries can be compared with the existing vectors.',
+      'Only update the similarity threshold.',
+      'Re-embed every document with the new model and re-calibrate the threshold on labelled pairs; vectors from different models are not comparable (384 vs 1536 dimensions here).',
+      'Average the old and new vectors so both models are represented.'],
+    answer: 2,
+    explain: 'Each model defines its own vector space. Mixing them gives meaningless scores, and a threshold tuned for one model does not transfer. Store the model name with every vector so a mismatch fails loudly.' },
+  { q: 'Your team generates answers with Claude. A colleague plans to “call Claude’s embeddings endpoint” for the ticket index. What is the correction?',
+    options: ['Correct: Claude embeddings are the default for Claude users.',
+      'Anthropic does not offer an embeddings endpoint. Choose an embedding model separately (local Sentence Transformers, OpenAI, or a third-party provider such as Voyage AI) and use Claude for generation.',
+      'Use the Messages API and ask Claude to print a vector.',
+      'Embeddings only work with the model that will generate the answer.'],
+    answer: 1,
+    explain: 'Retrieval and generation are separate components. Many production systems pair a local or third-party embedding model with whichever LLM generates the answer, and you can swap either independently (Module 3).' }
+]);
+</script>
+</body>
+</html>

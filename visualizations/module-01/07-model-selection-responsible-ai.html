@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Selection &amp; Responsible AI</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #record { white-space: pre; overflow-x: auto; margin-top: 10px; }
+  .tool-card .req { font-size: 11px; font-weight: 700; color: var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>7 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 7</div>
+  <h1>The cheapest model that clears your bar, under your constraints</h1>
+  <p class="lede">There is no “best model”, only the cheapest tier that meets the scenario’s quality bar, latency budget and
+    data-residency rule, with Responsible AI checks built in rather than bolted on. Pick one of four IT scenarios, adjust the
+    constraints, click a point to see why it passes or fails, and tick the checks until the decision record says <b>ready</b>.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="scenario">
+        <button data-v="A" aria-pressed="true">A · Ticket triage</button>
+        <button data-v="B" aria-pressed="false">B · Root-cause agent</button>
+        <button data-v="C" aria-pressed="false">C · Invoice &amp; contract extraction</button>
+        <button data-v="D" aria-pressed="false">D · Multilingual assistant</button>
+      </div>
+    </div>
+    <div class="controls">
+      <label class="range">Volume <input type="range" id="vol" min="0" max="100" step="1" aria-label="Requests per day"> <b id="volOut" class="mono"></b></label>
+      <label class="range">Quality bar <input type="range" id="q" min="1" max="10" step="0.5" aria-label="Minimum capability score"> <b id="qOut" class="mono"></b></label>
+      <label class="range">Latency budget <input type="range" id="lat" min="0" max="100" step="1" aria-label="Latency budget in seconds"> <b id="latOut" class="mono"></b></label>
+    </div>
+    <div class="controls">
+      <div class="seg" id="res">
+        <button data-v="any" aria-pressed="false">Any cloud region</button>
+        <button data-v="eu" aria-pressed="true">EU region only</button>
+        <button data-v="onprem" aria-pressed="false">On-prem only</button>
+      </div>
+      <button class="toggle" id="ml" aria-pressed="true">Multilingual users: yes</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 340" role="img" aria-label="Monthly cost against capability for five model tiers, with the quality bar and pass or fail status"></svg></div>
+    <h3 style="margin-top:14px">Responsible AI checks</h3>
+    <div class="tool-grid" id="rai"></div>
+    <pre class="cli-preview" id="record" aria-label="Decision record"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Model families by tier</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Tier</th><th>Anthropic Claude</th><th>OpenAI</th><th>Open weights</th><th>Typical fit</th></tr></thead>
+      <tbody>
+        <tr><td><b>Frontier</b></td><td>Opus; Fable (most capable)</td><td>Flagship reasoning GPT models</td><td>Largest open models (for example gpt-oss-120b)</td><td>Multi-step agents, hard reasoning, code</td></tr>
+        <tr><td><b>Balanced</b></td><td>Sonnet</td><td>Standard GPT models</td><td>70B-class models</td><td>RAG assistants, most production chat</td></tr>
+        <tr><td><b>Small / fast</b></td><td>Haiku</td><td>mini and nano models</td><td>8–20B-class models (for example gpt-oss-20b)</td><td>Classification, routing, extraction at volume</td></tr>
+        <tr><td><b>Access path</b></td><td>Claude API, AWS Bedrock, Google Vertex AI, Microsoft Foundry</td><td>OpenAI API, Azure OpenAI in Azure AI Foundry</td><td>HuggingFace, your own GPU servers</td><td>Decides region, residency and billing (Module 5)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>Proprietary API</th><th>Open weights, self-hosted</th></tr></thead>
+      <tbody>
+        <tr><td>Cost shape</td><td>Per token; grows linearly with volume</td><td>Fixed GPU and operations cost; cheap per token at high volume</td></tr>
+        <tr><td>Data control</td><td>Sent to the provider’s region under contract</td><td>Stays on infrastructure you control</td></tr>
+        <tr><td>Capability ceiling</td><td>Highest available</td><td>Lower at the same price point, improving quickly</td></tr>
+        <tr><td>Operations</td><td>The provider runs, scales and patches it</td><td>You run, scale, patch, monitor and secure it</td></tr>
+        <tr><td>Licence</td><td>Provider terms of service</td><td>Per model: Apache 2.0 for gpt-oss, others vary; check before use</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> decide with your own eval set, not leaderboards. Filter by hard constraints
+    (residency, latency), then pick the cheapest tier that clears the quality bar on your tickets, and re-run that eval whenever a model
+    version changes. Model IDs change often, so the labs read them from configuration (<code>OPENAI_MODEL</code>, <code>ANTHROPIC_MODEL</code>).</div>
+  <div class="callout warn"><b>Common trap:</b> “use the most capable model to be safe.” In scenario A the frontier tier costs 25× the
+    small tier and still misses the 1.5 s latency budget. Over-provisioning is a cost and latency bug, not a safety measure.</div>
+
+  <h2>Responsible AI in 30 minutes</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Principle</th><th>Question to ask</th><th>Evidence to keep</th></tr></thead>
+      <tbody>
+        <tr><td><b>Bias</b></td><td>Does quality hold for every language, region and user group?</td><td>Per-segment eval results, with the gaps fixed or accepted by an owner</td></tr>
+        <tr><td><b>Transparency</b></td><td>Do users know it is AI, and can they see why it answered?</td><td>AI disclosure in the UI, cited sources, decision reasons</td></tr>
+        <tr><td><b>Governance</b></td><td>Who owns it, and can you reconstruct any decision?</td><td>Named owner, logged model and prompt versions, review cadence (Module 5)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="06-embeddings-multilingual-similarity.html"><small>← Previous</small>Embeddings &amp; multilingual semantic similarity</a>
+    <a class="next" href="index.html"><small>Done →</small>Back to Module 1 overview</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data (course-map §8.3). Capability scores, latencies and $ prices are invented to mirror
+// typical tier ratios; they are not a price list. Check current provider pricing before any real decision.
+const DATA = {
+  tiers: [
+    { id: 'frontier', name: 'Frontier', ex: 'e.g. Claude Opus or Fable; OpenAI flagship reasoning GPT', cap: 9.5, ttft: 2.0, tps: 50, pin: 5, pout: 25, ml: 3 },
+    { id: 'balanced', name: 'Balanced', ex: 'e.g. Claude Sonnet; OpenAI standard GPT', cap: 8, ttft: 0.8, tps: 90, pin: 2, pout: 10, ml: 3 },
+    { id: 'small', name: 'Small/fast', ex: 'e.g. Claude Haiku; OpenAI mini/nano', cap: 6, ttft: 0.3, tps: 200, pin: 0.2, pout: 1.0, ml: 3 },
+    { id: 'openL', name: 'Open L (self-host)', ex: 'e.g. gpt-oss-120b, 70B-class', cap: 7, ttft: 0.6, tps: 60, fixed: 9000, capDay: 150000, ml: 2 },
+    { id: 'openS', name: 'Open S (self-host)', ex: 'e.g. gpt-oss-20b, 8B-class', cap: 4.5, ttft: 0.2, tps: 150, fixed: 1500, capDay: 400000, ml: 1 }
+  ],
+  scenarios: {
+    A: { name: 'Ticket triage & routing', agent: 'classifier-style single call', vol: 40000, tin: 500, tout: 60, q: 5, lat: 1.5, res: 'eu', ml: true, rai: ['bias', 'gov'] },
+    B: { name: 'Incident root-cause agent', agent: 'tool-using agent, multi-step', vol: 300, tin: 30000, tout: 3000, q: 9, lat: 120, res: 'any', ml: false, rai: ['oversight', 'transp', 'gov'] },
+    C: { name: 'Invoice & contract extraction', agent: 'structured extraction pipeline', vol: 5000, tin: 3000, tout: 400, q: 6, lat: 10, res: 'onprem', ml: false, rai: ['privacy', 'gov', 'oversight'] },
+    D: { name: 'Multilingual knowledge assistant', agent: 'RAG chat assistant', vol: 8000, tin: 4000, tout: 400, q: 7, lat: 6, res: 'eu', ml: true, rai: ['bias', 'transp', 'privacy'] }
+  },
+  rai: {
+    bias: ['Bias & fairness', 'Measure quality per language, region and user group'],
+    transp: ['Transparency', 'Disclose AI use; show sources and reasons'],
+    gov: ['Governance', 'Named owner; log model + prompt version and decisions'],
+    oversight: ['Human oversight', 'A person approves high-impact actions; overrides logged'],
+    privacy: ['Privacy & residency', 'Minimise and redact PII; honour data residency']
+  },
+  resText: { any: 'any cloud region', eu: 'EU region only', onprem: 'on-prem only' },
+  mlText: ['', 'fair', 'good', 'strong']
+};
+
+const S = { sc: 'A', sel: 'small', done: new Set() };
+Object.assign(S, structuredClone({ ...DATA.scenarios.A }));
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const volFrom = v => Math.round(100 * Math.pow(5000, v / 100) / 10) * 10, volTo = n => 100 * Math.log10(n / 100) / Math.log10(5000);
+const latFrom = v => +(0.5 * Math.pow(240, v / 100)).toFixed(v < 40 ? 2 : 1), latTo = s => 100 * Math.log(s / 0.5) / Math.log(240);
+const money = c => '$' + Math.round(c).toLocaleString('en-GB');
+const X = c => 70 + (Math.log10(Math.max(10, Math.min(1e5, c))) - 1) / 4 * 520, Y = cap => 300 - cap * 26;
+
+function assess(t) {
+  const lat = t.ttft + S.tout / t.tps;
+  const cost = t.fixed ? Math.ceil(S.vol / t.capDay) * t.fixed : S.vol * 30 * (S.tin * t.pin + S.tout * t.pout) / 1e6;
+  const checks = [
+    ['quality', t.cap >= S.q, `quality ${t.cap} ${t.cap >= S.q ? '≥' : '<'} ${S.q}`],
+    ['latency', lat <= S.lat, `latency ${lat.toFixed(2)} s ${lat <= S.lat ? '≤' : '>'} ${S.lat} s`],
+    ['residency', S.res !== 'onprem' || !!t.fixed, t.fixed ? 'residency: you host it' : S.res === 'onprem' ? 'residency: cloud not allowed' : S.res === 'eu' ? 'residency: EU region deploy' : 'residency: any region'],
+    ['multilingual', !S.ml || t.ml >= 2, `multilingual: ${DATA.mlText[t.ml]}${S.ml ? '' : ' (not required)'}`]
+  ];
+  return { t, lat, cost, checks, pass: checks.every(c => c[1]), fails: checks.filter(c => !c[1]).map(c => c[0]) };
+}
+const results = () => DATA.tiers.map(assess);
+const best = R => R.filter(r => r.pass).sort((a, b) => a.cost - b.cost);
+
+function render() {
+  svg.innerHTML = '';
+  const R = results(), ok = best(R), rec = ok[0];
+  [10, 100, 1000, 10000, 100000].forEach(c => {
+    el('line', { x1: X(c), y1: 40, x2: X(c), y2: 300, stroke: 'var(--border)' }, svg);
+    el('text', { x: X(c), y: 318, 'text-anchor': 'middle', class: 'lab muted', text: money(c) }, svg);
+  });
+  [0, 2, 4, 6, 8, 10].forEach(v => el('text', { x: 60, y: Y(v) + 4, 'text-anchor': 'end', class: 'lab muted', text: v }, svg));
+  el('text', { x: 330, y: 336, 'text-anchor': 'middle', class: 'small muted', text: 'monthly cost, log scale (illustrative)' }, svg);
+  el('text', { x: 14, y: 30, class: 'small muted', text: 'capability score' }, svg);
+  el('line', { x1: 70, y1: Y(S.q), x2: 590, y2: Y(S.q), stroke: 'var(--warn)', 'stroke-width': 2, 'stroke-dasharray': '6 4' }, svg);
+  el('text', { x: 76, y: Y(S.q) - 6, class: 'lab', fill: 'var(--warn)', text: `quality bar ${S.q}` }, svg);
+  R.forEach(r => {
+    const x = X(r.cost), y = Y(r.t.cap), isRec = rec && rec.t.id === r.t.id, c = r.pass ? 'var(--ok)' : 'var(--bad)';
+    const g = clickable(el('g', {}, svg), () => select(r.t.id), `${r.t.name}: ${r.pass ? 'passes' : 'fails ' + r.fails.join(', ')}`);
+    if (isRec) el('circle', { cx: x, cy: y, r: 17, fill: 'none', stroke: 'var(--ok)', 'stroke-width': 2 }, g);
+    el('circle', { cx: x, cy: y, r: 10, fill: r.pass ? c : 'var(--surface)', stroke: S.sel === r.t.id ? 'var(--text)' : c, 'stroke-width': S.sel === r.t.id ? 3 : 2 }, g);
+    const left = x > 470;
+    el('text', { x: left ? x - 20 : x + 20, y: y + 4, 'text-anchor': left ? 'end' : 'start', class: 'small', style: isRec ? 'font-weight:700' : '', text: (isRec ? '★ ' : '') + r.t.name }, g);
+  });
+  const s = R.find(r => r.t.id === S.sel);
+  el('rect', { x: 630, y: 20, width: 256, height: 290, rx: 10, fill: 'var(--surface)', stroke: 'var(--border)' }, svg);
+  el('text', { x: 644, y: 44, class: 'hdr', text: s.t.name + ' tier' }, svg);
+  el('text', { x: 644, y: 62, class: 'lab muted', text: s.t.ex.length > 36 ? s.t.ex.slice(0, 35) + '…' : s.t.ex }, svg);
+  s.checks.forEach(([, pass, txt], k) => el('text', { x: 644, y: 94 + k * 26, class: 'small', fill: pass ? 'var(--ok)' : 'var(--bad)', text: (pass ? '✔ ' : '✖ ') + txt }, svg));
+  el('text', { x: 644, y: 214, class: 'hdr', text: money(s.cost) + ' / month' }, svg);
+  el('text', { x: 644, y: 234, class: 'lab muted', text: s.t.fixed ? `${Math.ceil(S.vol / s.t.capDay)} × ${money(s.t.fixed)} GPU deployment` : `$${s.t.pin} / $${s.t.pout} per 1M tokens in / out` }, svg);
+  el('text', { x: 644, y: 270, class: 'small', fill: s.pass ? 'var(--ok)' : 'var(--bad)', style: 'font-weight:700',
+    text: s.pass ? (rec && rec.t.id === s.t.id ? 'Passes · recommended' : 'Passes · not the cheapest') : 'Fails: ' + s.fails.join(', ') }, svg);
+  renderRai(); renderRecord(R, ok);
+}
+
+function renderRai() {
+  const req = DATA.scenarios[S.sc].rai, box = document.getElementById('rai');
+  box.innerHTML = '';
+  Object.entries(DATA.rai).forEach(([id, [name, role]]) => {
+    const b = document.createElement('button');
+    b.className = 'tool-card'; b.setAttribute('aria-pressed', String(S.done.has(id)));
+    b.innerHTML = `<span class="name">${S.done.has(id) ? '✔' : '○'} ${name}</span><span class="role">${role}</span>${req.includes(id) ? '<span class="req">required for this scenario</span>' : ''}`;
+    b.onclick = () => {
+      S.done.has(id) ? S.done.delete(id) : S.done.add(id); render();
+      logLine(logEl, `${name}: ${S.done.has(id) ? 'done' : 'not done'}${req.includes(id) ? ' (required)' : ''}`);
+    };
+    box.appendChild(b);
+  });
+}
+
+function renderRecord(R, ok) {
+  const sc = DATA.scenarios[S.sc], req = sc.rai, missing = req.filter(r => !S.done.has(r)), rec = ok[0];
+  const rejected = R.filter(r => !r.pass).map(r => `${r.t.name} (${r.fails.join(', ')})`).join('; ') || 'none';
+  const ready = rec && !missing.length;
+  document.getElementById('record').innerHTML =
+    `DECISION RECORD · ${S.sc}. ${sc.name}\n` +
+    `Agent type      ${sc.agent}\n` +
+    `Requirements    ${S.vol.toLocaleString('en-GB')} req/day · ${S.tin.toLocaleString('en-GB')} in / ${S.tout.toLocaleString('en-GB')} out tokens · quality ≥ ${S.q} · latency ≤ ${S.lat} s\n` +
+    `                residency: ${DATA.resText[S.res]} · multilingual: ${S.ml ? 'yes' : 'no'}\n` +
+    `Choice          ${rec ? `${rec.t.name} tier (${rec.t.ex})  ≈ ${money(rec.cost)}/month` : 'NO TIER PASSES: relax a constraint or redesign (RAG, routing, human review)'}\n` +
+    `Runner-up       ${ok[1] ? `${ok[1].t.name}  ≈ ${money(ok[1].cost)}/month` : '–'}\n` +
+    `Rejected        ${rejected}\n` +
+    `Responsible AI  ${req.map(r => (S.done.has(r) ? '✔ ' : '✖ ') + DATA.rai[r][0]).join('  ')}\n` +
+    `Status          ${ready ? '<span style="color:var(--ok)">ready for review</span>' : `<span style="color:var(--bad)">not ready: ${!rec ? 'no passing tier' : ''}${!rec && missing.length ? '; ' : ''}${missing.length ? missing.length + ' required check(s) open' : ''}</span>`}`;
+  stats.innerHTML = `<div class="stat"><b style="font-size:16px">${rec ? rec.t.name : 'none'}</b><span>recommended tier</span></div>` +
+    `<div class="stat"><b>${rec ? money(rec.cost) : '–'}</b><span>per month (illustrative)</span></div>` +
+    `<div class="stat"><b>${ok.length} / 5</b><span>tiers that pass</span></div>` +
+    `<div class="stat"><b>${req.length - missing.length} / ${req.length}</b><span>required RAI checks done</span></div>`;
+}
+
+function syncControls() {
+  document.getElementById('vol').value = volTo(S.vol); document.getElementById('volOut').textContent = S.vol.toLocaleString('en-GB') + '/day';
+  document.getElementById('q').value = S.q; document.getElementById('qOut').textContent = S.q;
+  document.getElementById('lat').value = latTo(S.lat); document.getElementById('latOut').textContent = S.lat + ' s';
+  document.querySelectorAll('#res button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.res)));
+  const mlb = document.getElementById('ml'); mlb.setAttribute('aria-pressed', String(S.ml)); mlb.textContent = 'Multilingual users: ' + (S.ml ? 'yes' : 'no');
+}
+function changed(what) {
+  syncControls(); render();
+  const ok = best(results());
+  logLine(logEl, `${what} → ${ok[0] ? `<b>${ok[0].t.name}</b> at ${money(ok[0].cost)}/month` : '<b>no tier passes</b>'}`, true);
+}
+function select(id) {
+  S.sel = id; render();
+  const r = results().find(x => x.t.id === id);
+  logLine(logEl, `${r.t.name}: ${r.pass ? 'passes' : 'fails ' + r.fails.join(', ')} · ${money(r.cost)}/month · ${r.lat.toFixed(2)} s`);
+}
+
+bindSeg('scenario', v => {
+  Object.assign(S, structuredClone({ ...DATA.scenarios[v] })); S.sc = v; S.done = new Set();
+  S.sel = best(results())[0]?.t.id || 'frontier';
+  changed(`Scenario ${v}: ${DATA.scenarios[v].name}`);
+});
+bindSeg('res', v => { S.res = v; changed(`Residency: ${DATA.resText[v]}`); });
+bindToggle('ml', on => { S.ml = on; changed(`Multilingual users: ${on ? 'yes' : 'no'}`); });
+document.getElementById('vol').addEventListener('input', e => { S.vol = volFrom(+e.target.value); changed(`Volume ${S.vol.toLocaleString('en-GB')}/day`); });
+document.getElementById('q').addEventListener('input', e => { S.q = +e.target.value; changed(`Quality bar ${S.q}`); });
+document.getElementById('lat').addEventListener('input', e => { S.lat = latFrom(+e.target.value); changed(`Latency budget ${S.lat} s`); });
+syncControls(); render();
+logLine(logEl, 'Illustrative capabilities and prices. Scenario A loaded: click a point, then switch scenarios.');
+
+renderQuiz('quiz', [
+  { q: 'What does self-hosting an open-weights model buy you, and what does it cost you?',
+    options: ['It is free, because the weights cost nothing to download.',
+      'Data stays on infrastructure you control and per-token cost is low at volume, but you pay a fixed GPU bill, run the operations yourself and usually accept a lower capability ceiling.',
+      'Higher capability than any API model, with no operational work.',
+      'Nothing; open weights and API models are interchangeable in every respect.'],
+    answer: 1,
+    explain: 'In the builder, the self-hosted tiers cost a fixed amount per deployment whatever the volume, and they are the only tiers that survive an on-prem rule. Operations, security patching and scaling become your team’s job.' },
+  { q: 'In scenario C, the builder recommends the self-hosted large model at about $9,000/month, although the small cloud tier would cost about $150. Why?',
+    options: ['The small cloud tier is too slow for extraction.',
+      'Self-hosted models are always more accurate on invoices.',
+      'The builder prefers open weights for contracts.',
+      'The on-prem rule removes every cloud API before cost is compared; of the self-hosted tiers, only the large one clears the quality bar of 6.'],
+    answer: 3,
+    explain: 'Hard constraints filter first, cost ranks what is left. Switch residency to “EU region only” and the small cloud tier becomes the recommendation at about $150/month. That is the conversation to have with the data owner.' },
+  { q: 'In scenario B only the frontier tier clears the quality bar of 9 (≈ $2,025/month). Finance asks you to use the balanced tier instead. What is the best response?',
+    options: ['Run your eval set on the balanced tier; if it really scores below the bar, consider routing (balanced for routine steps, frontier for hard reasoning) or adding human review, and decide with the numbers.',
+      'Switch immediately; the quality bar is only a guess.',
+      'Refuse; frontier models are mandatory for agents.',
+      'Lower the quality bar to 8 so the balanced tier passes.'],
+    answer: 0,
+    explain: 'The capability score is a stand-in for your own eval results. Measure first, then redesign if needed: routing between tiers is a common way to cut cost without dropping the hard cases.' },
+  { q: 'A colleague’s rule of thumb is “always use the most capable model to be safe”. What does scenario A show?',
+    options: ['The frontier tier is cheapest at high volume.',
+      'The rule holds; more capability always reduces risk.',
+      'The frontier tier costs about 25× the small tier ($4,800 vs $192/month) and still fails the 1.5 s latency budget.',
+      'The frontier tier fails only the residency rule.'],
+    answer: 2,
+    explain: 'Triage is a short, high-volume classification task. Extra capability is wasted there, and slower responses break the user experience. Pick the cheapest tier that clears the bar.' },
+  { q: 'For the multilingual knowledge assistant (scenario D), which of these is a <b>bias</b> check rather than transparency, governance or privacy?',
+    options: ['Showing “AI-generated” and the cited KB articles next to each answer.',
+      'Logging the model and prompt version with every answer.',
+      'Redacting personal data before it reaches the model.',
+      'Measuring answer quality separately for each language and region, and closing the gaps before launch.'],
+    answer: 3,
+    explain: 'Bias is about uneven quality or outcomes across groups: here, French or Spanish users getting worse answers than English users. The other three options are transparency, governance and privacy controls, all of which are also needed.' }
+]);
+</script>
+</body>
+</html>

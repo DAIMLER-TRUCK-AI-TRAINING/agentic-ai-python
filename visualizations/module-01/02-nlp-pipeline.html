@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The NLP Pipeline</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .tok { font-family: var(--mono); font-size: 12.5px; }
+  .pos { font-family: var(--mono); font-size: 10.5px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 1 · GenAI, NLP, OCR &amp; LLM Fundamentals</a>
+    <div class="nav"><span>2 / 7</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 2</div>
+  <h1>Every NLP stage inherits the last one’s mistakes</h1>
+  <p class="lede">A classic NLP pipeline turns a support ticket into a routing decision in five cheap, deterministic stages.
+    Step a ticket through tokenisation, POS tagging, NER, semantic similarity and intent detection. Then switch
+    <b>off</b> the custom entity rules and re-run ticket A or C to see a confident route collapse into manual triage.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="ticket">
+        <button data-v="A" aria-pressed="true">Ticket A · VPN</button>
+        <button data-v="B" aria-pressed="false">Ticket B · access</button>
+        <button data-v="C" aria-pressed="false">Ticket C · invoice</button>
+      </div>
+      <button class="primary" id="step">Step ▶</button>
+      <button id="runAll">Run all</button>
+      <button class="toggle" id="rules" aria-pressed="true">Custom entity rules: on</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 360" role="img" aria-label="Pipeline stages, token chips with POS tags and entities, KB similarity and intent bars"></svg></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Stage by stage: classic tools, LLM alternatives, failure modes</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Stage</th><th>What it produces</th><th>Classic Python tool</th><th>LLM alternative</th><th>Failure mode to test</th></tr></thead>
+      <tbody>
+        <tr><td><b>Tokenisation</b></td><td>Units of text</td><td>spaCy tokenizer, NLTK</td><td>The model’s own subword tokenizer</td><td>IDs such as <code>LT-4471</code> split into pieces; word counts ≠ billed tokens</td></tr>
+        <tr><td><b>POS tagging</b></td><td>Grammatical role per token</td><td>spaCy <code>token.pos_</code></td><td>Rarely needed</td><td>Mostly a feature for rules; errors on terse ticket English</td></tr>
+        <tr><td><b>NER</b></td><td>Typed spans: product, date, asset, error code</td><td>spaCy <code>doc.ents</code> plus <code>EntityRuler</code> patterns; HuggingFace token classification</td><td>Structured-output extraction (Module 2)</td><td>Domain IDs missed without custom patterns or training</td></tr>
+        <tr><td><b>Semantic similarity</b></td><td>Cosine score to known articles</td><td>Sentence Transformers (Topic 6)</td><td>Same: embeddings, not generation</td><td>Thresholds that were never calibrated</td></tr>
+        <tr><td><b>Intent detection</b></td><td>A label with a confidence</td><td>scikit-learn or fine-tuned classifier</td><td>Prompt with a fixed label set and a schema</td><td>Low-confidence cases must fall back to a human queue</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> classic NLP stages are cheap, deterministic and unit-testable. Use them as
+    pre-filters and features, keep a regression set of tickets for every custom rule, and send only the ambiguous tail to
+    an LLM. That keeps cost and latency down on the 80 % of tickets a rule already handles.</div>
+  <div class="callout warn"><b>Common trap:</b> sizing LLM cost from word counts. The pipeline sees 12 words in ticket A; a
+    subword tokenizer sees more (16 in this toy split), because IDs and rare words break into pieces. Count tokens with the
+    provider’s tokenizer or token-counting endpoint before you set a budget.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="01-genai-landscape-foundation-models.html"><small>← Previous</small>GenAI landscape &amp; foundation models</a>
+    <a class="next" href="03-ocr-enterprise-documents.html"><small>Next →</small>OCR for enterprise documents</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data in the running scenario (course-map §8.3). Tags follow spaCy's Universal POS set;
+// ASSET, ERROR_CODE and INVOICE_ID are custom EntityRuler labels. Subword splits are a toy, not a real tokenizer.
+const DATA = {
+  stages: ['Tokenise', 'POS tag', 'NER', 'Similarity', 'Intent', 'Route'],
+  threshold: 0.70,
+  routes: { network_incident: 'Network Ops', access_request: 'Service Desk', billing_query: 'Finance', hardware_fault: 'Service Desk' },
+  kb: { 'KB-0042': 'VPN error 809: IKEv2 ports blocked', 'KB-0318': 'Laptop cannot join Wi-Fi',
+        'KB-0107': 'Request access to a SharePoint site', 'KB-0213': 'Duplicate invoice charges: refunds' },
+  tickets: {
+    A: { id: 'INC-104233',
+      tokens: [['VPN','PROPN'],['keeps','VERB'],['dropping','VERB'],['on','ADP'],['LT-4471','PROPN'],['with','ADP'],['error','NOUN'],['809','NUM'],['since','ADP'],['this','DET'],['morning','NOUN'],['.','PUNCT']],
+      sub: 'VPN keeps drop·ping on LT·-·447·1 with error 809 since this morning .',
+      ents: [{ s: 0, e: 0, l: 'PRODUCT' }, { s: 4, e: 4, l: 'ASSET', custom: true }, { s: 6, e: 7, l: 'ERROR_CODE', custom: true }, { s: 9, e: 10, l: 'TIME' }],
+      sims: { 'KB-0042': .86, 'KB-0318': .61, 'KB-0107': .22, 'KB-0213': .09 },
+      intent: { network_incident: .88, hardware_fault: .07, access_request: .03, billing_query: .02 },
+      intentNoRules: { network_incident: .52, hardware_fault: .38, access_request: .06, billing_query: .04 } },
+    B: { id: 'INC-104240',
+      tokens: [['Please','INTJ'],['grant','VERB'],['the','DET'],['new','ADJ'],['contractor','NOUN'],['access','NOUN'],['to','ADP'],['the','DET'],['Finance','PROPN'],['SharePoint','PROPN'],['site','NOUN'],['by','ADP'],['Friday','PROPN'],['.','PUNCT']],
+      sub: 'Please grant the new contract·or access to the Finance Share·Point site by Friday .',
+      ents: [{ s: 8, e: 8, l: 'ORG' }, { s: 9, e: 9, l: 'PRODUCT' }, { s: 12, e: 12, l: 'DATE' }],
+      sims: { 'KB-0107': .81, 'KB-0042': .18, 'KB-0318': .15, 'KB-0213': .12 },
+      intent: { access_request: .91, network_incident: .04, billing_query: .03, hardware_fault: .02 },
+      intentNoRules: { access_request: .91, network_incident: .04, billing_query: .03, hardware_fault: .02 } },
+    C: { id: 'INC-104251',
+      tokens: [['Invoice','NOUN'],['INV-88341','PROPN'],['was','AUX'],['charged','VERB'],['twice','ADV'],['for','ADP'],['the','DET'],['same','ADJ'],['licence','NOUN'],['renewal','NOUN'],['.','PUNCT']],
+      sub: 'Invoice INV·-·883·41 was charged twice for the same lic·ence renew·al .',
+      ents: [{ s: 1, e: 1, l: 'INVOICE_ID', custom: true }],
+      sims: { 'KB-0213': .84, 'KB-0107': .20, 'KB-0042': .07, 'KB-0318': .05 },
+      intent: { billing_query: .93, access_request: .04, network_incident: .02, hardware_fault: .01 },
+      intentNoRules: { billing_query: .64, access_request: .21, hardware_fault: .09, network_incident: .06 } }
+  },
+  entColor: { PRODUCT: 'var(--p0)', ASSET: 'var(--p1)', ERROR_CODE: 'var(--p4)', TIME: 'var(--p5)', ORG: 'var(--p2)', DATE: 'var(--p5)', INVOICE_ID: 'var(--p1)' }
+};
+
+const S = { ticket: 'A', stage: -1, rules: true, busy: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const T = () => DATA.tickets[S.ticket];
+const ents = () => T().ents.filter(e => S.rules || !e.custom);
+const intents = () => Object.entries(S.rules ? T().intent : T().intentNoRules).sort((a, b) => b[1] - a[1]);
+const subCount = () => T().sub.split(/[ ·]/).length;
+function route() {
+  const [label, p] = intents()[0];
+  return p >= DATA.threshold ? { team: DATA.routes[label], ok: true, label, p } : { team: 'Manual triage', ok: false, label, p };
+}
+const stageX = i => 15 + i * 148;
+
+function layoutTokens() {
+  let x = 20;
+  return T().tokens.map(([t]) => { const w = Math.max(40, t.length * 7.6 + 14); const r = { x, w }; x += w + 8; return r; });
+}
+
+function render() {
+  svg.innerHTML = '';
+  DATA.stages.forEach((name, i) => {
+    const x = stageX(i), done = i <= S.stage, last = i === 5 && S.stage === 5, r = route();
+    if (i > 0) el('line', { x1: x - 18, y1: 37, x2: x, y2: 37, stroke: 'var(--border)', 'stroke-width': 2 }, svg);
+    const fill = last ? (r.ok ? 'var(--ok-soft)' : 'var(--warn-soft)') : done ? 'var(--accent-soft)' : 'var(--surface)';
+    el('rect', { x, y: 14, width: 130, height: 46, rx: 8, fill, stroke: last ? (r.ok ? 'var(--ok)' : 'var(--warn)') : done ? 'var(--accent)' : 'var(--border)' }, svg);
+    el('text', { x: x + 65, y: last ? 33 : 42, 'text-anchor': 'middle', class: 'hdr', text: `${i + 1}. ${name}` }, svg);
+    if (last) el('text', { x: x + 65, y: 51, 'text-anchor': 'middle', class: 'small', fill: r.ok ? 'var(--ok)' : 'var(--warn)', text: '→ ' + r.team }, svg);
+  });
+  if (S.stage < 0) {
+    el('text', { x: 450, y: 180, 'text-anchor': 'middle', class: 'tok', text: `${T().id}: “${T().tokens.map(t => t[0]).join(' ').replace(' .', '.')}”` }, svg);
+    el('text', { x: 450, y: 210, 'text-anchor': 'middle', class: 'muted', text: 'Press Step ▶ to tokenise the ticket' }, svg);
+    return renderStats();
+  }
+  const L = layoutTokens();
+  T().tokens.forEach(([t, pos], i) => {
+    el('rect', { x: L[i].x, y: 82, width: L[i].w, height: 26, rx: 6, fill: 'var(--surface)', stroke: 'var(--border)' }, svg);
+    el('text', { x: L[i].x + L[i].w / 2, y: 99, 'text-anchor': 'middle', class: 'tok', text: t }, svg);
+    if (S.stage >= 1) el('text', { x: L[i].x + L[i].w / 2, y: 124, 'text-anchor': 'middle', class: 'pos muted', text: pos }, svg);
+  });
+  if (S.stage >= 2) ents().forEach(e => {
+    const x1 = L[e.s].x, x2 = L[e.e].x + L[e.e].w, c = DATA.entColor[e.l];
+    const label = e.l + (e.custom ? ' (custom)' : ''), w = Math.max(x2 - x1, label.length * 6.6 + 10);
+    el('rect', { x: x1, y: 132, width: w, height: 18, rx: 4, fill: c, 'fill-opacity': .18, stroke: c, 'stroke-dasharray': e.custom ? '4 3' : '' }, svg);
+    el('text', { x: x1 + 5, y: 145, class: 'pos', fill: c, style: 'font-weight:700', text: label }, svg);
+  });
+  el('text', { x: 20, y: 184, class: 'hdr', text: '4. Cosine similarity to KB articles' }, svg);
+  el('text', { x: 470, y: 184, class: 'hdr', text: `5. Intent probabilities (route if ≥ ${DATA.threshold.toFixed(2)})` }, svg);
+  if (S.stage >= 3) Object.entries(T().sims).forEach(([kb, s], k) => {
+    const y = 200 + k * 38;
+    el('text', { x: 20, y: y + 10, class: 'small', text: `${kb}  ${DATA.kb[kb]}` }, svg);
+    el('rect', { x: 20, y: y + 16, width: 360, height: 12, rx: 3, fill: 'var(--surface)' }, svg);
+    el('rect', { x: 20, y: y + 16, width: 360 * s, height: 12, rx: 3, fill: k === 0 ? 'var(--p2)' : 'var(--p5)' }, svg);
+    el('text', { x: 388, y: y + 27, class: 'small', text: s.toFixed(2) }, svg);
+  });
+  else el('text', { x: 20, y: 230, class: 'small muted', text: 'runs at stage 4' }, svg);
+  if (S.stage >= 4) {
+    intents().forEach(([lab, p], k) => {
+      const y = 200 + k * 38, top = k === 0, c = top ? (p >= DATA.threshold ? 'var(--ok)' : 'var(--warn)') : 'var(--p5)';
+      el('text', { x: 470, y: y + 10, class: 'small', text: lab }, svg);
+      el('rect', { x: 470, y: y + 16, width: 360, height: 12, rx: 3, fill: 'var(--surface)' }, svg);
+      el('rect', { x: 470, y: y + 16, width: 360 * p, height: 12, rx: 3, fill: c }, svg);
+      el('text', { x: 838, y: y + 27, class: 'small', text: p.toFixed(2) }, svg);
+    });
+    const tx = 470 + 360 * DATA.threshold;
+    el('line', { x1: tx, y1: 192, x2: tx, y2: 350, stroke: 'var(--warn)', 'stroke-dasharray': '4 3' }, svg);
+  } else el('text', { x: 470, y: 230, class: 'small muted', text: 'runs at stage 5' }, svg);
+  renderStats();
+}
+
+function renderStats() {
+  const r = route(), on = S.stage;
+  stats.innerHTML =
+    `<div class="stat"><b>${on >= 0 ? T().tokens.length : '–'}</b><span>pipeline tokens (words)</span></div>` +
+    `<div class="stat"><b>${on >= 0 ? subCount() : '–'}</b><span>subword tokens (toy split)</span></div>` +
+    `<div class="stat"><b>${on >= 2 ? ents().length : '–'}</b><span>entities found</span></div>` +
+    `<div class="stat"><b>${on >= 4 ? r.p.toFixed(2) : '–'}</b><span>top intent confidence</span></div>` +
+    `<div class="stat"><b style="font-size:16px;color:${on >= 5 ? (r.ok ? 'var(--ok)' : 'var(--warn)') : 'inherit'}">${on >= 5 ? r.team : '–'}</b><span>route</span></div>`;
+}
+
+function describe(i) {
+  const t = T(), r = route();
+  return [
+    () => `Tokenise: ${t.tokens.length} words; toy subword split <code>${t.sub}</code> = ${subCount()} tokens`,
+    () => `POS tag: ${t.tokens.map(x => x[1]).join(' ')}`,
+    () => `NER: ${ents().map(e => `${t.tokens.slice(e.s, e.e + 1).map(x => x[0]).join(' ')} → ${e.l}`).join(', ') || 'none'}` +
+          (!S.rules && t.ents.some(e => e.custom) ? ' <b>(custom labels missing)</b>' : ''),
+    () => `Similarity: best match ${Object.keys(t.sims)[0]} at ${Object.values(t.sims)[0].toFixed(2)}`,
+    () => `Intent: ${r.label} ${r.p.toFixed(2)} ${r.p >= DATA.threshold ? '≥' : '<'} threshold ${DATA.threshold.toFixed(2)}`,
+    () => r.ok ? `Route: ${t.id} → <b>${r.team}</b>` : `Route: ${t.id} → <b>manual triage</b> (confidence too low to auto-route)`
+  ][i]();
+}
+
+async function step() {
+  if (S.busy || S.stage >= 5) return false;
+  S.busy = true;
+  const epoch = S.epoch, to = S.stage + 1, x1 = S.stage < 0 ? 0 : stageX(S.stage) + 65;
+  const pkt = el('circle', { r: 8, fill: 'var(--accent)' }, svg);
+  await tween(pkt, x1, 70, stageX(to) + 65, 70, 380);
+  S.busy = false;
+  if (epoch !== S.epoch) return false;   // ticket changed or reset mid-step
+  S.stage = to;
+  render();
+  logLine(logEl, describe(to), to === 5);
+  return true;
+}
+
+bindSeg('ticket', v => { S.ticket = v; S.stage = -1; S.epoch++; render(); logLine(logEl, `Loaded ticket ${v} (${T().id})`); });
+document.getElementById('step').onclick = step;
+document.getElementById('runAll').onclick = async () => { while (await step()); };
+bindToggle('rules', on => {
+  S.rules = on;
+  document.getElementById('rules').textContent = 'Custom entity rules: ' + (on ? 'on' : 'off');
+  render();
+  logLine(logEl, on ? 'Custom EntityRuler patterns restored (ASSET, ERROR_CODE, INVOICE_ID)'
+    : 'Custom EntityRuler patterns removed: asset tags, error codes and invoice IDs are no longer recognised', true);
+});
+document.getElementById('reset').onclick = () => { S.stage = -1; S.epoch++; render(); logLine(logEl, 'Reset'); };
+render();
+logLine(logEl, 'Illustrative pipeline over canned tickets. Press Step ▶ or Run all.');
+
+renderQuiz('quiz', [
+  { q: 'What is the difference between POS tagging and named-entity recognition (NER)?',
+    options: ['They are two names for the same stage.',
+      'POS tagging labels the grammatical role of every token; NER finds spans that name things (a product, a date, an asset) and types them.',
+      'POS tagging finds entities; NER decides the intent.',
+      'NER only works on proper nouns that start with a capital letter.'],
+    answer: 1,
+    explain: 'POS gives every token a role (VERB, NOUN, NUM). NER marks spans such as <code>error 809</code> as ERROR_CODE, which may cover several tokens and does not depend on capitalisation.' },
+  { q: 'With custom entity rules off, ticket A routed to manual triage instead of Network Ops. What caused that?',
+    options: ['The tokenizer could no longer split the sentence.',
+      'The KB similarity score for KB-0042 dropped below 0.5.',
+      'Without the ASSET and ERROR_CODE signals, the intent confidence fell from 0.88 to 0.52, below the 0.70 auto-route threshold.',
+      'POS tagging failed on the word “VPN”.'],
+    answer: 2,
+    explain: 'In this pipeline the router uses entity features as evidence. Lose them and network_incident and hardware_fault become hard to tell apart (0.52 vs 0.38), so the safe behaviour is to fall back to a human queue.' },
+  { q: 'Network Ops renames hosts to a new scheme (<code>nw-core-17</code>) and tickets mentioning them start landing in manual triage. What do you do?',
+    options: ['Add patterns for the new scheme to the EntityRuler (or retrain NER), and add tickets with the new names to your regression set.',
+      'Lower the routing threshold to 0.30 so everything auto-routes again.',
+      'Replace the whole pipeline with one LLM prompt and remove the tests.',
+      'Ask users to stop mentioning host names.'],
+    answer: 0,
+    explain: 'The failure starts at NER, so fix it there and lock it in with regression tickets. Dropping the threshold hides the problem and mis-routes the genuinely ambiguous tickets.' },
+  { q: 'A teammate estimates LLM cost by counting the words in each ticket. Why will that under-estimate?',
+    options: ['Because LLMs bill per character, not per token.',
+      'Because LLM tokenizers split text into subword tokens, so IDs like <code>LT-4471</code> and rare words become several tokens; word counts and billed tokens differ.',
+      'Because punctuation is billed double.',
+      'It will not; one word is always exactly one token.'],
+    answer: 1,
+    explain: 'The pipeline saw 12 words in ticket A, while the toy subword split produced 16. Real ratios vary by tokenizer and language, so measure with the provider’s tokenizer or token-counting endpoint.' },
+  { q: 'Ticket B shares the words “access” and “SharePoint” with the title of KB-0107. Could a ticket that shares <em>no</em> words with that title still score high?',
+    options: ['No; cosine similarity counts shared words.',
+      'Only if both texts are in English.',
+      'Only if the ticket is longer than the article.',
+      'Yes; embedding similarity compares meaning, so “give the contractor rights to the Finance team space” can still land near KB-0107.'],
+    answer: 3,
+    explain: 'Embedding models map paraphrases to nearby vectors, so the cosine is high without exact word overlap. This is why semantic similarity beats keyword search for ticket deduplication (Topic 6).' }
+]);
+</script>
+</body>
+</html>

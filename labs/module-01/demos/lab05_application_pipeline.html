@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 5 — Building API Applications</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 32px; text-align: center; border-bottom: 1px solid #334155; }
+  .header h1 { font-size: 1.8rem; color: #f8fafc; margin-bottom: 8px; }
+  .header p  { color: #94a3b8; font-size: 1rem; }
+  .badge { display: inline-block; background: #06b6d4; color: #0f172a; font-size: 0.75rem; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; font-weight: 700; }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  section { margin-bottom: 56px; }
+  h2.section-title { font-size: 1.25rem; color: #f1f5f9; margin-bottom: 8px; }
+  p.section-sub { color: #64748b; font-size: 0.88rem; margin-bottom: 24px; }
+
+  /* Pipeline flow */
+  .pipeline { display: flex; flex-direction: column; gap: 0; }
+  .pipe-step { display: flex; gap: 0; cursor: pointer; }
+  .pipe-left { width: 60px; display: flex; flex-direction: column; align-items: center; }
+  .pipe-node { width: 44px; height: 44px; border-radius: 50%; border: 2px solid; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; transition: all 0.2s; }
+  .pipe-line { flex: 1; width: 2px; background: #334155; margin: 4px 0; }
+  .pipe-body { padding: 0 0 28px 16px; flex: 1; }
+  .pipe-title { font-size: 0.95rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; margin-top: 10px; }
+  .pipe-desc { font-size: 0.82rem; color: #94a3b8; line-height: 1.55; }
+  .pipe-code { background: #1e293b; border-radius: 8px; padding: 12px 14px; font-family: 'Consolas', monospace; font-size: 0.76rem; color: #cbd5e1; line-height: 1.6; margin-top: 10px; white-space: pre; overflow-x: auto; display: none; }
+  .pipe-step.open .pipe-code { display: block; animation: slideDown 0.2s; }
+  @keyframes slideDown { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  .pipe-step:hover .pipe-title { color: #22d3ee; }
+  .pipe-expand { font-size: 0.72rem; color: #475569; margin-left: 8px; }
+
+  /* Error handling visual */
+  .error-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .err-tab { padding: 7px 14px; border-radius: 8px; border: 1.5px solid #334155; background: #1e293b; color: #94a3b8; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+  .err-tab.active { background: #06b6d4; border-color: #06b6d4; color: #0f172a; font-weight: 700; }
+  .err-panel { display: none; }
+  .err-panel.active { display: block; animation: fadeIn 0.2s; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+  .err-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .err-card { background: #1e293b; border-radius: 12px; padding: 16px; border: 1.5px solid #334155; }
+  .err-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; font-weight: 700; }
+  .code-box { background: #0f172a; border-radius: 8px; padding: 14px; font-family: 'Consolas', monospace; font-size: 0.76rem; color: #cbd5e1; line-height: 1.7; white-space: pre; overflow-x: auto; }
+  .kw { color: #818cf8; }
+  .str { color: #34d399; }
+  .num { color: #fb923c; }
+  .key { color: #7dd3fc; }
+  .cm { color: #475569; font-style: italic; }
+  .fn { color: #fbbf24; }
+  .cls { color: #f472b6; }
+
+  /* Architecture patterns */
+  .arch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 16px; }
+  .arch-card { background: #1e293b; border: 1.5px solid #334155; border-radius: 14px; padding: 20px; }
+  .arch-title { font-size: 0.95rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .arch-icon { font-size: 1.4rem; }
+  .arch-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.55; margin-bottom: 12px; }
+  .arch-when { font-size: 0.75rem; color: #06b6d4; border-top: 1px solid #334155; padding-top: 10px; }
+  .arch-when strong { display: block; margin-bottom: 3px; }
+
+  /* Complete app showcase */
+  .app-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .app-desc { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+  .app-code { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 20px; overflow: hidden; }
+
+  .app-feature { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+  .app-feat-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
+  .app-feat-text { font-size: 0.82rem; color: #94a3b8; line-height: 1.5; }
+  .app-feat-title { font-size: 0.87rem; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
+
+  /* Quiz */
+  .quiz-card { background: #1e293b; border-radius: 14px; padding: 24px; margin-bottom: 16px; border: 1px solid #334155; }
+  .quiz-card .question { font-size: 1rem; color: #f1f5f9; margin-bottom: 16px; font-weight: 500; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn { background: #0f172a; border: 1.5px solid #334155; border-radius: 8px; padding: 10px 16px; color: #94a3b8; font-size: 0.88rem; cursor: pointer; text-align: left; transition: all 0.15s; }
+  .opt-btn:hover:not(:disabled) { border-color: #06b6d4; color: #e2e8f0; }
+  .opt-btn.correct   { border-color: #10b981 !important; background: rgba(16,185,129,0.1); color: #6ee7b7; }
+  .opt-btn.incorrect { border-color: #ef4444 !important; background: rgba(239,68,68,0.1);  color: #fca5a5; }
+  .feedback { margin-top: 12px; font-size: 0.85rem; padding: 12px 14px; border-radius: 8px; display: none; line-height: 1.5; }
+  .feedback.show { display: block; }
+  .feedback.ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border-left: 3px solid #10b981; }
+  .feedback.bad { background: rgba(239,68,68,0.1);  color: #fca5a5; border-left: 3px solid #ef4444; }
+  .score-banner { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(6,182,212,0.05)); border: 1px solid #06b6d4; border-radius: 14px; padding: 24px; text-align: center; display: none; }
+  .score-banner.show { display: block; }
+  .score-num { font-size: 2.5rem; font-weight: 800; color: #22d3ee; }
+  .score-label { font-size: 0.9rem; color: #94a3b8; margin-top: 4px; }
+
+  .info-box { background: rgba(6,182,212,0.07); border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 14px 16px; font-size: 0.83rem; color: #94a3b8; line-height: 1.6; }
+  .info-box strong { color: #22d3ee; }
+
+  @media (max-width: 700px) { .err-grid { grid-template-columns: 1fr; } .arch-grid { grid-template-columns: 1fr; } .app-layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">Module 4 · Lab 5</div>
+  <h1>Building API Applications</h1>
+  <p>Error handling, retry logic, rate limits, production pipelines — and Responses API hosted tools (web_search, file_search, code_interpreter)</p>
+</div>
+
+<div class="main">
+
+  <!-- Section 1: Request Pipeline -->
+  <section>
+    <h2 class="section-title">The Production Request Pipeline</h2>
+    <p class="section-sub">A reliable API application is more than a single API call. Click each stage to expand the implementation code.</p>
+
+    <div class="pipeline">
+      <div class="pipe-step" onclick="togglePipe(this)">
+        <div class="pipe-left">
+          <div class="pipe-node" style="background:rgba(6,182,212,0.15);border-color:#06b6d4;color:#22d3ee;">1</div>
+          <div class="pipe-line"></div>
+        </div>
+        <div class="pipe-body">
+          <div class="pipe-title">Input Validation &amp; Sanitization <span class="pipe-expand">▾ click to expand</span></div>
+          <div class="pipe-desc">Validate inputs before sending to the API. Catch problems early — an API call is wasted if the input is malformed.</div>
+          <div class="pipe-code">
+<span class="kw">def</span> <span class="fn">validate_input</span>(text: <span class="fn">str</span>, max_chars: <span class="fn">int</span> = <span class="num">10000</span>) -> <span class="fn">str</span>:
+    <span class="kw">if not</span> text <span class="kw">or not</span> text.strip():
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">"Input text cannot be empty"</span>)
+    <span class="kw">if</span> len(text) > max_chars:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">f"Input exceeds {max_chars} character limit"</span>)
+    <span class="cm"># Sanitize: strip leading/trailing whitespace</span>
+    <span class="kw">return</span> text.strip()</div>
+        </div>
+      </div>
+
+      <div class="pipe-step" onclick="togglePipe(this)">
+        <div class="pipe-left">
+          <div class="pipe-node" style="background:rgba(129,140,248,0.15);border-color:#818cf8;color:#818cf8;">2</div>
+          <div class="pipe-line"></div>
+        </div>
+        <div class="pipe-body">
+          <div class="pipe-title">Token Budget Check <span class="pipe-expand">▾ click to expand</span></div>
+          <div class="pipe-desc">Estimate token count before calling the API. Prevent exceeding the context window or surprising cost spikes.</div>
+          <div class="pipe-code">
+<span class="kw">import</span> tiktoken
+
+<span class="kw">def</span> <span class="fn">count_tokens</span>(messages: <span class="fn">list</span>[<span class="fn">dict</span>], model: <span class="fn">str</span> = <span class="str">"gpt-4.1-mini"</span>) -> <span class="fn">int</span>:
+    <span class="kw">try</span>:
+        enc = tiktoken.<span class="fn">encoding_for_model</span>(model)
+    <span class="kw">except</span> <span class="cls">KeyError</span>:
+        enc = tiktoken.<span class="fn">get_encoding</span>(<span class="str">"o200k_base"</span>)  <span class="cm"># newer models</span>
+    total = <span class="num">0</span>
+    <span class="kw">for</span> msg <span class="kw">in</span> messages:
+        total += <span class="num">4</span>  <span class="cm"># per-message overhead</span>
+        total += len(enc.<span class="fn">encode</span>(msg[<span class="str">"content"</span>]))
+    <span class="kw">return</span> total + <span class="num">3</span>  <span class="cm"># reply priming</span>
+
+<span class="cm"># Block requests that would exceed the context window</span>
+MAX_INPUT_TOKENS = <span class="num">900_000</span>  <span class="cm"># gpt-4.1 fits ~1M; leave headroom</span>
+<span class="kw">if</span> <span class="fn">count_tokens</span>(messages) > MAX_INPUT_TOKENS:
+    <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">"Messages exceed context window limit"</span>)</div>
+        </div>
+      </div>
+
+      <div class="pipe-step" onclick="togglePipe(this)">
+        <div class="pipe-left">
+          <div class="pipe-node" style="background:rgba(251,191,36,0.15);border-color:#fbbf24;color:#fbbf24;">3</div>
+          <div class="pipe-line"></div>
+        </div>
+        <div class="pipe-body">
+          <div class="pipe-title">API Call with Retry Logic <span class="pipe-expand">▾ click to expand</span></div>
+          <div class="pipe-desc">Handle transient failures with exponential backoff. Rate limit errors (429) and server errors (5xx) are often temporary.</div>
+          <div class="pipe-code">
+<span class="kw">import</span> time
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI, RateLimitError, APIStatusError
+
+client = <span class="fn">OpenAI</span>()
+
+<span class="kw">def</span> <span class="fn">call_with_retry</span>(messages: <span class="fn">list</span>, max_retries: <span class="fn">int</span> = <span class="num">3</span>) -> <span class="fn">str</span>:
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(max_retries):
+        <span class="kw">try</span>:
+            response = client.chat.completions.<span class="fn">create</span>(
+                model=<span class="str">"gpt-4.1-mini"</span>,
+                messages=messages,
+                temperature=<span class="num">0.0</span>,
+                max_completion_tokens=<span class="num">1024</span>
+            )
+            <span class="kw">return</span> response.choices[<span class="num">0</span>].message.content
+
+        <span class="kw">except</span> <span class="cls">RateLimitError</span>:
+            wait = <span class="num">2</span> ** attempt  <span class="cm"># 1s, 2s, 4s</span>
+            <span class="fn">print</span>(<span class="str">f"Rate limited. Waiting {wait}s..."</span>)
+            time.<span class="fn">sleep</span>(wait)
+
+        <span class="kw">except</span> <span class="cls">APIStatusError</span> <span class="kw">as</span> e:
+            <span class="kw">if</span> e.status_code >= <span class="num">500</span>:
+                <span class="fn">print</span>(<span class="str">f"Server error {e.status_code}. Retrying..."</span>)
+                time.<span class="fn">sleep</span>(<span class="num">2</span> ** attempt)
+            <span class="kw">else</span>:
+                <span class="kw">raise</span>  <span class="cm"># 4xx errors are not retryable</span>
+
+    <span class="kw">raise</span> <span class="cls">RuntimeError</span>(<span class="str">f"Failed after {max_retries} attempts"</span>)</div>
+        </div>
+      </div>
+
+      <div class="pipe-step" onclick="togglePipe(this)">
+        <div class="pipe-left">
+          <div class="pipe-node" style="background:rgba(52,211,153,0.15);border-color:#34d399;color:#34d399;">4</div>
+          <div class="pipe-line"></div>
+        </div>
+        <div class="pipe-body">
+          <div class="pipe-title">Response Validation <span class="pipe-expand">▾ click to expand</span></div>
+          <div class="pipe-desc">Check that the response is complete and meets your requirements. Log unexpected outputs for monitoring.</div>
+          <div class="pipe-code">
+<span class="kw">def</span> <span class="fn">validate_response</span>(response) -> <span class="fn">str</span>:
+    content = response.choices[<span class="num">0</span>].message.content
+    finish = response.choices[<span class="num">0</span>].finish_reason
+
+    <span class="cm"># Detect truncation</span>
+    <span class="kw">if</span> finish == <span class="str">"length"</span>:
+        <span class="fn">print</span>(<span class="str">f"WARNING: Response truncated at max_tokens"</span>)
+        <span class="cm"># Optionally: raise or retry with higher max_tokens</span>
+
+    <span class="cm"># Detect empty responses</span>
+    <span class="kw">if not</span> content <span class="kw">or not</span> content.strip():
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">"Received empty response from API"</span>)
+
+    <span class="cm"># Log usage for cost tracking</span>
+    <span class="fn">print</span>(<span class="str">f"Tokens: {response.usage.total_tokens}"</span>)
+
+    <span class="kw">return</span> content</div>
+        </div>
+      </div>
+
+      <div class="pipe-step" onclick="togglePipe(this)">
+        <div class="pipe-left">
+          <div class="pipe-node" style="background:rgba(167,139,250,0.15);border-color:#a78bfa;color:#a78bfa;">5</div>
+        </div>
+        <div class="pipe-body">
+          <div class="pipe-title">Output Processing &amp; Logging <span class="pipe-expand">▾ click to expand</span></div>
+          <div class="pipe-desc">Parse, transform, and log the final result. Structured logging enables monitoring and debugging in production.</div>
+          <div class="pipe-code">
+<span class="kw">import</span> json, logging
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+
+<span class="kw">def</span> <span class="fn">process_and_log</span>(raw: <span class="fn">str</span>, request_id: <span class="fn">str</span>) -> <span class="fn">dict</span>:
+    <span class="cm"># Parse structured output</span>
+    result = json.<span class="fn">loads</span>(raw)
+
+    <span class="cm"># Log for monitoring</span>
+    logging.<span class="fn">info</span>(<span class="fn">json.dumps</span>({
+        <span class="str">"request_id"</span>: request_id,
+        <span class="str">"timestamp"</span>: datetime.<span class="fn">utcnow</span>().isoformat(),
+        <span class="str">"output_keys"</span>: <span class="fn">list</span>(result.keys()),
+        <span class="str">"success"</span>: <span class="kw">True</span>
+    }))
+
+    <span class="kw">return</span> result</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Error Handling -->
+  <section>
+    <h2 class="section-title">Error Handling Patterns</h2>
+    <p class="section-sub">The OpenAI Python SDK provides specific exception types. Catching the right exception lets you handle each error appropriately.</p>
+
+    <div class="error-tabs">
+      <button class="err-tab active" onclick="showErr(0,this)">RateLimitError (429)</button>
+      <button class="err-tab" onclick="showErr(1,this)">AuthenticationError (401)</button>
+      <button class="err-tab" onclick="showErr(2,this)">APIConnectionError</button>
+      <button class="err-tab" onclick="showErr(3,this)">Complete Handler</button>
+    </div>
+
+    <div id="err0" class="err-panel active">
+      <div class="err-grid">
+        <div class="err-card">
+          <div class="err-card-label" style="color:#fbbf24;">What it means</div>
+          <div class="app-desc" style="background:#0f172a;border:none;padding:0;">
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;">You're sending too many requests per minute (RPM) or too many tokens per minute (TPM). Each tier has limits. Free tier: 3 RPM, 200K TPM. Paid tier: 500+ RPM, 30M+ TPM.</p>
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;margin-top:10px;"><strong style="color:#fbbf24;">Fix:</strong> Exponential backoff — wait before retrying. The API returns a Retry-After header with the suggested wait time.</p>
+          </div>
+        </div>
+        <div class="err-card">
+          <div class="err-card-label" style="color:#06b6d4;">Fix: Exponential Backoff</div>
+          <div class="code-box">
+<span class="kw">import</span> time
+<span class="kw">from</span> openai <span class="kw">import</span> RateLimitError
+
+<span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>):
+    <span class="kw">try</span>:
+        <span class="kw">return</span> <span class="fn">make_api_call</span>()
+    <span class="kw">except</span> <span class="cls">RateLimitError</span> <span class="kw">as</span> e:
+        wait = <span class="num">2</span> ** attempt  <span class="cm"># 1,2,4,8,16s</span>
+        <span class="fn">print</span>(<span class="str">f"Rate limit. Waiting {wait}s"</span>)
+        time.<span class="fn">sleep</span>(wait)
+<span class="kw">raise</span> <span class="cls">RuntimeError</span>(<span class="str">"Max retries exceeded"</span>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="err1" class="err-panel">
+      <div class="err-grid">
+        <div class="err-card">
+          <div class="err-card-label" style="color:#ef4444;">What it means</div>
+          <div class="app-desc" style="background:#0f172a;border:none;padding:0;">
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;">Your API key is invalid, expired, or revoked. This is NOT retryable — retrying will always fail until you fix the key.</p>
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;margin-top:10px;"><strong style="color:#ef4444;">Fix:</strong> Check the OPENAI_API_KEY environment variable. Verify the key is active at platform.openai.com.</p>
+          </div>
+        </div>
+        <div class="err-card">
+          <div class="err-card-label" style="color:#06b6d4;">Handle: Fail Fast</div>
+          <div class="code-box">
+<span class="kw">from</span> openai <span class="kw">import</span> AuthenticationError
+
+<span class="kw">try</span>:
+    <span class="fn">make_api_call</span>()
+<span class="kw">except</span> <span class="cls">AuthenticationError</span> <span class="kw">as</span> e:
+    <span class="cm"># Do NOT retry — key is invalid</span>
+    logging.<span class="fn">critical</span>(<span class="str">"Invalid API key. Check OPENAI_API_KEY."</span>)
+    <span class="kw">raise</span> <span class="cls">SystemExit</span>(<span class="num">1</span>)  <span class="cm"># Hard stop</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="err2" class="err-panel">
+      <div class="err-grid">
+        <div class="err-card">
+          <div class="err-card-label" style="color:#fb923c;">What it means</div>
+          <div class="app-desc" style="background:#0f172a;border:none;padding:0;">
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;">Network failure — can't reach the API. Possible causes: no internet, DNS failure, firewall, OpenAI outage. Often transient.</p>
+            <p style="font-size:0.83rem;color:#94a3b8;line-height:1.6;margin-top:10px;"><strong style="color:#fb923c;">Fix:</strong> Retry with backoff. Set a timeout on the client to avoid hanging indefinitely.</p>
+          </div>
+        </div>
+        <div class="err-card">
+          <div class="err-card-label" style="color:#06b6d4;">Fix: Timeout + Retry</div>
+          <div class="code-box">
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI, APIConnectionError
+
+<span class="cm"># Set a 30-second timeout on the client</span>
+client = <span class="fn">OpenAI</span>(timeout=<span class="num">30.0</span>)
+
+<span class="kw">try</span>:
+    response = client.chat.completions.<span class="fn">create</span>(...)
+<span class="kw">except</span> <span class="cls">APIConnectionError</span> <span class="kw">as</span> e:
+    <span class="cm"># Network error — safe to retry</span>
+    logging.<span class="fn">warning</span>(<span class="str">f"Connection error: {e}"</span>)
+    <span class="kw">raise</span>  <span class="cm"># Let retry decorator handle it</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="err3" class="err-panel">
+      <div class="err-grid" style="grid-template-columns:1fr;">
+        <div class="err-card" style="border-color:#06b6d4;">
+          <div class="err-card-label" style="color:#06b6d4;">Production-Ready Exception Handler</div>
+          <div class="code-box">
+<span class="kw">from</span> openai <span class="kw">import</span> (
+    OpenAI, RateLimitError, AuthenticationError,
+    APIConnectionError, APIStatusError, APITimeoutError
+)
+
+<span class="kw">def</span> <span class="fn">safe_call</span>(messages, retries=<span class="num">3</span>) -> <span class="fn">str</span>:
+    client = <span class="fn">OpenAI</span>(timeout=<span class="num">30.0</span>)
+
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(retries):
+        <span class="kw">try</span>:
+            resp = client.chat.completions.<span class="fn">create</span>(
+                model=<span class="str">"gpt-4.1-mini"</span>, messages=messages
+            )
+            <span class="kw">return</span> resp.choices[<span class="num">0</span>].message.content
+
+        <span class="kw">except</span> <span class="cls">AuthenticationError</span>:
+            <span class="kw">raise</span>  <span class="cm"># never retry auth errors</span>
+
+        <span class="kw">except</span> (<span class="cls">RateLimitError</span>, <span class="cls">APIConnectionError</span>,
+                <span class="cls">APITimeoutError</span>) <span class="kw">as</span> e:
+            <span class="kw">if</span> attempt == retries - <span class="num">1</span>: <span class="kw">raise</span>
+            time.<span class="fn">sleep</span>(<span class="num">2</span> ** attempt)
+
+        <span class="kw">except</span> <span class="cls">APIStatusError</span> <span class="kw">as</span> e:
+            <span class="kw">if</span> e.status_code >= <span class="num">500</span>:
+                <span class="kw">if</span> attempt == retries - <span class="num">1</span>: <span class="kw">raise</span>
+                time.<span class="fn">sleep</span>(<span class="num">2</span> ** attempt)
+            <span class="kw">else</span>:
+                <span class="kw">raise</span>  <span class="cm"># 4xx: don't retry</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Architecture Patterns -->
+  <section>
+    <h2 class="section-title">Common Application Architectures</h2>
+    <p class="section-sub">Choose the right pattern for your use case. Most production applications combine multiple patterns.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">⛓️</span> Sequential Pipeline</div>
+        <div class="arch-desc">Chain multiple API calls, where each step's output feeds the next. Good for multi-stage processing like extract → classify → summarize.</div>
+        <div class="arch-when"><strong>Use when:</strong> Task is too complex for one prompt, quality benefits from decomposition, or each stage needs different models.</div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🔀</span> Parallel Fan-out</div>
+        <div class="arch-desc">Call multiple models or prompts in parallel using asyncio. Aggregate results (voting, union, best-of). Trades cost for latency reduction.</div>
+        <div class="arch-when"><strong>Use when:</strong> Independent subtasks, self-consistency voting, or running the same prompt on multiple inputs simultaneously.</div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🛡️</span> Guard + Process</div>
+        <div class="arch-desc">Run a cheap, fast classification call first to validate input safety or type, then route to the appropriate processing prompt.</div>
+        <div class="arch-when"><strong>Use when:</strong> User-facing apps need content moderation, or inputs require routing to different specialized prompts.</div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🔁</span> Generate + Validate</div>
+        <div class="arch-desc">Generate output with one call, then validate it with a second call (or schema check). Retry if validation fails. High quality at 2× cost.</div>
+        <div class="arch-when"><strong>Use when:</strong> Output quality is critical, structured output format must be guaranteed, or self-correction is needed.</div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🧠</span> Agentic Loop (Responses)</div>
+        <div class="arch-desc">Use the Responses API with <code style="color:#22d3ee;font-size:0.75rem;">previous_response_id</code> + tools. The model plans, calls tools (custom or hosted), observes results, and continues — all within one chain.</div>
+        <div class="arch-when"><strong>Use when:</strong> Tasks need iterative tool use — researching, computing, comparing — and you want OpenAI to thread state and reasoning items for you.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3b: Built-in tools -->
+  <section>
+    <h2 class="section-title">Built-in Tools (Responses API)</h2>
+    <p class="section-sub">The Responses API ships with hosted tools. You enable them with one line — no executor code, no infrastructure. The model decides when to call them; OpenAI runs them in a sandbox and feeds results back into the same response.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🔎</span> web_search</div>
+        <div class="arch-desc">Live web search with citations. Best for fresh-data Q&A — news, prices, schedules — anything that's changed since training.</div>
+        <div class="arch-when"><strong>Add it:</strong> <code style="color:#22d3ee;font-size:0.75rem;">tools=[{"type": "web_search"}]</code></div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">📁</span> file_search</div>
+        <div class="arch-desc">Hosted vector store + retrieval. Upload PDFs/docs once, get a <code style="color:#22d3ee;font-size:0.75rem;">vs_*</code> ID, pass it in. Replaces a basic RAG stack for many use cases.</div>
+        <div class="arch-when"><strong>Add it:</strong> <code style="color:#22d3ee;font-size:0.75rem;">tools=[{"type": "file_search", "vector_store_ids": ["vs_abc"]}]</code></div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">📊</span> code_interpreter</div>
+        <div class="arch-desc">Sandbox Python execution with NumPy/Pandas/Matplotlib. The model writes and runs code, returns plots and results inline.</div>
+        <div class="arch-when"><strong>Add it:</strong> <code style="color:#22d3ee;font-size:0.75rem;">tools=[{"type": "code_interpreter", "container": {"type": "auto"}}]</code></div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🎨</span> image_generation</div>
+        <div class="arch-desc">Generate images mid-response using gpt-image-1. The model decides when an image helps and embeds the generated image item in <code style="color:#22d3ee;font-size:0.75rem;">response.output</code>.</div>
+        <div class="arch-when"><strong>Add it:</strong> <code style="color:#22d3ee;font-size:0.75rem;">tools=[{"type": "image_generation"}]</code></div>
+      </div>
+      <div class="arch-card">
+        <div class="arch-title"><span class="arch-icon">🖱️</span> computer_use</div>
+        <div class="arch-desc">Preview: drive a browser/desktop sandbox via screenshots and clicks. Restricted access, but powerful for end-to-end automation.</div>
+        <div class="arch-when"><strong>Add it:</strong> <code style="color:#22d3ee;font-size:0.75rem;">tools=[{"type": "computer_use_preview", ...}]</code></div>
+      </div>
+      <div class="arch-card" style="border-color:#06b6d4;">
+        <div class="arch-title"><span class="arch-icon">🛠️</span> Custom functions</div>
+        <div class="arch-desc">Your own Python (or any language) tools — same idea as Chat Completions, but with a flatter schema and easier multi-turn chaining via <code style="color:#22d3ee;font-size:0.75rem;">previous_response_id</code>.</div>
+        <div class="arch-when"><strong>Mix freely:</strong> hosted + custom tools in the same call, in any combination.</div>
+      </div>
+    </div>
+
+    <div class="err-grid" style="margin-top:20px;">
+      <div class="err-card">
+        <div class="err-card-label" style="color:#22d3ee;">Example: research agent (web + code)</div>
+        <div class="code-box">
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = <span class="fn">OpenAI</span>()
+
+response = client.responses.<span class="fn">create</span>(
+    <span class="key">model</span>=<span class="str">"gpt-5-mini"</span>,
+    <span class="key">instructions</span>=<span class="str">"You are a markets research agent."</span>,
+    <span class="key">tools</span>=[
+        {<span class="str">"type"</span>: <span class="str">"web_search"</span>},
+        {<span class="str">"type"</span>: <span class="str">"code_interpreter"</span>,
+         <span class="str">"container"</span>: {<span class="str">"type"</span>: <span class="str">"auto"</span>}}
+    ],
+    <span class="key">input</span>=<span class="str">"Pull the last 5 closes of SPY, "</span>
+          <span class="str">"compute the 5-day return, and explain."</span>
+)
+
+<span class="fn">print</span>(response.output_text)
+
+<span class="cm"># Inspect tool calls in the output</span>
+<span class="kw">for</span> item <span class="kw">in</span> response.output:
+    <span class="fn">print</span>(item.type, <span class="fn">getattr</span>(item, <span class="str">"name"</span>, <span class="str">""</span>))</div>
+      </div>
+      <div class="err-card">
+        <div class="err-card-label" style="color:#a78bfa;">Example: file_search over a vector store</div>
+        <div class="code-box">
+<span class="cm"># One-time: upload files and build a vector store</span>
+vs = client.vector_stores.<span class="fn">create</span>(name=<span class="str">"q4-board-deck"</span>)
+client.vector_stores.files.<span class="fn">upload_and_poll</span>(
+    vector_store_id=vs.id,
+    file=<span class="fn">open</span>(<span class="str">"deck.pdf"</span>, <span class="str">"rb"</span>)
+)
+
+<span class="cm"># Use file_search in a Response</span>
+response = client.responses.<span class="fn">create</span>(
+    <span class="key">model</span>=<span class="str">"gpt-4.1-mini"</span>,
+    <span class="key">tools</span>=[{
+        <span class="str">"type"</span>: <span class="str">"file_search"</span>,
+        <span class="str">"vector_store_ids"</span>: [vs.id]
+    }],
+    <span class="key">input</span>=<span class="str">"Summarize the Q4 revenue outlook "</span>
+          <span class="str">"and list every risk mentioned."</span>
+)
+
+<span class="fn">print</span>(response.output_text)</div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>Pricing reminder:</strong> hosted tools have per-call surcharges on top of model token cost (e.g., web_search is billed per search query, file_search per 1K queries + per GB stored). Check platform.openai.com/pricing before relying on them in high-volume flows.
+    </div>
+  </section>
+
+  <!-- Section 4: Complete App -->
+  <section>
+    <h2 class="section-title">Complete Application: Support Ticket Classifier</h2>
+    <p class="section-sub">A production-ready example combining all the concepts from Module 4: authentication, structured outputs, error handling, and logging.</p>
+
+    <div class="app-layout">
+      <div class="app-desc">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:14px;">Application Features</div>
+        <div class="app-feature">
+          <div class="app-feat-icon" style="background:rgba(6,182,212,0.15);">🔑</div>
+          <div class="app-feat-text"><div class="app-feat-title">Secure authentication</div>API key from environment variable, never hardcoded</div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon" style="background:rgba(129,140,248,0.15);">📋</div>
+          <div class="app-feat-text"><div class="app-feat-title">Pydantic structured output</div>Guaranteed schema compliance — category, urgency, summary</div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon" style="background:rgba(251,191,36,0.15);">🔄</div>
+          <div class="app-feat-text"><div class="app-feat-title">Retry with exponential backoff</div>Handles rate limits and transient failures gracefully</div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon" style="background:rgba(52,211,153,0.15);">📊</div>
+          <div class="app-feat-text"><div class="app-feat-title">Cost &amp; usage logging</div>Tracks token usage per request for billing monitoring</div>
+        </div>
+        <div class="app-feature">
+          <div class="app-feat-icon" style="background:rgba(167,139,250,0.15);">✅</div>
+          <div class="app-feat-text"><div class="app-feat-title">Response validation</div>Checks for truncation, empty responses, and format errors</div>
+        </div>
+      </div>
+
+      <div class="app-code">
+        <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;">ticket_classifier.py</div>
+        <div class="code-box" style="min-height:auto;">
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI, RateLimitError
+<span class="kw">from</span> typing <span class="kw">import</span> Literal
+<span class="kw">import</span> time, logging
+
+client = <span class="fn">OpenAI</span>(timeout=<span class="num">30.0</span>)
+
+<span class="kw">class</span> <span class="cls">TicketResult</span>(<span class="cls">BaseModel</span>):
+    category: <span class="fn">Literal</span>[<span class="str">"billing"</span>, <span class="str">"technical"</span>,
+                          <span class="str">"security"</span>, <span class="str">"general"</span>]
+    urgency: <span class="fn">Literal</span>[<span class="str">"low"</span>, <span class="str">"medium"</span>, <span class="str">"high"</span>]
+    one_line_summary: <span class="fn">str</span>
+    requires_human: <span class="fn">bool</span>
+
+<span class="kw">def</span> <span class="fn">classify_ticket</span>(ticket: <span class="fn">str</span>,
+                       retries: <span class="fn">int</span> = <span class="num">3</span>) -> <span class="cls">TicketResult</span>:
+    <span class="kw">if not</span> ticket.strip():
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="str">"Ticket text is empty"</span>)
+
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(retries):
+        <span class="kw">try</span>:
+            resp = client.responses.<span class="fn">parse</span>(
+                model=<span class="str">"gpt-4.1-mini"</span>,
+                instructions=<span class="str">"Classify support tickets accurately."</span>,
+                input=ticket,
+                text_format=<span class="cls">TicketResult</span>,
+                temperature=<span class="num">0.0</span>,
+            )
+            logging.<span class="fn">info</span>(<span class="str">f"tokens={resp.usage.total_tokens}"</span>)
+            <span class="kw">return</span> resp.output_parsed
+
+        <span class="kw">except</span> <span class="cls">RateLimitError</span>:
+            <span class="kw">if</span> attempt == retries - <span class="num">1</span>: <span class="kw">raise</span>
+            time.<span class="fn">sleep</span>(<span class="num">2</span> ** attempt)
+
+<span class="cm"># Usage:</span>
+result = <span class="fn">classify_ticket</span>(<span class="str">"Can't login since 8am"</span>)
+<span class="fn">print</span>(result.urgency)    <span class="cm"># "high"</span>
+<span class="fn">print</span>(result.category)  <span class="cm"># "technical"</span></div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:20px;">
+      <strong>What this example demonstrates:</strong> Secure client init · Pydantic schema with Literal constraints · <code style="color:#22d3ee;font-size:0.78rem;">client.responses.parse()</code> for guaranteed schema compliance · Retry loop with exponential backoff · Token usage logging · Input validation before API call. On the Responses API the typed result lives at <code style="color:#22d3ee;font-size:0.78rem;">response.output_parsed</code> (vs <code style="color:#22d3ee;font-size:0.78rem;">choices[0].message.parsed</code> on Chat Completions).
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section>
+    <h2 class="section-title">Self-Check Quiz</h2>
+    <p class="section-sub">5 questions · Select an answer to see immediate feedback</p>
+
+    <div class="quiz-card" id="q1">
+      <div class="question">1. You receive a RateLimitError (429). Should you retry immediately?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q1',false)">A. Yes — retrying immediately clears the rate limit faster</button>
+        <button class="opt-btn" onclick="answer(this,'q1',true)">B. No — wait with exponential backoff (1s, 2s, 4s...) before each retry</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">C. No — rate limit errors are permanent and should not be retried</button>
+        <button class="opt-btn" onclick="answer(this,'q1',false)">D. Yes — but only if the Retry-After header is missing</button>
+      </div>
+      <div class="feedback" id="fb_q1"></div>
+    </div>
+
+    <div class="quiz-card" id="q2">
+      <div class="question">2. You receive an AuthenticationError (401). Should you retry?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q2',false)">A. Yes — authentication errors are often transient</button>
+        <button class="opt-btn" onclick="answer(this,'q2',true)">B. No — the API key is invalid. Retrying will always fail. Fix the key first.</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">C. Yes — retry up to 3 times before giving up</button>
+        <button class="opt-btn" onclick="answer(this,'q2',false)">D. Only retry if you're using an async client</button>
+      </div>
+      <div class="feedback" id="fb_q2"></div>
+    </div>
+
+    <div class="quiz-card" id="q3">
+      <div class="question">3. Why should you set a timeout on the OpenAI client (e.g., OpenAI(timeout=30.0))?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q3',false)">A. To reduce API costs by limiting response length</button>
+        <button class="opt-btn" onclick="answer(this,'q3',true)">B. To prevent the application from hanging indefinitely if the network connection fails</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">C. To speed up API response generation</button>
+        <button class="opt-btn" onclick="answer(this,'q3',false)">D. It limits how many requests per hour your application can make</button>
+      </div>
+      <div class="feedback" id="fb_q3"></div>
+    </div>
+
+    <div class="quiz-card" id="q4">
+      <div class="question">4. In the Guard + Process architecture, what does the "guard" call do?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q4',false)">A. It encrypts the user's input before sending to the API</button>
+        <button class="opt-btn" onclick="answer(this,'q4',true)">B. It classifies or validates the input first, enabling routing or safety checks before the main processing call</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">C. It rate-limits your own application to prevent exceeding API limits</button>
+        <button class="opt-btn" onclick="answer(this,'q4',false)">D. It caches previous responses to avoid duplicate API calls</button>
+      </div>
+      <div class="feedback" id="fb_q4"></div>
+    </div>
+
+    <div class="quiz-card" id="q5">
+      <div class="question">5. Which exception types are generally SAFE to retry, and which should fail immediately?</div>
+      <div class="options">
+        <button class="opt-btn" onclick="answer(this,'q5',false)">A. All exceptions should be retried; eventual consistency will fix everything</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">B. Only server errors (5xx) are retryable; all others should fail immediately</button>
+        <button class="opt-btn" onclick="answer(this,'q5',true)">C. Retry: RateLimitError, APIConnectionError, server errors (5xx). Fail fast: AuthenticationError, invalid request errors (4xx)</button>
+        <button class="opt-btn" onclick="answer(this,'q5',false)">D. No exceptions are retryable — always fail immediately and alert the user</button>
+      </div>
+      <div class="feedback" id="fb_q5"></div>
+    </div>
+
+    <div class="score-banner" id="scoreBanner">
+      <div class="score-num" id="scoreNum">0/5</div>
+      <div class="score-label">Quiz complete — Module 4 complete! You're ready to build production AI applications.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+function togglePipe(el) {
+  el.classList.toggle('open');
+  const exp = el.querySelector('.pipe-expand');
+  if (exp) exp.textContent = el.classList.contains('open') ? '▴ collapse' : '▾ click to expand';
+}
+
+function showErr(idx, btn) {
+  document.querySelectorAll('[id^="err"]').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.err-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('err' + idx).classList.add('active');
+  btn.classList.add('active');
+}
+
+const feedbacks = {
+  q1: { ok: "Correct! Immediate retries after a 429 will usually hit the rate limit again. Exponential backoff gives the rate limiter time to reset.", bad: "Retrying immediately after a 429 will almost certainly get another 429. Use exponential backoff: wait 1s, then 2s, then 4s between retries." },
+  q2: { ok: "Correct! A 401 AuthenticationError means the API key is wrong or revoked. No amount of retrying will fix it — you must correct the key.", bad: "AuthenticationError is a permanent failure. Retrying wastes time and may trigger security alerts. Fix the API key first, then retry." },
+  q3: { ok: "Correct! Without a timeout, a network failure can cause your application to hang indefinitely waiting for a response that will never come.", bad: "A client timeout prevents your app from hanging when the network fails. Without it, a stalled connection blocks the thread indefinitely." },
+  q4: { ok: "Correct! The guard call runs first, cheaply classifying or validating input, then routes to the right processing prompt or rejects unsafe input.", bad: "The guard call is a cheap, fast first-pass check — classify, validate, or moderate input before routing to the more expensive main processing call." },
+  q5: { ok: "Correct! Rate limits and network errors are transient — retry with backoff. Auth errors and bad requests (4xx) are permanent — fix the root cause, don't retry.", bad: "Transient errors (rate limits, network, 5xx) are safe to retry. Permanent errors (401 auth, 400 bad request) will never succeed on retry — fail fast." }
+};
+
+let answers = {};
+function answer(btn, qId, correct) {
+  if (answers[qId] !== undefined) return;
+  answers[qId] = correct;
+  const allBtns = btn.parentElement.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => b.disabled = true);
+  btn.classList.add(correct ? 'correct' : 'incorrect');
+  if (!correct) {
+    allBtns.forEach(b => { if (b.onclick.toString().includes('true')) b.classList.add('correct'); });
+  }
+  const fb = document.getElementById('fb_' + qId);
+  fb.textContent = correct ? '✓ ' + feedbacks[qId].ok : '✗ ' + feedbacks[qId].bad;
+  fb.className = 'feedback show ' + (correct ? 'ok' : 'bad');
+  if (Object.keys(answers).length === 5) {
+    const score = Object.values(answers).filter(Boolean).length;
+    document.getElementById('scoreNum').textContent = score + '/5';
+    document.getElementById('scoreBanner').classList.add('show');
+  }
+}
+</script>
+</body>
+</html>
