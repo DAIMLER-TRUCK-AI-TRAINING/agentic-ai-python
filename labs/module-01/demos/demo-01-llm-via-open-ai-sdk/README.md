@@ -1,12 +1,13 @@
 # Basic OpenAI API Call with Gemini via OpenAI SDK
 
-Simple Python application that demonstrates how to make a **basic OpenAI-compatible API call** to **Google Gemini** using the **OpenAI SDK** and `uv` environment management.
+Simple Python application that demonstrates how to make a **basic OpenAI-compatible API call** to **Google Gemini** using the **OpenAI SDK** and `uv` environment management. The same code also runs on **OpenAI** and **Azure OpenAI**: set `LLM_PROVIDER` in `.env`.
 
 ---
 
 ## Features
 
 * **OpenAI-Compatible API Call**: Uses the OpenAI SDK to call Gemini via `base_url`
+* **Switchable Provider**: `LLM_PROVIDER=gemini | openai | azure` picks the backend; the API call itself never changes
 * **Environment Management**: Securely loads API keys from `.env` using `python-dotenv`
 * **Structured Prompts**: Handles both system and user message roles
 * **Runtime Configuration**: Customize model, token limit, and temperature
@@ -20,7 +21,8 @@ Simple Python application that demonstrates how to make a **basic OpenAI-compati
 ```bash
 demo-1-llm-via-openai-sdk/
 ├── main.py                      # Main Python script
-├── .env                         # Environment variables
+├── .env.example                 # Template for environment variables
+├── .env                         # Your environment variables (copy of .env.example)
 ├── .gitignore                   # Ignore environment/config files
 └── README.md                    # Project documentation
 ```
@@ -70,13 +72,28 @@ uv add openai python-dotenv
 
 ### 4. Configure Environment Variables
 
-Change the filename from `.envbackup` to `.env`, and include the appropriate keys within it.
+Copy `.env.example` to `.env`, set `LLM_PROVIDER`, and fill in the variables for that provider.
 
 ```bash
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-GEMINI_MODEL=gemini-2.0-flash
+cp .env.example .env
 ```
+
+| `LLM_PROVIDER` | Calls | Variables to set |
+| --- | --- | --- |
+| `gemini` (default) | Google Gemini (OpenAI-compatible endpoint) | `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_MODEL` |
+| `openai` | OpenAI | `OPENAI_API_KEY`, `MODEL_NAME` (default `gpt-4o-mini`) |
+| `azure` | Azure OpenAI | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` |
+
+Example `.env` for Azure OpenAI:
+
+```bash
+LLM_PROVIDER=azure
+AZURE_OPENAI_API_KEY=your_azure_openai_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT=your_deployment_name_here
+```
+
+> On Azure, `model` is the **deployment name** you created in the portal, not the base model name (for example `gpt-4o`). The code uses Azure OpenAI's v1 API, so the regular `OpenAI` client works: only the key and `base_url` (`<endpoint>/openai/v1/`) change.
 
 ---
 
@@ -111,7 +128,7 @@ Total tokens: 53
 | Step | Concept               | Description                                 |
 | ---- | --------------------- | ------------------------------------------- |
 | 1    | Environment Setup     | Load secrets securely using `python-dotenv` |
-| 2    | Client Initialization | Configure OpenAI SDK with Gemini `base_url` |
+| 2    | Client Initialization | Configure OpenAI SDK for Gemini, OpenAI or Azure OpenAI via `LLM_PROVIDER` |
 | 3    | Message Construction  | Build `system` and `user` message structure |
 | 4    | API Invocation        | Use `client.chat.completions.create()`      |
 | 5    | Response Parsing      | Extract text and usage details              |

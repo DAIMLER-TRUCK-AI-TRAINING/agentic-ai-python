@@ -9,7 +9,8 @@ This application consists of a  simple **Python script** that connects to a **lo
 * **Local Inference:** Model runs entirely on your local machine
 * **OpenAI SDK Compatibility:** Use the familiar `openai` library with Ollama's local endpoint
 * **Model Verification:** Script checks for available local models
-* **Privacy-First:** No external internet connectivity required after the initial model download
+* **Privacy-First:** No external internet connectivity required after the initial model download (default `ollama` provider)
+* **Switchable Provider:** Optionally run the same call on OpenAI or Azure OpenAI with `LLM_PROVIDER=openai | azure`
 
 ---
 
@@ -19,6 +20,7 @@ This application consists of a  simple **Python script** that connects to a **lo
 
 demo-3-test-local-model/
 ├── main.py                  # Main script to connect and query
+├── .env.example             # Optional: switch provider (ollama | openai | azure)
 ├── .gitignore               # Ignore system/config files
 └── README.md                # Documentation
 
@@ -107,8 +109,26 @@ source .venv/bin/activate
 ### 5. Install Dependencies
 
 ```bash
-uv add openai
+uv add openai python-dotenv
 ```
+
+---
+
+### 6. (Optional) Run on OpenAI or Azure OpenAI
+
+By default the script talks to local Ollama and needs no `.env`. To run the same call on a cloud provider, copy `.env.example` to `.env`, set `LLM_PROVIDER`, and fill in the variables for that provider.
+
+```bash
+cp .env.example .env
+```
+
+| `LLM_PROVIDER` | Calls | Variables to set |
+| --- | --- | --- |
+| `ollama` (default) | Local Ollama | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (defaults: `http://localhost:11434/v1`, `llama3.2:1b`) |
+| `openai` | OpenAI | `OPENAI_API_KEY`, `MODEL_NAME` (default `gpt-4o-mini`) |
+| `azure` | Azure OpenAI | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` |
+
+> On Azure, `model` is the **deployment name** you created in the portal, not the base model name (for example `gpt-4o`). The code uses Azure OpenAI's v1 API, so the regular `OpenAI` client works: only the key and `base_url` (`<endpoint>/openai/v1/`) change.
 
 ---
 

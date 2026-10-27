@@ -1,18 +1,10 @@
-from openai import OpenAI
-from dotenv import load_dotenv
-import os
+from llm_client import get_client
 
-# Load environment variables from .env file
-load_dotenv()
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Ensure the API key is set in the environment
-MODEL_NAME = os.getenv("MODEL_NAME")  # Ensure the model name is set in the environment
-
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Provider (OpenAI or Azure OpenAI) is selected by LLM_PROVIDER in .env
+client, model = get_client()
 
 response = client.responses.create(
-    model=MODEL_NAME,
+    model=model,
     input="Latest AI trends in 2026"
 )
 

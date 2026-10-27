@@ -6,7 +6,8 @@ A Python application that demonstrates how to **analyze sensitive, local documen
 
 ## Features
 
-* **100% Offline Processing:** All analysis happens locally; **no data ever leaves your machine**.
+* **100% Offline Processing:** With the default `ollama` provider all analysis happens locally; **no data ever leaves your machine**.
+* **Switchable Provider (opt-in):** `LLM_PROVIDER=openai | azure` runs the same analysis on OpenAI or Azure OpenAI. The document is then **sent to that service**, and the script logs a warning.
 * **Privacy Compliant:** Ideal for highly regulated data (e.g., HIPAA, GDPR, internal corporate reports).
 * **Multi-Analysis:** Supports generating summaries, extracting key points, and determining sentiment.
 * **OpenAI SDK Integration:** Uses the standard `openai` library to interface with Ollama.
@@ -28,6 +29,7 @@ A Python application that demonstrates how to **analyze sensitive, local documen
 
 demo-4-private-document-analyzer
 ├── main.py                       # Main script
+├── .env.example                  # Optional: switch provider (ollama | openai | azure)
 ├── .gitignore                    # Ignore sensitive/config files
 └── README.md                     # Documentation
 
@@ -101,8 +103,26 @@ source .venv/bin/activate
 ### 4. Install Dependencies
 
 ```bash
-uv add openai
+uv add openai python-dotenv
 ```
+
+---
+
+### 5. (Optional) Run on OpenAI or Azure OpenAI
+
+By default the script talks to local Ollama and needs no `.env`. To run the same analysis on a cloud provider, copy `.env.example` to `.env`, set `LLM_PROVIDER`, and fill in the variables for that provider.
+
+```bash
+cp .env.example .env
+```
+
+| `LLM_PROVIDER` | Calls | Variables to set |
+| --- | --- | --- |
+| `ollama` (default) | Local Ollama (document stays on your machine) | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (defaults: `http://localhost:11434/v1`, `llama3.2:1b`) |
+| `openai` | OpenAI (document is sent to OpenAI) | `OPENAI_API_KEY`, `MODEL_NAME` (default `gpt-4o-mini`) |
+| `azure` | Azure OpenAI (document is sent to your Azure resource) | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` |
+
+> On Azure, `model` is the **deployment name** you created in the portal, not the base model name (for example `gpt-4o`). The code uses Azure OpenAI's v1 API, so the regular `OpenAI` client works: only the key and `base_url` (`<endpoint>/openai/v1/`) change.
 
 ---
 
