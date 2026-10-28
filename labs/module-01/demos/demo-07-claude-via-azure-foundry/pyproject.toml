@@ -1,0 +1,10 @@
+[project]
+name = "claude-via-azure-foundry"
+version = "0.1.0"
+description = "Claude Messages API demo through Microsoft Foundry with an Azure key"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.0",
+    "anthropic>=2.3.0"
+]

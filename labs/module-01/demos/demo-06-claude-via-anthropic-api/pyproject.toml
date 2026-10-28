@@ -1,0 +1,10 @@
+[project]
+name = "claude-via-anthropic-api"
+version = "0.1.0"
+description = "Claude Messages API demo with an Anthropic API key"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.0",
+    "anthropic>=2.3.0"
+]
