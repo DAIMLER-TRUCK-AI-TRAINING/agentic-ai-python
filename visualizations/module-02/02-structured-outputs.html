@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structured Outputs</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #tab { flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>2 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 2</div>
+  <h1>Valid JSON is not a valid answer</h1>
+  <p class="lede">Structured outputs make the model’s reply match your schema, but a schema checks shape, not truth. Build the
+    <code>ChangeRequest</code> schema for change <code>CHG-20932</code>, choose between asking for JSON in the prompt and strict schema
+    enforcement, then press <b>Run all ▶</b> to push five model outputs through the parse, schema and business-rule gates. Find the run
+    that passes every gate and is still wrong.</p>
+
+  <div class="card">
+    <h3>1 · Schema fields</h3>
+    <div class="tool-grid" id="fields"></div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">2 · Enforcement:</span>
+      <div class="seg" id="mode">
+        <button data-v="prompt" aria-pressed="true">JSON requested in the prompt</button>
+        <button data-v="strict" aria-pressed="false">Structured outputs (strict schema)</button>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">3 · Checks after validation:</span>
+      <button class="toggle" id="r_id" aria-pressed="true">ID matches ^CHG-\d{5}$</button>
+      <button class="toggle" id="r_win" aria-pressed="true">Window ends after it starts</button>
+      <button class="toggle" id="r_rb" aria-pressed="false">Rollback text appears in the source</button>
+      <button class="primary" id="run">Run all ▶</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 312" role="img" aria-label="Five model outputs passing or failing the parse, schema and business-rule gates"></svg></div>
+    <div class="controls">
+      <div class="seg" id="tab">
+        <button data-v="raw" aria-pressed="true">Output</button>
+        <button data-v="doc" aria-pressed="false">Document</button>
+        <button data-v="model" aria-pressed="false">Pydantic</button>
+        <button data-v="openai" aria-pressed="false">OpenAI</button>
+        <button data-v="claude" aria-pressed="false">Claude</button>
+      </div>
+    </div>
+    <pre class="pane" id="pane" aria-label="Code, document or model output"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>The same schema in both SDKs</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>OpenAI Responses API</th><th>Anthropic Messages API</th></tr></thead>
+      <tbody>
+        <tr><td>Raw parameter</td><td><code>text={"format": {"type": "json_schema", "name": …, "schema": …, "strict": True}}</code></td><td><code>output_config={"format": {"type": "json_schema", "schema": …}}</code></td></tr>
+        <tr><td>Pydantic helper</td><td><code>client.responses.parse(…, text_format=ChangeRequest)</code> → <code>resp.output_parsed</code></td><td><code>client.messages.parse(…, output_format=ChangeRequest)</code> → <code>msg.parsed_output</code></td></tr>
+        <tr><td>Objects</td><td><code>"additionalProperties": false</code> on every object; every key listed in <code>required</code></td><td><code>"additionalProperties": false</code> on every object</td></tr>
+        <tr><td>Optional values</td><td>Nullable union, such as <code>["string", "null"]</code> (Pydantic <code>str | None</code>)</td><td>Nullable union, the same Pydantic <code>str | None</code></td></tr>
+        <tr><td>Unsupported keywords</td><td>Check the supported-schema list before relying on a keyword</td><td>No numeric or string-length constraints; the SDK strips them from the request and validates them client-side</td></tr>
+        <tr><td>Truncated output</td><td><code>status == "incomplete"</code>, <code>incomplete_details.reason == "max_output_tokens"</code></td><td><code>stop_reason == "max_tokens"</code></td></tr>
+        <tr><td>Refusal</td><td>A <code>refusal</code> content item, which need not match your schema</td><td><code>stop_reason == "refusal"</code></td></tr>
+        <tr><td>Tool arguments</td><td><code>"strict": true</code> on the function tool (Topic 3)</td><td><code>"strict": true</code> on the tool definition (Topic 3)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What each gate catches</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Gate</th><th>Catches</th><th>Misses</th><th>In code</th></tr></thead>
+      <tbody>
+        <tr><td><b>1. Parse</b></td><td>Prose around the JSON, markdown fences, truncated output</td><td>Everything about meaning</td><td>Check <code>status</code> / <code>stop_reason</code> first, then parse</td></tr>
+        <tr><td><b>2. Schema</b></td><td>Missing fields, wrong types, values outside an enum, unexpected keys</td><td>Plausible but false values: an invented rollback plan, a reversed window</td><td>Pydantic <code>model_validate_json</code>, or the SDK <code>parse</code> helpers</td></tr>
+        <tr><td><b>3. Checks and business rules</b></td><td>IDs in the wrong format, windows that end before they start, values absent from the source, “high risk needs CAB”</td><td>Errors your rules never thought of</td><td><code>field_validator</code> / <code>model_validator</code>, then plain Python rules, unit-tested like any other code</td></tr>
+        <tr><td><b>4. Human review</b></td><td>The long tail, and every business-rule failure</td><td>Nothing, at a cost per document</td><td>An escalation queue (Module 5 HITL controls)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> strict schemas move failures from “unparseable” to “parseable but wrong”. That is
+    progress only if gate 3 exists. Keep the raw output with every record, send validation errors back for one retry, assert on
+    structure in tests, and route business-rule failures to a person rather than into the change database.</div>
+  <div class="callout warn"><b>Common trap:</b> a required, non-nullable field for data that may be absent. <code>CHG-20932</code> is a
+    pre-approved standard change with no rollback section. Under strict enforcement a <code>rollback_plan: str</code> field <em>must</em> be
+    filled, so the model writes a plausible plan, and the schema happily accepts it. Make it <code>str | None</code>, tell the model to use
+    null for anything the document does not state, and check that any value you keep appears in the source.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="01-prompt-engineering-techniques.html"><small>← Previous</small>Prompt engineering: techniques, templates &amp; debugging</a>
+    <a class="next" href="03-openai-claude-sdks.html"><small>Next →</small>OpenAI SDK and Claude SDK, side by side</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative outputs for the synthetic change request CHG-20932 (the Lab 01 document in
+// labs/module-02/data/change_requests/). It has no rollback section. Error strings are Pydantic 2.14 output for these
+// inputs; the model outputs themselves are representative, not recorded.
+const DOC = `Standard change CHG-20932 (pre-approved model SC-PRN-02)
+
+Title: Roll out printer driver 3.8 to the US print servers
+Team: Service Desk
+Region: US
+Services: print-server-us-01, print-server-us-02
+Risk: low
+Window: 2026-11-10 06:00 to 2026-11-10 07:00, US Central (UTC-06:00)
+
+This is a pre-approved standard change, so no CAB review is needed.`;
+const DATA = {
+  fields: [
+    ['typed', 'window_start / window_end', 'datetime', 'str', 'Parsed timestamps with an offset'],
+    ['enumRisk', 'risk', 'Literal["low", "medium", "high"]', 'str', 'An enum of allowed levels'],
+    ['nullable', 'rollback_plan', 'str | None', 'str', 'Allowed to be null'],
+    ['items', 'affected_services', 'list[str]', '(omitted)', 'Include the affected services']
+  ],
+  runs: [['Run 1', 'typical document'], ['Run 2', 'chatty reply'], ['Run 3', 'US-style dates and casing'],
+    ['Run 4', 'output budget cut to 150 tokens'], ['Run 5', 'window start and end swapped']],
+  start: '2026-11-10T06:00:00-06:00', end: '2026-11-10T07:00:00-06:00',
+  fakeRollback: 'Roll back to printer driver 3.7 on both print servers.'
+};
+
+const S = { typed: true, enumRisk: true, nullable: false, items: true, mode: 'prompt', rules: { id: true, win: true, rb: false },
+  tab: 'raw', sel: 0, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), stats = document.getElementById('stats');
+const GX = [360, 500, 640], OX = 790, RY = i => 56 + i * 54;
+const iso = s => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/.test(s) ? Date.parse(s) : NaN;
+const strict = () => S.mode === 'strict';
+
+function record(over) {
+  const o = { change_id: 'CHG-20932', title: 'Roll out printer driver 3.8 to the US print servers', change_type: 'standard', risk: 'low',
+    requested_by_team: 'Service Desk', region: 'US' };
+  if (S.items) o.affected_services = ['print-server-us-01', 'print-server-us-02'];
+  Object.assign(o, { window_start: DATA.start, window_end: DATA.end, cab_required: false,
+    rollback_plan: S.nullable || !strict() ? null : DATA.fakeRollback });
+  return Object.assign(o, over || {});
+}
+
+// Each run returns { raw } or { obj } for the current schema and enforcement mode.
+function output(i) {
+  const s = strict();
+  if (i === 1 && !s) return { raw: 'Sure! Here is the extracted change request:\n```json\n' + JSON.stringify(record(), null, 2) + '\n```' };
+  if (i === 2) return { obj: record({ change_id: 'CHG 20932', risk: s && S.enumRisk ? 'low' : 'Low',
+    window_start: s && S.typed ? DATA.start : '11/10/2026 6:00 AM CST', window_end: s && S.typed ? DATA.end : '11/10/2026 7:00 AM CST' }) };
+  if (i === 3 && S.items) { const t = JSON.stringify(record()); return { raw: t.slice(0, t.indexOf('window_end') + 8), truncated: true }; }
+  if (i === 4) return { obj: record({ window_start: DATA.end, window_end: DATA.start }) };
+  return { obj: record() };
+}
+
+function schemaErrors(o) {
+  const e = [];
+  if (S.enumRisk && !['low', 'medium', 'high'].includes(o.risk))
+    e.push(['risk', `Input should be 'low', 'medium' or 'high' [type=literal_error, input_value='${o.risk}', input_type=str]`]);
+  if (S.typed && Number.isNaN(iso(o.window_start)))
+    e.push(['window_start', `Input should be a valid datetime or date, invalid character in year [type=datetime_from_date_parsing, input_value='${o.window_start}', input_type=str]`]);
+  if (!S.nullable && o.rollback_plan === null) e.push(['rollback_plan', 'Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]']);
+  return e;
+}
+function bizErrors(o) {
+  const e = [];
+  if (S.rules.id && !/^CHG-\d{5}$/.test(o.change_id)) e.push(['change_id', `change_id must look like CHG-12345 (got “${o.change_id}”)`]);
+  if (S.rules.win) {
+    const a = iso(o.window_start), b = iso(o.window_end);
+    if (Number.isNaN(a) || Number.isNaN(b)) e.push(['window_start', `cannot compare “${o.window_start}”: not ISO 8601 with a UTC offset`]);
+    else if (b <= a) e.push(['window_end', 'window_end must be after window_start']);
+  }
+  if (S.rules.rb && o.rollback_plan !== null && !DOC.includes(o.rollback_plan)) e.push(['rollback_plan', 'the rollback text does not appear in the document']);
+  return e;
+}
+function truthGaps(o) {
+  const w = [];
+  if (o.rollback_plan !== null) w.push(['rollback_plan', `invented rollback plan “${o.rollback_plan}”`]);
+  if (o.risk !== 'low') w.push(['risk', `risk “${o.risk}” is not a canonical value`]);
+  if (o.window_start !== DATA.start || o.window_end !== DATA.end)
+    w.push(['window_start', Number.isNaN(iso(o.window_start)) ? `window “${o.window_start}” is ambiguous text (10 November or 11 October?)` : 'window start and end are swapped']);
+  if (o.change_id !== 'CHG-20932') w.push(['change_id', `ID “${o.change_id}”`]);
+  return w;
+}
+function evaluate(i) {
+  const out = output(i);
+  let obj = out.obj;
+  if (!obj) {
+    try { obj = JSON.parse(out.raw); } catch (e) {
+      return { out, stop: 0, errs: [['', out.truncated
+        ? 'Invalid JSON: EOF while parsing a string at line 1 column ' + out.raw.length + ' [type=json_invalid]  (the response says: status "incomplete" / stop_reason "max_tokens")'
+        : 'Invalid JSON: expected value at line 1 column 1 [type=json_invalid]']] };
+    }
+  }
+  const se = schemaErrors(obj); if (se.length) return { out, obj, stop: 1, errs: se };
+  const be = bizErrors(obj); if (be.length) return { out, obj, stop: 2, errs: be };
+  const gaps = truthGaps(obj);
+  return { out, obj, stop: 3, errs: [], gaps, verdict: gaps.length ? 'silent' : 'ok' };
+}
+
+function renderFields() {
+  const box = document.getElementById('fields'); box.innerHTML = '';
+  DATA.fields.forEach(([k, name, on, off, role]) => {
+    const b = document.createElement('button');
+    b.className = 'tool-card'; b.setAttribute('aria-pressed', String(S[k]));
+    b.innerHTML = `<span class="name">${name}: ${esc(S[k] ? on : off)}</span><span class="role">${role}: ${S[k] ? 'yes' : 'no'} (click to change)</span>`;
+    b.onclick = () => { S[k] = !S[k]; changed(`${name} → ${S[k] ? on : off}`); };
+    box.appendChild(b);
+  });
+}
+
+const outcome = r => r.verdict === 'ok' ? 'accepted, correct' : r.verdict === 'silent' ? 'accepted, WRONG' : `rejected at gate ${r.stop + 1}`;
+function render() {
+  svg.innerHTML = '';
+  ['Parse', 'Schema', 'Checks & rules'].forEach((t, k) => el('text', { x: GX[k], y: 26, 'text-anchor': 'middle', class: 'hdr', text: `${k + 1}. ${t}` }, svg));
+  el('text', { x: OX, y: 26, 'text-anchor': 'middle', class: 'hdr', text: 'Outcome' }, svg);
+  const R = DATA.runs.map((_, i) => evaluate(i));
+  R.forEach((r, i) => {
+    const y = RY(i), g = clickable(el('g', {}, svg), () => select(i), `${DATA.runs[i][0]}: ${outcome(r)}`);
+    el('rect', { x: 10, y: y - 22, width: 880, height: 44, rx: 8, fill: i === S.sel ? 'var(--accent-soft)' : 'var(--surface)', stroke: 'var(--border)' }, g);
+    el('text', { x: 22, y: y - 3, class: 'hdr', text: DATA.runs[i][0] }, g);
+    el('text', { x: 22, y: y + 13, class: 'lab muted', text: DATA.runs[i][1] }, g);
+    el('line', { x1: 290, y1: y, x2: OX - 60, y2: y, stroke: 'var(--border)', 'stroke-width': 2 }, g);
+    GX.forEach((x, k) => {
+      const st = k < r.stop ? 'pass' : k === r.stop ? 'fail' : 'skip';
+      const c = st === 'pass' ? 'var(--ok)' : st === 'fail' ? 'var(--bad)' : 'var(--border)';
+      el('circle', { cx: x, cy: y, r: 11, fill: st === 'skip' ? 'var(--surface)' : c, stroke: c, 'stroke-width': 2 }, g);
+      el('text', { x, y: y + 4, 'text-anchor': 'middle', class: 'lab', fill: st === 'skip' ? 'var(--muted)' : '#fff', text: st === 'pass' ? '✓' : st === 'fail' ? '✗' : '–' }, g);
+    });
+    const c = r.verdict === 'ok' ? 'var(--ok)' : r.verdict === 'silent' ? 'var(--bad)' : 'var(--warn)';
+    el('rect', { x: OX - 82, y: y - 14, width: 172, height: 28, rx: 14, fill: r.verdict === 'silent' ? 'var(--bad-soft)' : r.verdict === 'ok' ? 'var(--ok-soft)' : 'var(--warn-soft)', stroke: c }, g);
+    el('text', { x: OX + 4, y: y + 5, 'text-anchor': 'middle', class: 'small', fill: c, style: 'font-weight:700', text: outcome(r) }, g);
+  });
+  renderPane(R[S.sel]); renderStats(R);
+  return R;
+}
+
+function renderPane(r) {
+  const pane = document.getElementById('pane'), F = k => { const f = DATA.fields.find(x => x[0] === k); return S[k] ? f[2] : f[3]; };
+  const model = `from datetime import datetime\nfrom typing import Literal\nfrom pydantic import BaseModel, Field\n\n` +
+    `class ChangeRequest(BaseModel):\n    change_id: str = Field(description="Change ID exactly as written, e.g. CHG-20931")\n    title: str\n` +
+    `    change_type: Literal["standard", "normal", "emergency"]\n    risk: ${F('enumRisk')}\n    requested_by_team: Group\n    region: Literal["EU", "US", "APAC"]\n` +
+    (S.items ? `    affected_services: list[str]\n` : '') +
+    `    window_start: ${F('typed')}\n    window_end: ${F('typed')}\n    cab_required: bool\n    rollback_plan: ${F('nullable')}` +
+    (S.nullable ? `   # null if the document has none` : '');
+  const ask = '"Extract this change request. Use null for anything the document does not state; never invent a value."';
+  const tabs = {
+    doc: esc(DOC) + '\n\n<span class="cmt"># no rollback section: the honest value of rollback_plan is null</span>',
+    model: esc(model),
+    openai: strict()
+      ? esc(`resp = client.responses.parse(\n    model=os.environ["OPENAI_MODEL"],\n    instructions=${ask},\n    input=document_text,\n    text_format=ChangeRequest,     # strict JSON schema built from the model\n    max_output_tokens=1000,\n)\nif resp.status == "incomplete":    # incomplete_details.reason == "max_output_tokens"\n    raise Truncated(resp.id)\ncr = resp.output_parsed            # a ChangeRequest instance`)
+      : esc(`resp = client.responses.create(\n    model=os.environ["OPENAI_MODEL"],\n    instructions=${ask} + " Reply with JSON matching: …",\n    input=document_text,\n)\ncr = ChangeRequest.model_validate_json(resp.output_text)   # gates 1 + 2`),
+    claude: strict()
+      ? esc(`msg = client.messages.parse(\n    model=os.environ["ANTHROPIC_MODEL"],\n    max_tokens=2000,\n    system=${ask},\n    messages=[{"role": "user", "content": document_text}],\n    output_format=ChangeRequest,   # sent as output_config.format\n)\nif msg.stop_reason == "max_tokens":\n    raise Truncated(msg.id)\ncr = msg.parsed_output             # a ChangeRequest instance`)
+      : esc(`msg = client.messages.create(\n    model=os.environ["ANTHROPIC_MODEL"], max_tokens=2000,\n    system=${ask} + " Reply with JSON matching: …",\n    messages=[{"role": "user", "content": document_text}],\n)\ntext = next(b.text for b in msg.content if b.type == "text")\ncr = ChangeRequest.model_validate_json(text)   # gates 1 + 2`)
+  };
+  if (S.tab !== 'raw') { pane.innerHTML = tabs[S.tab]; return; }
+  const keys = r.errs.concat(r.gaps || []).map(e => e[0]);
+  let t = `<span class="cmt"># ${DATA.runs[S.sel][0]} · ${DATA.runs[S.sel][1]} · ${strict() ? 'strict schema' : 'JSON requested in prompt'} (representative)</span>\n`;
+  t += r.obj && !r.out.raw ? jsonHtml(r.obj, keys) : esc(r.out.raw) + (r.out.truncated ? '<span class="bad-t">▌ (cut off)</span>' : '');
+  t += '\n\n' + (r.errs.length ? r.errs.map(([k, m]) => `<span class="bad-t">✗ gate ${r.stop + 1}${k ? ' · ' + k : ''}</span>  ${esc(m)}`).join('\n')
+    : r.gaps.length ? `<span class="bad-t">⚠ passed every gate, but: ${esc(r.gaps.map(g => g[1]).join('; '))}</span>` : '<span class="ok-t">✓ accepted and matches the document</span>');
+  pane.innerHTML = t;
+}
+
+function renderStats(R) {
+  const n = v => R.filter(r => r.verdict === v).length, rej = R.filter(r => !r.verdict).length;
+  stats.innerHTML = `<div class="stat"><b style="color:var(--ok)">${n('ok')}</b><span>accepted and correct</span></div>` +
+    `<div class="stat"><b style="color:var(--warn)">${rej}</b><span>rejected (caught, safe)</span></div>` +
+    `<div class="stat"><b style="color:${n('silent') ? 'var(--bad)' : 'inherit'}">${n('silent')}</b><span>accepted but wrong</span></div>` +
+    `<div class="stat"><b>${R.filter(r => r.stop === 0).length} / ${R.filter(r => r.stop === 1).length} / ${R.filter(r => r.stop === 2).length}</b><span>stopped at parse / schema / checks</span></div>`;
+}
+
+function select(i) { S.sel = i; S.tab = 'raw'; syncTab(); const r = render()[i]; logLine(logEl, `${DATA.runs[i][0]}: ${outcome(r)}`); }
+function syncTab() { document.querySelectorAll('#tab button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.tab))); }
+function changed(what) {
+  renderFields(); const R = render();
+  logLine(logEl, `${what} → ${R.filter(r => r.verdict === 'ok').length} correct, ${R.filter(r => !r.verdict).length} rejected, <b>${R.filter(r => r.verdict === 'silent').length} accepted but wrong</b>`, true);
+}
+
+async function runAll() {
+  const epoch = ++S.epoch, R = render();
+  for (let i = 0; i < R.length && epoch === S.epoch; i++) {
+    const dot = el('circle', { r: 7, fill: 'var(--accent)' }, svg), y = RY(i), end = R[i].stop < 3 ? GX[R[i].stop] : OX - 82;
+    await tween(dot, 290, y, end, y, 260 + 140 * Math.min(R[i].stop, 3));
+    dot.remove();
+    if (epoch !== S.epoch) return;
+    logLine(logEl, `${DATA.runs[i][0]} (${DATA.runs[i][1]}): ${outcome(R[i])}${R[i].errs[0] ? ' · ' + esc(R[i].errs[0][1].split(' [')[0]) : R[i].gaps && R[i].gaps.length ? ' · ' + esc(R[i].gaps[0][1]) : ''}`, R[i].verdict === 'silent');
+  }
+}
+
+bindSeg('mode', v => { S.mode = v; changed(v === 'strict' ? 'Strict structured outputs on' : 'JSON requested in the prompt only'); });
+bindSeg('tab', v => { S.tab = v; render(); });
+[['r_id', 'id'], ['r_win', 'win'], ['r_rb', 'rb']].forEach(([id, k]) => bindToggle(id, on => { S.rules[k] = on; changed(`Check “${document.getElementById(id).textContent}” ${on ? 'on' : 'off'}`); }));
+document.getElementById('run').onclick = runAll;
+renderFields(); render();
+logLine(logEl, 'Illustrative outputs for CHG-20932, which has no rollback section. Press Run all ▶, then switch on strict mode.');
+
+renderQuiz('quiz', [
+  { q: 'What does strict structured output (schema enforcement) guarantee?',
+    options: ['That every value is true to the source document.',
+      'That a complete reply matches the schema’s shape: required keys, types and enum values, with no extra keys.',
+      'That the model cannot run out of output tokens.',
+      'That the model will refuse when it is unsure.'],
+    answer: 1,
+    explain: 'The decoder is constrained to the schema, so gates 1 and 2 stop failing for format reasons. Truth is not part of the schema: run 5’s swapped window and run 1’s invented rollback plan are perfectly valid JSON.' },
+  { q: 'With strict mode on and <code>rollback_plan: str</code>, run 1 is accepted with a rollback plan, although CHG-20932 has no rollback section. Why?',
+    options: ['The model found a rollback plan the document hides.',
+      'The schema required a non-null string, so the constrained model had to produce one and invented a plausible plan.',
+      'Strict mode adds default values for missing fields.',
+      'The business rules created the value.'],
+    answer: 1,
+    explain: 'Without strict mode the model honestly returned <code>null</code> and the schema rejected it. With strict mode the schema itself forced the fabrication. Make the field <code>str | None</code>, and turn on “Rollback text appears in the source”.' },
+  { q: 'Run 4 fails at the parse gate even in strict mode. What should your extraction code do?',
+    options: ['Retry the same request until it parses.',
+      'Strip the last line and parse what is left.',
+      'Check <code>status == "incomplete"</code> (OpenAI) or <code>stop_reason == "max_tokens"</code> (Claude) before parsing, then raise the output budget, and log the event.',
+      'Switch off strict mode, because it caused the truncation.'],
+    answer: 2,
+    explain: 'Schema enforcement cannot finish JSON that the token budget cut off. Detect truncation from the response metadata first, so it is reported as “budget too small”, not as a mysterious parse error.' },
+  { q: 'A colleague says: “Strict mode is on, so if it parses, we can write it to the change database.” Which run disproves this?',
+    options: ['Run 2, the chatty reply.',
+      'Run 4, the truncated output.',
+      'None; strict mode guarantees correct values.',
+      'Run 5: both timestamps are valid ISO 8601, but the window ends an hour before it starts. Only the window check catches it.'],
+    answer: 3,
+    explain: 'A swapped field is a semantic error, and schemas only check shape. Switch off “Window ends after it starts” and run 5 becomes “accepted, WRONG”, the most expensive outcome on the page.' },
+  { q: 'In strict mode, run 4 passes once you remove <code>affected_services</code> from the schema. What does that tell you?',
+    options: ['Lists are not allowed in strict schemas.',
+      'Output length depends on the schema: fewer fields mean fewer tokens, so the reply now fits inside the 150-token budget. You also lose data the change database needs.',
+      'The model ignores the output budget when the schema is small.',
+      'Removing fields makes extraction more accurate.'],
+    answer: 1,
+    explain: 'Every schema field costs output tokens. Size <code>max_output_tokens</code> / <code>max_tokens</code> for the largest realistic document instead of trimming fields you need.' }
+]);
+</script>
+</body>
+</html>

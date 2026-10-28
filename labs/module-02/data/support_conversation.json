@@ -1,0 +1,25 @@
+{
+  "_note": "Synthetic multi-turn support conversation for Lab 04 Part 4-5 (memory comparison). Facts are stated early; the last two turns probe whether the assistant still has them.",
+  "facts": {
+    "asset_tag": "LT-4471",
+    "error_code": "809",
+    "region": "EU",
+    "team": "Finance"
+  },
+  "turns": [
+    "Hi, I'm on the Finance team in the EU region. My laptop's asset tag is LT-4471.",
+    "Since this morning the VPN fails with error 809, right after I changed my password.",
+    "I've already restarted the laptop twice. What should I try first?",
+    "OK, I removed the saved credential. While I wait: how do I set up an out-of-office reply?",
+    "Another thing: the printer on our floor, PR-3F-07, has jobs stuck in its queue. Is that a known problem?",
+    "Is anything going on with the EU VPN gateways today?",
+    "A colleague says the Wi-Fi in the Singapore office is down. Is that related to my problem?",
+    "It's been 35 minutes and the VPN still fails with the same error.",
+    "Remind me: which asset tag and which error code did I give you at the start?",
+    "Write the one-line incident summary you would log for me, including my team and region."
+  ],
+  "probes": [
+    {"turn": 9, "must_contain": ["LT-4471", "809"]},
+    {"turn": 10, "must_contain": ["EU", "Finance", "VPN"]}
+  ]
+}

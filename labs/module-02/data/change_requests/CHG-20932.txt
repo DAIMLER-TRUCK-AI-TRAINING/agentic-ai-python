@@ -1,0 +1,10 @@
+Standard change CHG-20932 (pre-approved model SC-PRN-02)
+
+Title: Roll out printer driver 3.8 to the US print servers
+Team: Service Desk
+Region: US
+Services: print-server-us-01, print-server-us-02
+Risk: low
+Window: 2026-11-10 06:00 to 2026-11-10 07:00, US Central (UTC-06:00)
+
+This is a pre-approved standard change, so no CAB review is needed.

@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LangChain Agents &amp; Tools</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>6 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 6</div>
+  <h1>A chain runs the steps you wrote; an agent chooses the next one</h1>
+  <p class="lede">LangChain gives you two shapes. An LCEL chain is a fixed pipeline you can test like any function. An agent built
+    with <code>create_agent</code> is a loop where the model picks tools until it can answer. Send three operations questions through
+    both, then add the Tavily key and enable code execution to see how the agent’s path, cost and trustworthiness change.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-v="chain" aria-pressed="false">LCEL chain</button>
+        <button data-v="agent" aria-pressed="true">create_agent loop</button>
+      </div>
+      <div class="seg" id="q">
+        <button data-v="0" aria-pressed="true">Q1 · open incidents</button>
+        <button data-v="1" aria-pressed="false">Q2 · vendor advisory</button>
+        <button data-v="2" aria-pressed="false">Q3 · chart closures</button>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="toggle" id="tavily" aria-pressed="false">TAVILY_API_KEY set: no</button>
+      <button class="toggle" id="code" aria-pressed="false">Code-execution tool: off</button>
+      <span class="small mono" style="color:var(--muted)">LLM_PROVIDER=</span>
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">openai</button>
+        <button data-v="anthropic" aria-pressed="false">anthropic</button>
+      </div>
+      <button class="primary" id="step">Step ▶</button>
+      <button id="runAll">Run all</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 320" role="img" aria-label="Chain pipeline or agent loop with tools, and the growing list of messages"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="controls">
+      <div class="seg" id="tab">
+        <button data-v="msgs" aria-pressed="true">Message state</button>
+        <button data-v="code" aria-pressed="false">Code</button>
+      </div>
+    </div>
+    <pre class="pane" id="pane"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Outline terms, current LangChain</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Outline term</th><th>LangChain 1.x (course pin 1.4.7)</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><b>Chains, LCEL pipelines</b></td><td><code>prompt | model | parser</code>, all Runnables with <code>.invoke</code>, <code>.batch</code>, <code>.stream</code></td><td>Deterministic control flow; ideal when the steps are known</td></tr>
+        <tr><td><b>Agent executors</b></td><td><code>from langchain.agents import create_agent</code>: <code>create_agent(model, tools, system_prompt=…)</code>, a LangGraph graph</td><td><code>AgentExecutor</code> is legacy, now in <code>langchain-classic</code></td></tr>
+        <tr><td><b>Output parsers</b></td><td><code>StrOutputParser</code>, <code>PydanticOutputParser</code>; prefer <code>model.with_structured_output(Model)</code> or <code>create_agent(…, response_format=Model)</code></td><td>Structured outputs beat parsing prose (Topic 2)</td></tr>
+        <tr><td><b>Provider-agnostic</b></td><td><code>init_chat_model(model_id, model_provider=…)</code>; the labs wrap it as <code>get_chat_model()</code>, driven by <code>LLM_PROVIDER</code></td><td><code>AIMessage.tool_calls</code> is normalised across providers</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Tool integration</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Tool</th><th>Integration</th><th>Offline fallback in the labs</th><th>Guard</th></tr></thead>
+      <tbody>
+        <tr><td><b>Web search</b></td><td>A <code>web_search</code> tool that calls <code>TavilySearch(max_results=3)</code> from <code>langchain-tavily</code> when <code>TAVILY_API_KEY</code> is set</td><td>Offline snapshots in <code>data/web_snapshots.json</code></td><td>Results are untrusted text: they can carry prompt injection (Module 5)</td></tr>
+        <tr><td><b>Database</b></td><td>A <code>@tool</code> around a read-only <code>sqlite3</code> connection (<code>langchain-community</code>’s SQL tools also work, but that package now warns it is being sunset)</td><td>The SQLite sample DB from <code>data/build_ops_db.py</code></td><td>Read-only connection, <code>SELECT</code> only, row limit; narrow typed tools beat raw SQL</td></tr>
+        <tr><td><b>API</b></td><td>A <code>@tool</code> around your HTTP client</td><td>Stubbed responses</td><td>Timeouts, the user’s own authorisation, idempotent calls</td></tr>
+        <tr><td><b>Code execution</b></td><td>A sandboxed runner: a container, or a provider’s code-execution tool</td><td>Disabled</td><td>Never <code>exec()</code> model-written code on the host</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Outline vs current API:</b> the outline’s “agent executors” are taught here as <code>create_agent</code>, which
+    runs the same loop (model → tool calls → tool results → model) as a LangGraph graph. That gives you checkpointing, streaming and
+    middleware for free, and it is the graph you extend in Module 4.</div>
+  <div class="callout warn"><b>Common trap:</b> reaching for an agent when a chain will do. Q1 needs the same query every time,
+    and the chain answers it with one model call and no tool-selection risk. Use an agent only when the next step genuinely depends
+    on the question, and then give it narrow, read-only tools.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="05-cost-observability-basics.html"><small>← Previous</small>Cost optimisation &amp; observability basics</a>
+    <a class="next" href="07-memory-context-sessions.html"><small>Next →</small>Memory, context &amp; session management</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative runs over the synthetic ops database (course-map §8.3). Message shapes follow LangChain 1.x
+// (HumanMessage, AIMessage.tool_calls, ToolMessage); text, IDs and token counts are representative, not recorded.
+const SQL1 = "SELECT incident_id, priority, summary FROM incidents WHERE assignment_group = 'Network Ops' AND status IN ('New', 'In progress')";
+const SQL3 = "SELECT date(closed_at) AS day, count(*) AS n FROM incidents WHERE assignment_group = 'Service Desk' AND closed_at >= '2026-10-20' GROUP BY day";
+const ROWS1 = 'INC-104512 P2 Elevated VPN authentication failures on vpn-gateway-eu-01 · INC-104518 P2 Wi-Fi drops every few minutes across APAC-SIN-01';
+const DATA = {
+  qs: ['Summarise the open Network Ops incidents', 'Is there a vendor advisory for VPN error 809?', 'Chart Service Desk closures per day last week'],
+  chainOut: [['Network Ops has two open P2 incidents: INC-104512 (elevated VPN authentication failures on vpn-gateway-eu-01) and INC-104518 (Wi-Fi drops across APAC-SIN-01).', 'good'],
+    ['Neither open Network Ops incident mentions a vendor advisory.', 'bad'], ['The rows list open Network Ops incidents, not closures, so I cannot chart closures per day.', 'bad']],
+  // agent turns per question: [kind, tool or text, payload, verdict]; kind: ai-tool (tool call), tool (result), ai (final answer)
+  agent: q => {
+    if (q === 0) return [['ai-tool', 'query_ops_db', { sql: SQL1 }], ['tool', 'query_ops_db', `[2 rows] ${ROWS1}`],
+      ['ai', 'Network Ops has two open P2 incidents: INC-104512 (elevated VPN authentication failures on vpn-gateway-eu-01) and INC-104518 (Wi-Fi drops across APAC-SIN-01).', 'good']];
+    if (q === 1) return [['ai-tool', 'web_search', { query: 'VPN error 809 vendor advisory' }],
+      ['tool', 'web_search', S.tavily ? '[3 live results] url · title · content, whatever the live web returns today'
+        : '[2 offline snapshots] support.synthgate.example/advisories/SG-2026-031 “VPN 7.3.x gateways reject new passwords until the credential cache expires” · a forum thread (unverified)'],
+      ['ai', S.tavily ? 'Summarises the advisories in the live results with their URLs, or says that none was found. It never cites an advisory it did not retrieve.'
+        : 'Advisory SG-2026-031 says gateway firmware 7.3.0–7.3.9 rejects new passwords until the credential cache expires; it matches KB-0042. (Source: the lab’s offline web snapshots, so check the vendor site before acting.)', S.tavily ? 'good' : 'warn']];
+    const rows = ['ai-tool', 'query_ops_db', { sql: SQL3 }], res = ['tool', 'query_ops_db', '[5 rows] 2026-10-21: 1 · 10-22: 5 · 10-23: 1 · 10-24: 2 · 10-26: 2'];
+    return S.code ? [rows, res, ['ai-tool', 'run_python', { code: 'plt.bar(days, n); plt.savefig("closures.png")' }], ['tool', 'run_python', 'sandbox: saved closures.png (7 bars, zeros filled in)'],
+      ['ai', 'Chart attached (closures.png). Service Desk closed 11 incidents; the peak was Thursday 22 October (5), with none on Tuesday 20 or Sunday 25.', 'good']]
+      : [rows, res, ['ai', 'I cannot run code here, so here is a table instead: Wed 21: 1, Thu 22: 5, Fri 23: 1, Sat 24: 2, Mon 26: 2 (none on Tue 20 or Sun 25).', 'warn']];
+  },
+  chainNodes: ['input', 'fetch_open_incidents (SQL)', 'prompt', 'model', 'StrOutputParser', 'output'],
+  tokens: { chain: 900, call: 1150 }
+};
+
+const S = { mode: 'agent', q: 0, tavily: false, code: false, prov: 'openai', step: 0, tab: 'msgs', busy: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), pane = document.getElementById('pane');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const NODE = { start: [60, 150], model: [250, 150], tools: [500, 150], end: [250, 280] };
+const turns = () => S.mode === 'chain' ? DATA.chainNodes.slice(1) : DATA.agent(S.q);
+const cid = k => (S.prov === 'openai' ? 'call_' : 'toolu_') + ['8Kd2', 'Q71x', 'm3Zp'][k % 3];
+
+function messages() {
+  const out = [['human', `HumanMessage(content=${JSON.stringify(DATA.qs[S.q])})`]];
+  if (S.mode === 'chain') {
+    if (S.step >= 1) out.push(['tool', `{"rows": "${ROWS1.slice(0, 48)}…", "question": …}   # RunnableLambda(fetch_open_incidents)`]);
+    if (S.step >= 2) out.push(['sys', 'ChatPromptValue(messages=[SystemMessage(…), HumanMessage("Rows: …\\nQuestion: …")])']);
+    if (S.step >= 3) out.push(['ai', `AIMessage(content=${JSON.stringify(DATA.chainOut[S.q][0])})`]);
+    if (S.step >= 4) out.push(['out', `str: ${JSON.stringify(DATA.chainOut[S.q][0])}`]);
+    return out;
+  }
+  let call = 0;
+  turns().slice(0, S.step).forEach(([kind, name, p]) => {
+    if (kind === 'ai-tool') out.push(['ai', `AIMessage(content=[…provider blocks…], tool_calls=[{'name': '${name}', 'args': ${JSON.stringify(p)}, 'id': '${cid(call)}', 'type': 'tool_call'}])`]);
+    else if (kind === 'tool') out.push(['tool', `ToolMessage(content=${JSON.stringify(p)}, tool_call_id='${cid(call++)}', name='${name}')`]);
+    else out.push(['out', `AIMessage(content=${JSON.stringify(name)})`]);
+  });
+  return out;
+}
+
+function box(x, y, w, h, c, label, sub, on) {
+  el('rect', { x, y, width: w, height: h, rx: 10, fill: c, 'fill-opacity': on ? .3 : .12, stroke: c, 'stroke-width': on ? 2.5 : 1.5 }, svg);
+  el('text', { x: x + w / 2, y: y + (sub ? h / 2 - 2 : h / 2 + 5), 'text-anchor': 'middle', class: 'hdr', text: label }, svg);
+  if (sub) el('text', { x: x + w / 2, y: y + h / 2 + 14, 'text-anchor': 'middle', class: 'lab muted', text: sub }, svg);
+}
+function arrow(x1, y1, x2, y2, label, on) {
+  el('path', { d: `M${x1} ${y1} L${x2} ${y2}`, stroke: on ? 'var(--accent)' : 'var(--muted)', 'stroke-width': on ? 2.5 : 1.5, fill: 'none', 'marker-end': 'url(#ah)' }, svg);
+  if (label) el('text', { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 6, 'text-anchor': 'middle', class: 'lab muted', text: label }, svg);
+}
+
+function render() {
+  svg.innerHTML = '';
+  const m = el('marker', { id: 'ah', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, el('defs', {}, svg));
+  el('path', { d: 'M0 0 L10 5 L0 10 z', fill: 'var(--muted)' }, m);
+  const T = turns(), cur = S.step > 0 ? T[S.step - 1] : null;
+  if (S.mode === 'chain') {
+    el('text', { x: 20, y: 30, class: 'hdr', text: 'chain = {"rows": fetch_open_incidents, "question": …} | prompt | model | StrOutputParser()' }, svg);
+    DATA.chainNodes.forEach((n, i) => {
+      const x = 14 + i * 104, c = i === 1 ? 'var(--p1)' : i === 3 ? 'var(--p3)' : i === 5 ? 'var(--p2)' : 'var(--p0)';
+      const [lab, sub] = [['input', ''], ['fetch', 'open · SQL'], ['prompt', 'template'], ['model', S.prov === 'openai' ? 'OpenAI' : 'Claude'], ['parser', 'StrOutput…'], ['output', 'str']][i];
+      box(x, 120, 92, 56, c, lab, sub, i === S.step);
+      if (i) arrow(x - 12, 148, x - 2, 148, '', i <= S.step);
+    });
+    el('text', { x: 20, y: 220, class: 'small muted', text: 'Every question takes the same path: the SQL step runs whether or not it is relevant.' }, svg);
+  } else {
+    el('text', { x: 20, y: 30, class: 'hdr', text: 'agent = create_agent(get_chat_model(), tools=[…], system_prompt=…)' }, svg);
+    el('circle', { cx: NODE.start[0], cy: NODE.start[1], r: 18, fill: 'var(--surface)', stroke: 'var(--muted)' }, svg);
+    el('text', { x: NODE.start[0], y: NODE.start[1] + 4, 'text-anchor': 'middle', class: 'lab', text: 'START' }, svg);
+    box(180, 120, 140, 60, 'var(--p3)', 'model', S.prov === 'openai' ? 'OpenAI' : 'Claude', cur && cur[0] !== 'tool');
+    const tools = [['query_ops_db', true], [S.tavily ? 'web_search (Tavily)' : 'web_search (snapshots)', true], ['run_python (sandbox)', S.code]];
+    el('rect', { x: 410, y: 70, width: 180, height: 160, rx: 10, fill: 'var(--p1)', 'fill-opacity': cur && cur[0] === 'tool' ? .28 : .1, stroke: 'var(--p1)', 'stroke-width': cur && cur[0] === 'tool' ? 2.5 : 1.5 }, svg);
+    el('text', { x: 500, y: 94, 'text-anchor': 'middle', class: 'hdr', text: 'tools' }, svg);
+    tools.forEach(([n, on], k) => {
+      const hot = cur && cur[1] === n.split(' ')[0];
+      el('rect', { x: 422, y: 108 + k * 38, width: 156, height: 28, rx: 6, fill: hot ? 'var(--p1)' : 'var(--surface)', stroke: on ? 'var(--p1)' : 'var(--border)', 'stroke-dasharray': on ? '' : '4 3', opacity: on ? 1 : .55 }, svg);
+      el('text', { x: 500, y: 126 + k * 38, 'text-anchor': 'middle', class: 'lab', fill: hot ? '#fff' : on ? 'var(--text)' : 'var(--muted)', text: on ? n : n.split(' ')[0] + ' · off' }, svg);
+    });
+    el('circle', { cx: NODE.end[0], cy: NODE.end[1], r: 18, fill: 'var(--surface)', stroke: 'var(--muted)' }, svg);
+    el('text', { x: NODE.end[0], y: NODE.end[1] + 4, 'text-anchor': 'middle', class: 'lab', text: 'END' }, svg);
+    arrow(78, 150, 178, 150, '', S.step === 1);
+    arrow(322, 140, 408, 140, 'tool_calls', cur && cur[0] === 'ai-tool');
+    arrow(408, 165, 322, 165, 'ToolMessage', cur && cur[0] === 'tool');
+    arrow(250, 182, 250, 260, '', cur && cur[0] === 'ai');
+    el('text', { x: 258, y: 226, class: 'lab muted', text: 'no tool_calls' }, svg);
+  }
+  el('text', { x: 640, y: 30, class: 'hdr', text: 'Message state' }, svg);
+  const C = { human: 'var(--p0)', ai: 'var(--p3)', tool: 'var(--p1)', sys: 'var(--p5)', out: 'var(--p2)' };
+  messages().forEach(([k, txt], i) => {
+    el('rect', { x: 636, y: 42 + i * 38, width: 252, height: 32, rx: 6, fill: C[k], 'fill-opacity': .14, stroke: C[k] }, svg);
+    el('text', { x: 644, y: 62 + i * 38, class: 'lab', text: txt.length > 36 ? txt.slice(0, 35) + '…' : txt }, svg);
+  });
+  renderPanels();
+}
+
+function verdict() {
+  if (S.mode === 'chain') return S.step >= 4 ? DATA.chainOut[S.q][1] : null;
+  const T = turns(); return S.step >= T.length ? T[T.length - 1][2] : null;
+}
+function renderPanels() {
+  const T = turns(), done = S.step >= T.length, v = verdict();
+  const calls = S.mode === 'chain' ? (S.step >= 3 ? 1 : 0) : T.slice(0, S.step).filter(t => t[0] !== 'tool').length;
+  const tcalls = S.mode === 'chain' ? (S.step >= 1 ? 1 : 0) : T.slice(0, S.step).filter(t => t[0] === 'tool').length;
+  const cur = S.step > 0 ? T[S.step - 1] : null;
+  let h = '<h3>Press Step ▶</h3><p>Pick a question and a mode, then step through.</p>';
+  if (cur && S.mode === 'chain') h = `<h3>Step ${S.step}: ${cur}</h3><p>${['The <code>RunnableLambda</code> runs the fixed SQL for open Network Ops incidents, whatever the question.', 'The template fills <code>{rows}</code> and <code>{question}</code>.', 'One model call. No tools, no loop.', 'The parser returns a plain string.', 'Done.'][S.step - 1]}</p>`;
+  else if (cur) h = `<h3>Step ${S.step}: ${cur[0] === 'ai-tool' ? `model asks for <code>${cur[1]}</code>` : cur[0] === 'tool' ? `tool <code>${cur[1]}</code> returns` : 'model answers; no tool calls, so the loop ends'}</h3><p>${cur[0] === 'ai-tool'
+    ? `<code>AIMessage.tool_calls</code> has the same shape on OpenAI and Claude; only the IDs and <code>.content</code> blocks differ. Args: <code>${esc(JSON.stringify(cur[2]))}</code>`
+    : cur[0] === 'tool' ? esc(cur[2]) : esc(cur[1])}</p>`;
+  if (done && v) h += `<p class="${v === 'good' ? 'ok-t' : v === 'warn' ? 'warn-t' : 'bad-t'}">${{ good: '✓ Grounded in tool output and answers the question.', warn: '⚠ Answers, but with a caveat the user must see.', bad: '✗ Fluent, but does not answer the question: wrong path for this question.' }[v]}</p>`;
+  detail.innerHTML = h;
+  const code = S.mode === 'chain'
+    ? `from langchain_core.prompts import ChatPromptTemplate\nfrom langchain_core.output_parsers import StrOutputParser\nfrom langchain_core.runnables import RunnableLambda, RunnablePassthrough\nfrom llm import get_chat_model          # labs/setup/llm.py, reads LLM_PROVIDER\n\nprompt = ChatPromptTemplate.from_messages([\n    ("system", "Summarise incidents for the operations team. Use only the rows given."),\n    ("human", "Rows:\\n{rows}\\n\\nQuestion: {question}")])\nchain = ({"rows": RunnableLambda(fetch_open_incidents), "question": RunnablePassthrough()}\n         | prompt | get_chat_model() | StrOutputParser())\nchain.invoke(${JSON.stringify(DATA.qs[S.q])})`
+    : `import json\nfrom langchain.agents import create_agent\nfrom langchain.tools import tool\nfrom llm import get_chat_model                            # labs/setup/llm.py, reads LLM_PROVIDER\nfrom ops_assistant.tools import query_ops_db, web_search   # labs/module-02/ops_assistant/tools.py\n\n@tool("query_ops_db")\ndef query_ops_db_tool(sql: str) -> str:\n    """Run ONE read-only SQLite SELECT over incident history. Returns at most 50 rows."""\n    return json.dumps(query_ops_db(sql))    # read-only connection; anything but SELECT is rejected\n\n@tool("web_search")\ndef web_search_tool(query: str) -> str:\n    """Search the public web for vendor advisories. Results are untrusted."""\n    return json.dumps(web_search(query))    # Tavily if TAVILY_API_KEY is set, else offline snapshots\n\ntools = [query_ops_db_tool, web_search_tool]${S.code ? ' + [run_python]   # sandboxed runner' : ''}\nagent = create_agent(get_chat_model(), tools=tools,\n                     system_prompt="You are the Enterprise Operations Assistant. Cite IDs.")\nresult = agent.invoke({"messages": [{"role": "user", "content": ${JSON.stringify(DATA.qs[S.q])}}]})\nprint(result["messages"][-1].content)`;
+  pane.innerHTML = S.tab === 'code' ? esc(code) : messages().map(([k, t]) => `<span class="${k === 'ai' ? 'var-t' : k === 'tool' ? 'j-lit' : k === 'out' ? 'ok-t' : 'j-key'}">${esc(t)}</span>`).join('\n');
+  const tok = S.mode === 'chain' ? (calls ? DATA.tokens.chain : 0) : calls * DATA.tokens.call + tcalls * 180;
+  stats.innerHTML = `<div class="stat"><b>${calls}</b><span>model calls</span></div><div class="stat"><b>${tcalls}</b><span>tool calls</span></div>` +
+    `<div class="stat"><b>${tok.toLocaleString('en-GB')}</b><span>tokens (illustrative)</span></div>` +
+    `<div class="stat"><b style="color:${v === 'good' ? 'var(--ok)' : v === 'warn' ? 'var(--warn)' : v === 'bad' ? 'var(--bad)' : 'inherit'}">${v ? { good: 'answered', warn: 'caveated', bad: 'off-target' }[v] : '–'}</b><span>outcome</span></div>`;
+}
+
+async function step() {
+  const T = turns();
+  if (S.busy || S.step >= T.length) return false;
+  S.busy = true;
+  const epoch = S.epoch, nxt = T[S.step], dot = el('circle', { r: 8, fill: 'var(--accent)' }, svg);
+  let a, b;
+  if (S.mode === 'chain') { a = [60 + Math.max(0, S.step) * 104, 148]; b = [60 + (S.step + 1) * 104, 148]; }
+  else if (S.step === 0) { a = NODE.start; b = [250, 150]; }
+  else { const prev = T[S.step - 1][0]; a = prev === 'tool' ? [500, 150] : [250, 150]; b = nxt[0] === 'tool' ? [500, 150] : nxt[0] === 'ai' && prev !== 'tool' ? NODE.end : [250, 150]; }
+  await tween(dot, a[0], a[1], b[0], b[1], 450);
+  if (epoch !== S.epoch) return false;
+  S.busy = false; S.step++; render();
+  const cur = turns()[S.step - 1];
+  logLine(logEl, S.mode === 'chain' ? `chain · ${cur}` : cur[0] === 'ai-tool' ? `model → tool_calls: <b>${cur[1]}</b>` : cur[0] === 'tool' ? `${cur[1]} → ${esc(cur[2].slice(0, 70))}…` : `final answer (${{ good: 'grounded', warn: 'caveated', bad: 'off-target' }[cur[2]]})`, cur[0] === 'ai' || S.step === turns().length);
+  return true;
+}
+function restart(what) { S.epoch++; S.busy = false; S.step = 0; render(); logLine(logEl, what, true); }
+
+bindSeg('mode', v => { S.mode = v; restart(v === 'chain' ? 'Mode: LCEL chain (fixed steps)' : 'Mode: create_agent loop (model picks tools)'); });
+bindSeg('q', v => { S.q = +v; restart(`Question: ${DATA.qs[S.q]}`); });
+bindSeg('prov', v => { S.prov = v; render(); logLine(logEl, `LLM_PROVIDER=${v}: same code, same tool_calls shape; IDs and content blocks differ`); });
+bindSeg('tab', v => { S.tab = v; renderPanels(); });
+bindToggle('tavily', on => { S.tavily = on; document.getElementById('tavily').textContent = 'TAVILY_API_KEY set: ' + (on ? 'yes' : 'no'); restart(on ? 'web_search now calls Tavily (live web)' : 'No TAVILY_API_KEY: web_search reads the offline snapshots in data/web_snapshots.json'); });
+bindToggle('code', on => { S.code = on; document.getElementById('code').textContent = 'Code-execution tool: ' + (on ? 'on (sandboxed)' : 'off'); restart(on ? 'run_python added (sandboxed runner)' : 'run_python removed'); });
+document.getElementById('step').onclick = step;
+document.getElementById('runAll').onclick = async () => { while (await step()); };
+document.getElementById('reset').onclick = () => restart('Reset');
+render();
+logLine(logEl, 'Illustrative runs over the synthetic ops DB. Run Q2 in both modes first.');
+
+renderQuiz('quiz', [
+  { q: 'What is the essential difference between an LCEL chain and a <code>create_agent</code> agent?',
+    options: ['Chains can only use OpenAI; agents can use any provider.',
+      'In a chain, your code fixes the sequence of steps; in an agent, the model decides at each turn whether to call a tool and which one, looping until it answers without tool calls.',
+      'Agents do not use prompts.',
+      'Chains cannot call databases.'],
+    answer: 1,
+    explain: 'The chain always runs fetch → prompt → model → parser. The agent’s path differed per question: SQL for Q1, search for Q2, SQL and then code for Q3.' },
+  { q: 'Q2 in chain mode produced a fluent but useless answer. Why?',
+    options: ['The model was too small.',
+      'The chain has a bug in the parser.',
+      'The chain always runs the open-P1 SQL step, so the model only ever sees incident rows; nothing in the fixed pipeline searches for advisories.',
+      'Tavily was down.'],
+    answer: 2,
+    explain: 'Fixed pipelines are excellent when the steps are known, and wrong when they are not. Either build one chain per intent behind a router, or let an agent choose.' },
+  { q: 'Without <code>TAVILY_API_KEY</code>, the lab’s <code>web_search</code> reads offline snapshots (<code>data/web_snapshots.json</code>). What is the right production behaviour?',
+    options: ['Fail visibly or disable the search tool when the key is missing, and never let stale snapshots silently answer users. The lab fallback exists so the exercise runs offline.',
+      'Ship the snapshots; they give plausible answers.',
+      'Let the model guess advisories from its training data instead.',
+      'Hard-code a key in the notebook.'],
+    answer: 0,
+    explain: 'The offline answer was caveated, which is right for a lab. In production a missing dependency should surface as a health-check failure, not as confident text built from stale pages.' },
+  { q: 'A colleague’s tutorial builds the agent with <code>AgentExecutor</code>. What do you tell them?',
+    options: ['That is the current recommended API.',
+      'AgentExecutor only works with Claude.',
+      'Agents were removed from LangChain.',
+      'In LangChain 1.x, use <code>create_agent</code> from <code>langchain.agents</code>; <code>AgentExecutor</code> is legacy and lives in <code>langchain-classic</code>.'],
+    answer: 3,
+    explain: '<code>create_agent</code> builds a LangGraph graph, which is why Module 4 can add checkpointing, interrupts and multi-agent routing on top of the same agent.' },
+  { q: 'With the code-execution tool on, how many model calls does the agent make for Q3, and why?',
+    options: ['Three: one to request the SQL query, one to request <code>run_python</code> with the rows, and one to write the final answer.',
+      'One; tools run inside the model.',
+      'Two; the chart is drawn by the model.',
+      'Seven, one per row.'],
+    answer: 0,
+    explain: 'Each tool result goes back to the model, which decides the next step. More tools mean more round trips, tokens and latency, so check the stats panel before you add a tool “just in case”.' }
+]);
+</script>
+</body>
+</html>

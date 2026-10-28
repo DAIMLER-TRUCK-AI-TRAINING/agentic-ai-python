@@ -1,8 +1,9 @@
 """Provider factory for the course labs.
 
-Phase 2 labs (Modules 3–5) import this module so that one notebook runs on
-either provider. Phase 1 labs call the OpenAI and Claude SDKs directly
-instead, because comparing the two APIs is the lesson there.
+Module 2 Labs 04–05 and the Phase 2 labs (Modules 3–5) import this module so
+that one notebook runs on either provider. Module 1 and Module 2 Labs 01–03
+call the OpenAI and Claude SDKs directly instead, because comparing the two
+APIs is the lesson there.
 
     import sys; sys.path.append("../../setup")  # from labs/module-NN/notebooks
     from llm import get_chat_model, get_client, get_model_name

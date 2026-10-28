@@ -1,0 +1,144 @@
+[
+  {
+    "kb_id": "KB-0042",
+    "title": "VPN client rejects credentials after a password change",
+    "category": "network",
+    "owner_team": "Network Ops",
+    "summary": "After a password change the VPN client keeps offering the cached old password and rejects the connection. Wait for directory sync, clear the saved credential and reconnect.",
+    "resolution_steps": [
+      "Wait 15 minutes after the password change so that every VPN gateway has the new password.",
+      "Quit the VPN client completely from the system tray or menu bar.",
+      "Open the client's settings, select 'Saved credentials' and remove the entry for the corporate gateway.",
+      "Start the client again, sign in with the new password and approve the MFA push."
+    ],
+    "escalation": "Escalate to the Network Ops L2 queue if the connection still fails after 30 minutes, or when more than five users at the same site report the problem within an hour (a gateway fault, not a client cache).",
+    "tags": ["vpn", "password", "credentials", "remote access", "error 809"]
+  },
+  {
+    "kb_id": "KB-0107",
+    "title": "Account locked after repeated failed sign-ins",
+    "category": "access",
+    "owner_team": "Service Desk",
+    "summary": "Too many failed sign-in attempts lock the account for 30 minutes. Unlock it in the self-service portal, or ask the Service Desk to verify your identity and unlock it.",
+    "resolution_steps": [
+      "Open the self-service portal from another device and choose 'Unlock my account'.",
+      "Verify with your registered phone number.",
+      "If self-service is not set up, the Service Desk verifies your identity with two security questions and unlocks the account."
+    ],
+    "escalation": "Escalate to Security Operations if the user did not cause the failed attempts themselves.",
+    "tags": ["account", "locked", "lockout", "sign-in", "password"]
+  },
+  {
+    "kb_id": "KB-0213",
+    "title": "Print jobs stuck in a shared printer queue",
+    "category": "endpoint",
+    "owner_team": "Service Desk",
+    "summary": "Jobs that stay in the queue usually point to a stalled print spooler or an offline printer. Restart the queue from the print portal or report the printer's asset tag.",
+    "resolution_steps": [
+      "Check that the printer is online and has paper and toner.",
+      "Open the print portal, find the printer by its asset tag and choose 'Restart queue'.",
+      "Print to the nearest other printer in the meantime."
+    ],
+    "escalation": "Escalate to the Service Desk L2 queue if the queue is stuck again within 24 hours.",
+    "tags": ["printer", "print queue", "spooler", "blank pages"]
+  },
+  {
+    "kb_id": "KB-0318",
+    "title": "Supplier invoice does not match the purchase order",
+    "category": "business_app",
+    "owner_team": "Finance",
+    "summary": "When an invoice total, quantity or price differs from the purchase order, put the invoice on hold, record the variance and ask procurement to confirm before approval.",
+    "resolution_steps": [
+      "Put the invoice on hold in the ERP.",
+      "Record the variance in the invoice notes.",
+      "Ask procurement to confirm the corrected amount."
+    ],
+    "escalation": "Escalate to the Finance L2 queue when a payment deadline is at risk.",
+    "tags": ["invoice", "purchase order", "variance", "erp", "supplier", "payment"]
+  },
+  {
+    "kb_id": "KB-0450",
+    "title": "Laptop asks for the disk-encryption recovery key at start-up",
+    "category": "endpoint",
+    "owner_team": "Service Desk",
+    "summary": "Firmware updates or hardware changes can trigger the encryption recovery screen. Verify the user's identity, retrieve the recovery key from the device record and read it to the user.",
+    "resolution_steps": [
+      "Verify the user's identity with two security questions.",
+      "Look up the device record by the laptop's asset tag and retrieve the recovery key.",
+      "Read the key to the user; never send it by email or chat."
+    ],
+    "escalation": "Escalate to Security Operations if the user cannot be verified or the device is not in the asset register.",
+    "tags": ["laptop", "encryption", "recovery key", "start-up", "disk encryption"]
+  },
+  {
+    "kb_id": "KB-0521",
+    "title": "Outgoing email stuck in the outbox",
+    "category": "email_collab",
+    "owner_team": "Service Desk",
+    "summary": "Messages stay in the outbox when the mailbox is over quota or the mail client is offline. Free up space, archive old items and check the connection.",
+    "resolution_steps": [
+      "Check the mailbox size against the quota in the mail client's account settings.",
+      "Archive or delete large old items.",
+      "Make sure the client is not in offline mode, then send again."
+    ],
+    "escalation": "Escalate to Platform Engineering if more than one mailbox is affected (a mail service fault).",
+    "tags": ["email", "outbox", "quota", "mail client"]
+  },
+  {
+    "kb_id": "KB-0608",
+    "title": "MFA push notifications not arriving",
+    "category": "access",
+    "owner_team": "Service Desk",
+    "summary": "If approval prompts do not reach your phone, check that notifications are allowed, the phone's clock is correct and the authenticator app is registered. Use the SMS code fallback meanwhile.",
+    "resolution_steps": [
+      "Allow notifications for the authenticator app.",
+      "Set the phone's clock to automatic.",
+      "Re-register the authenticator app from the self-service portal if you changed phones."
+    ],
+    "escalation": "Escalate to Security Operations if push prompts arrive that the user did not request.",
+    "tags": ["mfa", "push", "authenticator", "phone"]
+  },
+  {
+    "kb_id": "KB-0715",
+    "title": "Office Wi-Fi drops every few minutes",
+    "category": "network",
+    "owner_team": "Network Ops",
+    "summary": "Frequent Wi-Fi drops across a floor or site usually come from an access-point firmware fault or channel interference, not from the user's device.",
+    "resolution_steps": [
+      "Use a wired desk where possible.",
+      "Record the site code, floor and the times of the drops.",
+      "Network Ops checks the access-point controller for the site."
+    ],
+    "escalation": "Escalate to the Network Ops L2 queue whenever more than one user at a site is affected.",
+    "tags": ["wi-fi", "wireless", "access point", "drops", "site"]
+  },
+  {
+    "kb_id": "KB-0733",
+    "title": "Reporting a phishing email or a suspected compromise",
+    "category": "security",
+    "owner_team": "Security Operations",
+    "summary": "Report suspicious emails with the 'Report phishing' button. If you clicked a link and entered your password, change it at once from a trusted device and tell Security Operations.",
+    "resolution_steps": [
+      "Do not click links or open attachments in the email.",
+      "Use the 'Report phishing' button in the mail client.",
+      "If you entered your password, change it immediately from a trusted device.",
+      "If malware was detected, disconnect the device from the network and leave it switched on."
+    ],
+    "escalation": "Every report goes to Security Operations. Credentials entered on a suspicious page or a malware alert is a confirmed incident (at least P2).",
+    "tags": ["phishing", "malware", "trojan", "compromise", "suspicious link", "lost device"]
+  },
+  {
+    "kb_id": "KB-0790",
+    "title": "ERP payment run or month-end job fails",
+    "category": "business_app",
+    "owner_team": "Finance",
+    "summary": "Payment runs and month-end jobs fail when a batch is locked or a supplier record is incomplete. Check the job log for the error code before re-running.",
+    "resolution_steps": [
+      "Open the job log in the ERP and note the error code (for example PAY-17).",
+      "PAY-17 means a locked batch: ask Finance application support to release the lock.",
+      "Re-run the job only after the lock is released; never run it twice in parallel."
+    ],
+    "escalation": "Escalate to the Finance L2 queue at once when a payment or close deadline falls today.",
+    "tags": ["erp", "payment run", "month-end", "close", "journals", "pay-17"]
+  }
+]

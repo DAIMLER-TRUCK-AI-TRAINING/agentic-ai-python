@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Skills &amp; OpenSpec</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  [hidden] { display: none !important; }
+  .detail ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>4 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 4</div>
+  <h1>Package what you repeat; specify what you build</h1>
+  <p class="lede">A Skill turns a prompt you keep pasting into a folder the agent loads only when it needs it. A spec turns an agent
+    idea into contracts a team can review. In <b>Skill builder</b>, move each part of a 2,600-token triage prompt to the right place
+    and fix the name and description until all three test conversations behave. In <b>OpenSpec builder</b>, complete the half-written
+    spec until the review finds no gaps.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-v="skill" aria-pressed="true">Skill builder</button>
+        <button data-v="spec" aria-pressed="false">OpenSpec builder</button>
+      </div>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="controls" id="skillCtl">
+      <span class="small" style="color:var(--muted)">name:</span>
+      <div class="seg" id="name">
+        <button data-v="0" aria-pressed="true">IT Triage Helper</button>
+        <button data-v="1" aria-pressed="false">claude-triage</button>
+        <button data-v="2" aria-pressed="false">incident-triage</button>
+      </div>
+      <span class="small" style="color:var(--muted)">description:</span>
+      <div class="seg" id="desc">
+        <button data-v="0" aria-pressed="true">Vague</button>
+        <button data-v="1" aria-pressed="false">What only</button>
+        <button data-v="2" aria-pressed="false">What + when</button>
+      </div>
+    </div>
+    <div class="tool-grid" id="cards"></div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 300" role="img" aria-label="Skill folder and context cost per conversation, or the five-stage agent spec with review status"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="pane-title" id="paneTitle"></div>
+    <pre class="pane" id="pane"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Where reusable know-how should live</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Option</th><th>What it holds</th><th>When it reaches the model</th><th>Best for</th></tr></thead>
+      <tbody>
+        <tr><td><b>System prompt</b></td><td>Always-on rules and persona</td><td>Every call</td><td>Short rules that apply to every turn</td></tr>
+        <tr><td><b>Prompt template</b> (Topic 1)</td><td>One task’s instructions with variables</td><td>When your code renders it</td><td>Fixed pipelines that you call explicitly</td></tr>
+        <tr><td><b>Agent Skill</b></td><td>A folder: <code>SKILL.md</code> plus reference files and scripts</td><td>Metadata always (~100 tokens); body when triggered; files only when read; scripts run and only their output enters context</td><td>Procedures the agent applies on demand: write-ups, house formats, checklists</td></tr>
+        <tr><td><b>Tool</b> (Topic 3)</td><td>A function with a schema</td><td>Its definition on every call; results when called</td><td>Reading or changing systems of record</td></tr>
+        <tr><td><b>MCP server</b> (Module 4)</td><td>Tools and resources behind a standard protocol</td><td>Like tools, discovered at runtime</td><td>Sharing integrations across agents and teams</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Outline vs current API:</b> “Agent Skills” are Anthropic Agent Skills: a folder whose <code>SKILL.md</code>
+    starts with YAML frontmatter (<code>name</code>: at most 64 characters, lowercase letters, numbers and hyphens, no “anthropic” or
+    “claude”; <code>description</code>: at most 1,024 characters, saying what it does <em>and</em> when to use it). Claude Code loads
+    them from <code>.claude/skills/</code>; this repository’s <code>generate-guide</code> and <code>generate-visualization</code> skills are
+    live examples. On the Claude API, Skills run in the code execution tool’s container. Treat a third-party Skill like installing
+    software: audit its scripts before you enable it.</div>
+
+  <h2>The OpenSpec walkthrough, stage by stage</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Stage</th><th>What you write</th><th>Anti-pattern it prevents</th></tr></thead>
+      <tbody>
+        <tr><td><b>Problem</b></td><td>Who hurts, how much, and the target</td><td>Building an agent nobody needs</td></tr>
+        <tr><td><b>Spec</b></td><td>Inputs, the output schema and a measurable success metric</td><td>“It feels better”: no way to say done</td></tr>
+        <tr><td><b>Tool contracts</b></td><td>Each tool’s signature, side effects, limits, timeouts and error shape</td><td>Unbounded writes; silent tool failures</td></tr>
+        <tr><td><b>Role boundaries</b></td><td>What the agent may and may not do, for whom</td><td>An agent with the service account’s full power</td></tr>
+        <tr><td><b>Escalation rules</b></td><td>Observable triggers that hand over to a person</td><td>“Escalate when unsure”, which never fires</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><b>Common trap:</b> writing the spec after the code. In this course, OpenSpec is the agent-design template
+    you complete <em>before</em> building (the name is also used by an open-source spec-driven development tool for AI coding
+    assistants, built on the same spec-first idea). Contracts and boundaries agreed up front become the tests and tool gates of
+    Modules 4 and 5.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="03-openai-claude-sdks.html"><small>← Previous</small>OpenAI SDK and Claude SDK, side by side</a>
+    <a class="next" href="05-cost-observability-basics.html"><small>Next →</small>Cost optimisation &amp; observability basics</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative data (course-map §8.3). Token counts are estimates for a synthetic Service Desk prompt; trigger
+// behaviour is representative of how a description is matched against requests, not recorded output.
+const DATA = {
+  names: [['IT Triage Helper', 'uppercase letters and spaces are not allowed'], ['claude-triage', 'contains the reserved word “claude”'], ['incident-triage', '']],
+  descs: [['Helps with tickets.', [true, true, false]],
+    ['Triage an IT incident ticket under policy POL-OPS-004.', [false, true, false]],
+    ['Triage an IT incident ticket under policy POL-OPS-004. Returns the category, impact, urgency, priority (P1-P4) and assignment group as JSON. Use when a user or analyst asks to triage, classify, prioritise or route an incident, support ticket or outage report.', [false, true, true]]],
+  chunks: [
+    { id: 'steps', name: 'Triage steps', t: 450, file: '', locs: ['body'] },
+    { id: 'matrix', name: 'Impact × urgency priority matrix', t: 900, file: 'reference/priority-matrix.md', locs: ['body', 'ref'] },
+    { id: 'overrides', name: 'Overrides and routing table', t: 300, file: 'reference/routing.md', locs: ['body', 'ref'] },
+    { id: 'examples', name: 'Worked examples', t: 600, file: 'reference/examples.md', locs: ['body', 'ref'] },
+    { id: 'validate', name: 'Check the result against the matrix', t: 350, file: 'scripts/check_triage.py', locs: ['body', 'ref', 'script'], out: 40 }
+  ],
+  convs: [['“How do I set up an out-of-office reply?”', []], ['“Triage INC-104402 and draft the escalation”', ['steps', 'overrides', 'examples', 'validate']],
+    ['“Is the floor outage at EU-AMS-02 a P1?”', ['steps', 'matrix']]],
+  expected: [false, true, true],
+  spec: [
+    { stage: 0, label: 'Problem', fixed: 'About 1,800 tickets a day across EU, US and APAC; L1 analysts spend about 4 minutes on each, and one in six is re-routed. The assistant drafts the triage, finds the KB article and writes an escalation record an analyst confirms in one click.' },
+    { stage: 0, label: 'Problem · success measures', opts: [['Users like it.', 'weak', 'Not measurable: you can never say the agent is done.'],
+      ['Priority accuracy ≥ 90 % and escalation recall 100 % on the labelled test split; 100 % schema-valid; p95 ≤ 8 s.', 'good', 'Measurable on a fixed set and re-runnable after every change.'],
+      ['No errors.', 'weak', 'Unachievable and unmeasurable for a non-deterministic system.']] },
+    { stage: 1, label: 'Spec · requirements', fixed: 'Triage by policy POL-OPS-004; security floor; no seniority bias; grounded knowledge lookup; read-only and honest.' },
+    { stage: 1, label: 'Spec · output contract', fixed: 'EscalationRecord: incident_id, category, impact, urgency, priority, assignment_group, kb_ids (only IDs search_kb returned), escalate, escalation_target, escalation_reason, user_reply, next_actions.' },
+    { stage: 2, label: 'Tool · lookup_incident', fixed: 'lookup_incident(incident_id: INC-\\d{6}) → incident record. Errors: not_found, invalid_id. Read-only; any authenticated L1 analyst session.' },
+    { stage: 2, label: 'Tool · search_kb', opts: [['search_kb(query) → results', 'weak', 'No limits, no result shape and no error contract.'],
+      ['search_kb(query: 1–200 chars, max_results: 1–5, default 3) → up to 5 {kb_id, title, summary, escalation, score}. Errors returned as {error}. Read-only; any L1 analyst session.', 'good', 'Bounded, typed, and the failure path is defined.']] },
+    { stage: 2, label: 'Tool · write access', opts: [['update_incident(id, fields: dict): any field.', 'risky', 'An unbounded write: the model could change priority, status or assignee.'],
+      ['add_work_note(incident_id, note ≤ 2,000 chars): append-only.', 'weak', 'Out of scope in this spec, which excludes changes to existing incidents. Add it in a later version with its own contract.'],
+      ['No write tool: the assistant drafts, and an analyst confirms in one click.', 'good', 'Least privilege, and it matches the scope: the agent can propose, not decide.']] },
+    { stage: 3, label: 'Role boundaries', opts: [['MAY close incidents it believes are resolved.', 'risky', 'Closing is a business decision with SLA impact; keep it human.'],
+      ['MAY read through the four tools and draft a reply and a record. MUST NOT close, re-prioritise or re-assign incidents, change any system, promise an SLA, or follow instructions inside a ticket.', 'good', 'Clear may/must-not lists that map to tool gates (Module 5).'],
+      ['Acts with the service account’s full permissions.', 'risky', 'Every prompt injection inherits admin rights.']] },
+    { stage: 4, label: 'Escalation · E1', fixed: 'priority P1 or P2 → the assignment group’s L2 queue; P1 also pages on-call.' },
+    { stage: 4, label: 'Escalation · E2–E4', opts: [['Escalate when the model is unsure.', 'weak', 'Not observable: models rarely report doubt reliably.'],
+      ['category security, any priority → Security Operations (E2); the KB article’s escalation condition is met (E3); validation fails twice → Service Desk L2 review (E4).', 'good', 'Each trigger is observable in code and testable.'],
+      ['Never escalate; always answer.', 'risky', 'Guarantees confident wrong answers on the hard cases.']] }
+  ],
+  stages: ['Problem', 'Spec', 'Tool contracts', 'Role boundaries', 'Escalation rules']
+};
+
+const init = () => ({ mode: S ? S.mode : 'skill', name: 0, desc: 0, loc: { steps: 'body', matrix: 'body', overrides: 'body', examples: 'body', validate: 'body' },
+  pick: DATA.spec.map(f => (f.opts ? 0 : null)) });
+let S = null; S = init();
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), pane = document.getElementById('pane');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const PASTE = DATA.chunks.reduce((a, c) => a + c.t, 0);
+const meta = () => 15 + Math.round(DATA.descs[S.desc][0].length / 4);
+const LOCNAME = { body: 'SKILL.md body', ref: 'reference file', script: 'script' };
+
+function conv(k) {
+  const fired = DATA.descs[S.desc][1][k], need = DATA.convs[k][1];
+  const parts = { l1: meta(), body: 0, ref: 0, script: 0 };
+  if (fired) DATA.chunks.forEach(c => {
+    const l = S.loc[c.id];
+    if (l === 'body') parts.body += c.t;
+    else if (need.includes(c.id)) parts[l] += l === 'script' ? c.out : c.t;
+  });
+  const total = parts.l1 + parts.body + parts.ref + parts.script, ok = fired === DATA.expected[k];
+  return { fired, parts, total, ok, why: fired && !DATA.expected[k] ? 'fired on an unrelated request' : !fired && DATA.expected[k] ? 'did not fire: no house rules' : fired ? 'fired' : 'stayed idle' };
+}
+function lint() {
+  const out = [];
+  if (DATA.names[S.name][1]) out.push(['bad', `name “${DATA.names[S.name][0]}”: ${DATA.names[S.name][1]}`]);
+  if (S.desc < 2) out.push(['bad', S.desc === 0 ? 'description is vague: says neither what nor when' : 'description says what, not when: triggers are missed']);
+  const big = DATA.chunks.filter(c => S.loc[c.id] === 'body' && c.t >= 600);
+  if (big.length) out.push(['warn', `${big.map(c => c.name).join(' and ')} load on every trigger: move to reference/`]);
+  if (S.loc.validate !== 'script') out.push(['warn', 'validation written as prose: a script is deterministic and only its output costs tokens']);
+  return out;
+}
+function review() {
+  return DATA.spec.map((f, i) => f.opts ? { f, i, o: f.opts[S.pick[i]] } : { f, i, o: [f.fixed, 'good', 'Given in the template.'] });
+}
+
+function renderCards() {
+  const box = document.getElementById('cards'); box.innerHTML = '';
+  if (S.mode === 'skill') DATA.chunks.forEach(c => {
+    const b = document.createElement('button'), l = S.loc[c.id];
+    b.className = 'tool-card' + (c.locs.length === 1 ? '' : (l === 'body' && c.t >= 600) || (c.id === 'validate' && l !== 'script') ? ' weak' : ' good');
+    b.innerHTML = `<span class="name">${c.name} · ${c.t} tokens</span><span class="role">→ ${LOCNAME[l]}${l !== 'body' ? ` (<code>${c.file}</code>)` : ''}</span>` +
+      `<span class="state">${c.locs.length > 1 ? 'click to move' : 'stays in the body'}</span>`;
+    b.onclick = () => { if (c.locs.length < 2) return; S.loc[c.id] = c.locs[(c.locs.indexOf(l) + 1) % c.locs.length]; changed(`${c.name} → ${LOCNAME[S.loc[c.id]]}`); };
+    box.appendChild(b);
+  });
+  else review().forEach(({ f, i, o }) => {
+    if (!f.opts) return;
+    const b = document.createElement('button');
+    b.className = 'tool-card ' + { good: 'good', weak: 'weak', risky: 'badc' }[o[1]];
+    b.innerHTML = `<span class="name">${f.label}</span><span class="role">${esc(o[0])}</span><span class="state" style="color:var(--${o[1] === 'good' ? 'ok' : o[1] === 'weak' ? 'warn' : 'bad'})">${o[1]} · click for next option</span>`;
+    b.onclick = () => { S.pick[i] = (S.pick[i] + 1) % f.opts.length; changed(`${f.label}: ${f.opts[S.pick[i]][1]}`); };
+    box.appendChild(b);
+  });
+}
+
+function renderSkill() {
+  const name = DATA.names[S.name][0], tree = [name.replace(/ /g, '_') + '/', '  SKILL.md'];
+  ['ref', 'script'].forEach(l => DATA.chunks.filter(c => S.loc[c.id] === l).forEach(c => tree.push('  ' + c.file)));
+  el('text', { x: 20, y: 24, class: 'hdr', text: 'Skill folder' }, svg);
+  tree.forEach((t, k) => el('text', { x: 24, y: 50 + k * 22, class: 'lab', fill: k === 0 && DATA.names[S.name][1] ? 'var(--bad)' : t.includes('scripts') ? 'var(--p2)' : t.includes('references') ? 'var(--p1)' : 'var(--text)', text: t }, svg));
+  el('text', { x: 300, y: 24, class: 'hdr', text: 'Context loaded per conversation (bar) vs pasting the prompt every time (outline)' }, svg);
+  const W = 560 / PASTE;
+  DATA.convs.forEach(([q], k) => {
+    const y = 48 + k * 82, r = conv(k);
+    el('text', { x: 300, y: y + 4, class: 'small', text: q }, svg);
+    el('text', { x: 886, y: y + 4, 'text-anchor': 'end', class: 'lab', fill: r.ok ? 'var(--ok)' : 'var(--bad)', style: 'font-weight:700', text: (r.ok ? '✓ ' : '✗ ') + r.why }, svg);
+    el('rect', { x: 300, y: y + 14, width: PASTE * W, height: 26, rx: 4, fill: 'none', stroke: 'var(--muted)', 'stroke-dasharray': '4 3' }, svg);
+    let x = 300;
+    [['l1', 'var(--p5)'], ['body', 'var(--p3)'], ['ref', 'var(--p1)'], ['script', 'var(--p2)']].forEach(([key, c]) => {
+      const w = r.parts[key] * W; if (!w) return;
+      el('rect', { x, y: y + 14, width: Math.max(w, 2), height: 26, rx: 3, fill: c, 'fill-opacity': .75 }, svg); x += w;
+    });
+    el('text', { x: 300, y: y + 56, class: 'lab muted', text: `${r.total.toLocaleString('en-GB')} tokens (metadata ${r.parts.l1} · body ${r.parts.body} · files ${r.parts.ref} · script output ${r.parts.script}) vs ${PASTE.toLocaleString('en-GB')} pasted` }, svg);
+  });
+  const L = lint(), desc = DATA.descs[S.desc][0];
+  detail.innerHTML = `<h3>${L.filter(l => l[0] === 'bad').length ? 'Lint: fix before publishing' : L.length ? 'Lint: publishable, can be leaner' : 'Lint: clean'}</h3>` +
+    (L.length ? `<ul>${L.map(([s, m]) => `<li class="${s === 'bad' ? 'bad-t' : 'warn-t'}">${esc(m)}</li>`).join('')}</ul>` : '<p>Valid name, a description that says what and when, lean body, deterministic script.</p>');
+  document.getElementById('paneTitle').textContent = 'SKILL.md preview';
+  const body = DATA.chunks.map(c => S.loc[c.id] === 'body' ? `## ${c.name}\n…${c.t} tokens of instructions…` :
+    S.loc[c.id] === 'ref' ? `For ${c.name.toLowerCase()}, read ${c.file}.` : `Run: python ${c.file} &lt;draft.json&gt;  (only its output enters context)`).join('\n\n');
+  pane.innerHTML = `<span class="cmt">---</span>\n<span class="j-key">name</span>: ${esc(name)}\n<span class="j-key">description</span>: ${esc(desc)}\n<span class="cmt">---</span>\n\n# Incident triage (POL-OPS-004)\n\n${body}`;
+  const R = [0, 1, 2].map(conv), avg = R.reduce((a, r) => a + r.total, 0) / 3;
+  stats.innerHTML = `<div class="stat"><b style="color:${R.every(r => r.ok) ? 'var(--ok)' : 'var(--bad)'}">${R.filter(r => r.ok).length} / 3</b><span>conversations behave correctly</span></div>` +
+    `<div class="stat"><b>${Math.round(avg).toLocaleString('en-GB')}</b><span>avg. tokens per conversation</span></div>` +
+    `<div class="stat"><b>${Math.round(100 - 100 * avg / PASTE)} %</b><span>saved vs pasting ${PASTE.toLocaleString('en-GB')} tokens</span></div>` +
+    `<div class="stat"><b style="color:${L.some(l => l[0] === 'bad') ? 'var(--bad)' : 'inherit'}">${L.length}</b><span>lint findings</span></div>`;
+}
+
+function renderSpec() {
+  const R = review(), rank = { good: 0, weak: 1, risky: 2 }, col = ['var(--ok)', 'var(--warn)', 'var(--bad)'];
+  DATA.stages.forEach((name, s) => {
+    const items = R.filter(r => r.f.stage === s), worst = Math.max(...items.map(r => rank[r.o[1]])), x = 14 + s * 178;
+    if (s) el('path', { d: `M${x - 16} 52 h12 l-5 -5 m5 5 l-5 5`, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 1.5 }, svg);
+    el('rect', { x, y: 26, width: 158, height: 52, rx: 10, fill: col[worst], 'fill-opacity': .14, stroke: col[worst], 'stroke-width': 2 }, svg);
+    el('text', { x: x + 79, y: 48, 'text-anchor': 'middle', class: 'hdr', text: `${s + 1}. ${name}` }, svg);
+    el('text', { x: x + 79, y: 67, 'text-anchor': 'middle', class: 'lab', fill: col[worst], text: ['ready', 'needs work', 'risk'][worst] }, svg);
+    items.forEach((r, k) => {
+      let lines = wrapText(r.o[0], 24);
+      if (lines.length > 4) { lines = lines.slice(0, 4); lines[3] += '…'; }
+      lines.forEach((line, j) => el('text', { x: x + 2, y: 102 + k * 66 + j * 13, class: 'lab', style: 'font-size:10px', fill: j ? 'var(--muted)' : col[rank[r.o[1]]], text: (j ? '  ' : rank[r.o[1]] ? '✗ ' : '✓ ') + line }, svg));
+    });
+  });
+  const open = R.filter(r => r.o[1] !== 'good');
+  detail.innerHTML = `<h3>${open.length ? `Review: ${open.length} finding${open.length > 1 ? 's' : ''}` : 'Review: ready for the team walkthrough'}</h3>` +
+    (open.length ? `<ul>${open.map(r => `<li class="${r.o[1] === 'risky' ? 'bad-t' : 'warn-t'}">${r.f.label}: ${esc(r.o[2])}</li>`).join('')}</ul>` : '<p>Measurable metric, bounded tools, least-privilege roles and observable escalation triggers.</p>');
+  document.getElementById('paneTitle').textContent = 'Generated spec (templates/openspec-template.md)';
+  let md = '# Enterprise Operations Assistant — agent spec\n', last = -1;
+  R.forEach(r => { if (r.f.stage !== last) { md += `\n## ${DATA.stages[r.f.stage]}\n`; last = r.f.stage; } md += `- ${r.f.label.split(' · ')[1] ? r.f.label.split(' · ')[1] + ': ' : ''}${esc(r.o[0])}${r.o[1] !== 'good' ? `  <span class="${r.o[1] === 'risky' ? 'bad-t' : 'warn-t'}">← ${r.o[1]}</span>` : ''}\n`; });
+  pane.innerHTML = md;
+  const blanks = R.filter(r => r.f.opts);
+  stats.innerHTML = `<div class="stat"><b style="color:${open.length ? 'var(--warn)' : 'var(--ok)'}">${blanks.filter(r => r.o[1] === 'good').length} / ${blanks.length}</b><span>blank fields completed well</span></div>` +
+    `<div class="stat"><b style="color:${R.some(r => r.o[1] === 'risky') ? 'var(--bad)' : 'inherit'}">${R.filter(r => r.o[1] === 'risky').length}</b><span>risky choices</span></div>` +
+    `<div class="stat"><b>${R.filter(r => r.o[1] === 'weak').length}</b><span>weak (unmeasurable) choices</span></div>`;
+}
+
+function render() {
+  svg.innerHTML = '';
+  document.getElementById('skillCtl').hidden = S.mode !== 'skill';
+  pane.style.whiteSpace = S.mode === 'spec' ? 'pre-wrap' : 'pre';
+  renderCards();
+  if (S.mode === 'skill') renderSkill(); else renderSpec();
+}
+function changed(what) {
+  render();
+  if (S.mode === 'skill') { const R = [0, 1, 2].map(conv); logLine(logEl, `${what} → ${R.filter(r => r.ok).length}/3 correct, avg ${Math.round(R.reduce((a, r) => a + r.total, 0) / 3)} tokens`, true); }
+  else { const open = review().filter(r => r.o[1] !== 'good').length; logLine(logEl, `${what} → ${open ? open + ' finding(s) open' : '<b>spec ready</b>'}`, true); }
+}
+function syncSegs() {
+  [['name', S.name], ['desc', S.desc], ['mode', S.mode]].forEach(([id, v]) =>
+    document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(v)))));
+}
+
+bindSeg('mode', v => { S.mode = v; render(); logLine(logEl, v === 'skill' ? 'Skill builder (H5)' : 'OpenSpec builder (H6)'); });
+bindSeg('name', v => { S.name = +v; changed(`name: ${DATA.names[S.name][0]}`); });
+bindSeg('desc', v => { S.desc = +v; changed(`description: ${['vague', 'what only', 'what + when'][S.desc]}`); });
+document.getElementById('reset').onclick = () => { S = init(); syncSegs(); render(); logLine(logEl, 'Reset to the starting draft'); };
+render();
+logLine(logEl, 'Illustrative token estimates. Start by fixing the name and description, then move the big parts out of the body.');
+
+renderQuiz('quiz', [
+  { q: 'With progressive disclosure, what does an installed Skill cost in context before it is ever used?',
+    options: ['The whole folder, scripts included.',
+      'Only its <code>name</code> and <code>description</code> from the frontmatter: about 100 tokens. The body loads when it triggers, files when read, and scripts contribute only their output.',
+      'Nothing at all, until the user names it.',
+      'The full <code>SKILL.md</code> body.'],
+    answer: 1,
+    explain: 'That is why the out-of-office question costs only the metadata once the description is precise. It is also why the description matters so much: it is the only part the model sees when deciding whether to load the rest.' },
+  { q: 'With the “What only” description, “Is the floor outage at EU-AMS-02 a P1?” did not trigger the Skill. Why?',
+    options: ['The Skill was too large to load.',
+      'P1 questions are blocked by policy.',
+      'The description is what the request is matched against. It said what the Skill writes, but not when to use it (prioritising, deciding P1), so the request did not look relevant.',
+      'Skills only trigger on the first message of a conversation.'],
+    answer: 2,
+    explain: 'Write descriptions as “does X. Use when Y or Z.” A missed trigger is worse than a wasted one: the answer comes back without your house rules, and nothing reports it.' },
+  { q: 'The draft spec gives the agent <code>update_incident(id, fields: dict)</code>. The review flags it as risky. What is the best replacement for v1?',
+    options: ['Keep it, but add “be careful” to the system prompt.',
+      'No write tool in v1: the assistant drafts and an analyst confirms in one click. A bounded, append-only note tool can come later, with its own contract.',
+      'Give the agent a second, unrestricted admin tool for emergencies.',
+      'Let the agent decide which fields are safe to change.'],
+    answer: 1,
+    explain: 'Least privilege belongs in the tool contract, not in the prompt. With no write tool, a model mistake becomes a wrong draft an analyst rejects, not a re-prioritised P1. The lab spec scopes v1 exactly this way.' },
+  { q: 'A colleague says: “A Skill is just a longer system prompt in a file.” What is the most important difference?',
+    options: ['There is none; both are always in context.',
+      'Skills are fine-tuned into the model.',
+      'Skills can only hold Python code.',
+      'Skills load on demand in stages, and can bundle scripts whose code never enters the context: only their output does. A system prompt is paid on every call.'],
+    answer: 3,
+    explain: 'In the builder, moving the check to <code>scripts/check_triage.py</code> replaces 350 tokens of prose with about 40 tokens of output, and makes the check deterministic.' },
+  { q: 'Why does the name <code>claude-triage</code> fail the lint, when <code>incident-triage</code> passes?',
+    options: ['Names must be at least 15 characters long.',
+      'Hyphens are not allowed.',
+      '“claude” (like “anthropic”) is a reserved word. Names are at most 64 characters of lowercase letters, numbers and hyphens.',
+      'Names must start with the team name.'],
+    answer: 2,
+    explain: '“IT Triage Helper” fails for a different reason: capitals and spaces. Treat the frontmatter like an API contract: it is validated, and the description is a matching key, not a comment.' }
+]);
+</script>
+</body>
+</html>

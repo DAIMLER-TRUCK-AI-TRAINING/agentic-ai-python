@@ -1,0 +1,14 @@
+Betreff: Änderungsantrag CHG-20934 – neue Firewall-Regel für das Rechenzentrum EU
+
+Hallo zusammen,
+
+Network Ops beantragt eine Änderung an der Kern-Firewall fw-core-eu-01: Wir öffnen
+Port 8443 vom Build-Netz zum neuen Artefakt-Repository.
+
+Risiko: hoch, da die Kern-Firewall den gesamten Verkehr des Rechenzentrums EU steuert.
+Zeitfenster: 14.11.2026, 20:00 bis 21:00 Uhr MEZ (UTC+01:00).
+Rückfallplan: Die Regel wird wieder entfernt und die gesicherte Konfiguration eingespielt.
+Eine Genehmigung durch das CAB ist erforderlich (normale Änderung).
+
+Viele Grüße
+Network Ops

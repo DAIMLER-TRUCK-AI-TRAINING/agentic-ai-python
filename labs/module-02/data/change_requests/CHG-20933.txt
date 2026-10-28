@@ -1,0 +1,9 @@
+Change request CHG-20933
+
+We (Finance application support) need to apply ERP patch FIN-2026.11 to the APAC instance
+(erp-finance-apac) before the month-end close. The vendor rates the patch as moderate,
+and we assess the change as medium risk because the payment-run module is touched.
+
+Proposed window: 21 Nov 2026 from 23:30 until 01:30 the next morning, Singapore time (UTC+08:00).
+Back-out plan: restore the pre-patch database snapshot and redeploy release FIN-2026.10.
+Type: normal change. It needs CAB sign-off.

@@ -1,0 +1,64 @@
+{
+  "_note": "Synthetic training data. Gold extraction for the five change requests in this folder. Windows are compared as instants, so an equivalent UTC time is also correct.",
+  "CHG-20931": {
+    "change_id": "CHG-20931",
+    "change_type": "normal",
+    "risk": "high",
+    "requested_by_team": "Network Ops",
+    "region": "EU",
+    "affected_services": ["vpn-gateway-eu-01", "vpn-gateway-eu-02"],
+    "window_start": "2026-11-07T22:00:00+01:00",
+    "window_end": "2026-11-08T02:00:00+01:00",
+    "cab_required": true,
+    "rollback_plan_present": true
+  },
+  "CHG-20932": {
+    "change_id": "CHG-20932",
+    "change_type": "standard",
+    "risk": "low",
+    "requested_by_team": "Service Desk",
+    "region": "US",
+    "affected_services": ["print-server-us-01", "print-server-us-02"],
+    "window_start": "2026-11-10T06:00:00-06:00",
+    "window_end": "2026-11-10T07:00:00-06:00",
+    "cab_required": false,
+    "rollback_plan_present": false
+  },
+  "CHG-20933": {
+    "change_id": "CHG-20933",
+    "change_type": "normal",
+    "risk": "medium",
+    "requested_by_team": "Finance",
+    "region": "APAC",
+    "affected_services": ["erp-finance-apac"],
+    "window_start": "2026-11-21T23:30:00+08:00",
+    "window_end": "2026-11-22T01:30:00+08:00",
+    "cab_required": true,
+    "rollback_plan_present": true
+  },
+  "CHG-20934": {
+    "change_id": "CHG-20934",
+    "change_type": "normal",
+    "risk": "high",
+    "requested_by_team": "Network Ops",
+    "region": "EU",
+    "affected_services": ["fw-core-eu-01"],
+    "window_start": "2026-11-14T20:00:00+01:00",
+    "window_end": "2026-11-14T21:00:00+01:00",
+    "cab_required": true,
+    "rollback_plan_present": true
+  },
+  "CHG-20935": {
+    "change_id": "CHG-20935",
+    "change_type": "normal",
+    "risk": "high",
+    "requested_by_team": "Platform Engineering",
+    "region": "US",
+    "affected_services": ["st-us-01-ctrl-a", "st-us-01-ctrl-b"],
+    "window_start": "2026-11-19T01:00:00-05:00",
+    "window_end": "2026-11-19T04:00:00-05:00",
+    "cab_required": false,
+    "rollback_plan_present": true,
+    "_expected_review": "The document states high risk without CAB approval. Extraction is correct; the business rule (high risk requires CAB) must send it to a human."
+  }
+}

@@ -1,0 +1,36 @@
+[project]
+name = "module02-lab05-ops-assistant"
+version = "0.1.0"
+description = "Module 2 · Lab 05 as a uv project: the Enterprise Operations Assistant mini-project, on either provider"
+readme = "README.md"
+requires-python = ">=3.12"
+# The same pins as labs/setup/requirements.txt, so this project and the notebook behave alike.
+dependencies = [
+    "anthropic==1.17.0",
+    "langchain==1.4.7",
+    "langchain-anthropic==1.7.6",
+    "langchain-openai==1.7.3",
+    "langchain-tavily==0.2.18",
+    "langgraph==1.2.18",
+    "langsmith==0.14.12",
+    "openai==2.54.0",
+    "pandas==3.1.0",
+    "pydantic==2.14.1",
+    "python-dotenv==1.2.4",
+]
+
+[project.scripts]
+lab05 = "lab05.cli:main"
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "lab05"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

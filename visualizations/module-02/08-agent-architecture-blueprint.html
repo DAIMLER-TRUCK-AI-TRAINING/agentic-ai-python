@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Architecture Blueprint</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  .detail ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>8 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 8</div>
+  <h1>The model is one box; the blueprint is everything around it</h1>
+  <p class="lede">The Enterprise Operations Assistant (incident triage → knowledge lookup → structured escalation) is a service with a
+    model inside, not a model with some code attached. Click any component to see its job and contract. Press <b>Play request ▶</b> to follow one
+    ticket through it, then run the architecture review: under <b>Context risks</b> and <b>Bottlenecks</b>, click the components you
+    suspect and find all six issues.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="lens">
+        <button data-v="parts" aria-pressed="true">Parts</button>
+        <button data-v="flow" aria-pressed="false">Flow</button>
+        <button data-v="context" aria-pressed="false">Context risks</button>
+        <button data-v="latency" aria-pressed="false">Bottlenecks</button>
+      </div>
+      <button class="primary" id="play">Play request ▶</button>
+      <button id="reset">Reset review</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 446" role="img" aria-label="Architecture blueprint of the Enterprise Operations Assistant with clickable components"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Components and the contracts to pin down</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Responsibility</th><th>Contract to pin down</th><th>Deepened in</th></tr></thead>
+      <tbody>
+        <tr><td><b>Gateway &amp; auth</b></td><td>Authenticate; attach user, role, team and region</td><td>Identity claims every tool call is authorised against</td><td>Module 5 (access control)</td></tr>
+        <tr><td><b>Orchestrator</b></td><td>Run the agent loop: model → tools → model</td><td>Step and tool-call limits; timeouts; parallel calls</td><td>Topic 6; Module 4 (LangGraph)</td></tr>
+        <tr><td><b>Prompts &amp; Skills</b></td><td>Versioned instructions, examples, Skills</td><td>Prompt version logged with every answer</td><td>Topics 1 and 4</td></tr>
+        <tr><td><b>Model gateway</b></td><td>One switch for provider and model (<code>LLM_PROVIDER</code>)</td><td>Retries, fallback model, per-route eval</td><td>Topics 3 and 5</td></tr>
+        <tr><td><b>Tools</b></td><td>ITSM and status APIs (<code>lookup_incident</code>, <code>get_service_status</code>), KB search, ops DB, web search</td><td>Typed inputs, bounded outputs, side effects, error shape</td><td>Topics 3, 4 and 6; Module 4 (MCP)</td></tr>
+        <tr><td><b>Memory &amp; session</b></td><td>Thread history and explicit state</td><td><code>thread_id</code> per user and conversation; retention</td><td>Topic 7; Module 4</td></tr>
+        <tr><td><b>Output validator</b></td><td>Schema plus business rules on the escalation</td><td><code>EscalationRecord</code> schema; repair-once policy</td><td>Topic 2</td></tr>
+        <tr><td><b>Human queue (HITL)</b></td><td>Receive escalations with full context</td><td>Observable triggers (E1–E4); who owns the queue</td><td>Topic 4; Module 4 (interrupts); Module 5</td></tr>
+        <tr><td><b>Observability</b></td><td>Traces, structured logs, cost</td><td>Trace ID across every hop</td><td>Topic 5; Module 5</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Architecture review checklist (H10)</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Risk</th><th>Symptom in production</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td><b>Tool output floods the context</b></td><td>Cost and latency spike on some tickets; answers miss facts buried mid-context</td><td>Return snippets with IDs and a <code>top_k</code> cap; fetch full text only on demand</td></tr>
+        <tr><td><b>Unbounded history</b></td><td>Long incident threads get slower and dearer every turn</td><td>Summarisation middleware plus explicit state for key facts (Topic 7)</td></tr>
+        <tr><td><b>Everything in the system prompt</b></td><td>Every call pays for rarely used rules</td><td>Move them into a Skill or reference file loaded on demand (Topic 4)</td></tr>
+        <tr><td><b>Sequential independent calls</b></td><td>p95 latency above the SLO</td><td>Run independent tool calls in parallel</td></tr>
+        <tr><td><b>Shared downstream rate limit</b></td><td>429s from the status API at the 09:00 peak</td><td>Cache reads, back off, queue; agree a quota with the system owner</td></tr>
+        <tr><td><b>Single model route</b></td><td>Provider 429s or outages stop triage entirely</td><td>SDK retries, a fallback model behind <code>LLM_PROVIDER</code>, batch for non-urgent work</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> most of the bill, the latency and the incidents come from the boxes around the
+    model: what tools return, what memory resends, how calls are sequenced. Review those boxes with the same rigour as any distributed
+    system, and give every boundary a contract you can test.</div>
+  <div class="callout warn"><b>Common trap:</b> “the model has a 1M-token context window, so budgeting does not matter.” Every token
+    is paid for on every call, long prompts are slower, and facts buried in the middle are recalled less reliably (Module 1, Topic 5).
+    Set your own per-request budget and treat the model’s maximum as a hard limit, not a target.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="07-memory-context-sessions.html"><small>← Previous</small>Memory, context &amp; session management</a>
+    <a class="next" href="index.html"><small>Done →</small>Back to Module 2 overview</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative architecture (course-map §8.3). Token and latency figures are representative p95 estimates for the
+// synthetic Enterprise Operations Assistant; the 32,000-token budget is a per-request budget you set, not a model limit.
+const DATA = {
+  nodes: {
+    channel: [14, 150, 112, 60, 'var(--p0)', 'Users & channels', 'chat · portal', 'Where requests arrive. Keep the agent behind your own service, so channels never call a model directly.'],
+    gateway: [140, 150, 124, 60, 'var(--p4)', 'Gateway & auth', 'SSO · claims', 'Authenticates the user and attaches identity claims (role, team, region) that every tool call is checked against.'],
+    prompts: [300, 74, 146, 50, 'var(--p5)', 'Prompts & Skills', 'versioned · on demand', 'Versioned system prompt, few-shot examples and Skills. Log the prompt version with every answer so you can reproduce it.'],
+    orch: [300, 142, 146, 70, 'var(--p3)', 'Orchestrator', 'create_agent loop', 'Runs model → tool calls → results → model until there are no more tool calls. Owns step limits, timeouts and parallelism.'],
+    memory: [300, 230, 146, 50, 'var(--p0)', 'Memory & session', 'checkpointer', 'Thread history in a checkpointer plus explicit state for key facts. thread_id is built server-side per user and conversation.'],
+    provider: [466, 74, 140, 50, 'var(--p3)', 'Model gateway', 'get_chat_model()', 'One switch for provider and model (LLM_PROVIDER, OPENAI_MODEL, ANTHROPIC_MODEL). Retries and fallback live here.'],
+    validator: [466, 230, 140, 50, 'var(--p2)', 'Output validator', 'EscalationRecord', 'Pydantic schema plus business rules on the escalation output. One repair attempt, then escalate.'],
+    models: [452, 8, 168, 36, 'var(--p4)', 'OpenAI · Claude APIs', '', 'External providers. Region, data handling and quotas are contractual, not code (Module 5).'],
+    itsm: [650, 60, 236, 42, 'var(--p1)', 'ITSM & status APIs', 'lookup_incident · service status', 'Systems of record. Read-only in v1, user-scoped; the agent proposes, an analyst confirms.'],
+    kb: [650, 110, 236, 42, 'var(--p1)', 'KB search', 'search_kb · RAG in Module 3', 'Returns KB IDs, titles and snippets. Module 3 turns this into a full RAG pipeline.'],
+    db: [650, 160, 236, 42, 'var(--p1)', 'Ops DB', 'query_ops_db · read-only', 'SQLite sample DB in the labs: a read-only connection, SELECT only, with a row limit.'],
+    web: [650, 210, 236, 42, 'var(--p1)', 'Web search', 'Tavily · mock offline', 'Vendor advisories. Results are untrusted text and can carry prompt injection (Module 5).'],
+    hitl: [650, 266, 236, 42, 'var(--warn)', 'Human queue (Network Ops L2)', 'escalate = true', 'Receives escalations (rules E1–E4) with the ticket, priority, KB articles tried and the agent’s summary. Humans close and reprioritise.'],
+    obs: [14, 330, 430, 34, 'var(--p2)', 'Observability: traces · structured logs · cost', '', 'One trace per request, one span per hop, token usage and request IDs on every model span (Topic 5).'],
+    guard: [456, 330, 430, 34, 'var(--p5)', 'Guardrails & access control (Module 5)', '', 'Input and output filtering, tool gating and audit logs. Awareness here, built in Module 5.']
+  },
+  edges: [['channel', 'gateway'], ['gateway', 'orch'], ['orch', 'prompts'], ['orch', 'memory'], ['orch', 'provider'], ['provider', 'models'], ['orch', 'validator'],
+    ['orch', 'itsm'], ['orch', 'kb'], ['orch', 'db'], ['orch', 'web'], ['validator', 'hitl']],
+  flow: [['channel', 'gateway', 'Ticket: users at EU-AMS-02 report VPN error 809 after a password change'], ['gateway', 'orch', 'request + claims: role l1_analyst, team Service Desk, region EU'],
+    ['orch', 'provider', 'system prompt + Skill metadata + tools + thread history'], ['provider', 'orch', 'tool_calls: get_service_status, search_kb'],
+    ['orch', 'itsm', 'get_service_status("vpn-gateway-eu-01") → degraded (INC-104512)'], ['orch', 'kb', 'search_kb("VPN error 809 after password change", max_results=3) → KB-0042, in parallel'],
+    ['orch', 'provider', 'tool results → EscalationRecord JSON'], ['orch', 'validator', 'schema ✓ · network · P2 · Network Ops · kb_ids [KB-0042], an ID search_kb returned ✓'],
+    ['validator', 'hitl', 'escalate = true (E1: P2) → Network Ops L2 queue'], ['orch', 'channel', 'reply: clear the saved credential (KB-0042); escalated to Network Ops L2']],
+  findings: [
+    { node: 'kb', lens: 'context', title: 'search_kb returns full article bodies', text: '3 articles × about 4,000 tokens on every call. Return snippets with IDs; fetch full text on demand.' },
+    { node: 'memory', lens: 'context', title: 'Unbounded thread history', text: 'Long incident threads resend about 6,000 tokens. Add summarisation and explicit state for key facts.' },
+    { node: 'prompts', lens: 'context', title: 'Every team’s escalation matrix in the system prompt', text: '3,000 tokens paid on every call, used on a few. Move it into a Skill reference file.' },
+    { node: 'orch', lens: 'latency', title: 'Independent tool calls run one after another', text: 'get_service_status (600 ms) then search_kb (400 ms). Run them in parallel.' },
+    { node: 'itsm', lens: 'latency', title: 'The status API shares a 10 req/s limit with human agents', text: '429s at the 09:00 peak. Cache status reads for 60 s, back off, agree a quota.' },
+    { node: 'provider', lens: 'latency', title: 'Single model route, no fallback', text: 'A provider 429 adds about 1 s of backoff at peak, and an outage stops triage. Add a fallback model and batch non-urgent work.' }
+  ],
+  budget: 32000, slo: 3000
+};
+// Context rows [label, tokens, colour]; findings 0–2 shrink tool outputs, history and the escalation matrix.
+const ctxRows = after => [['system prompt', 1200, 'var(--p5)'], ['escalation matrix', after && fixed(2) ? 150 : 3000, 'var(--p5)'], ['tool schemas', 900, 'var(--p1)'],
+  ['history', after && fixed(1) ? 1500 : 6000, 'var(--p0)'], ['tool outputs', after && fixed(0) ? 1500 : 12000, 'var(--p1)'], ['user', 200, 'var(--accent)'], ['reserved output', 2000, 'var(--p3)']];
+// Latency rows [label, ms, colour]; finding 3 runs the two tools in parallel, 4 caches ITSM reads, 5 removes the peak backoff.
+function latRows(after) {
+  const gi = after && fixed(4) ? 80 : 600, kb = 400;
+  return [['gateway', 30, 'var(--p4)'], ['model #1', 900, 'var(--p3)']]
+    .concat(after && fixed(3) ? [['tools ‖', Math.max(gi, kb), 'var(--p1)']] : [['service_status', gi, 'var(--p1)'], ['search_kb', kb, 'var(--p1)']])
+    .concat([['429 backoff', after && fixed(5) ? 0 : 1000, 'var(--bad)'], ['model #2', 1300, 'var(--p3)'], ['validator', 10, 'var(--p2)']]);
+}
+const total = rows => rows.reduce((a, r) => a + r[1], 0);
+
+const S = { lens: 'parts', sel: 'orch', found: new Set(), flowStep: -1, busy: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const N = DATA.nodes, mid = id => [N[id][0] + N[id][2] / 2, N[id][1] + N[id][3] / 2];
+const fixed = i => S.found.has(i);
+
+function edgePts(a, b) {
+  const [ax, ay] = mid(a), [bx, by] = mid(b), A = N[a], B = N[b];
+  if (Math.abs(ax - bx) > Math.abs(ay - by)) return [ax < bx ? A[0] + A[2] : A[0], ay, ax < bx ? B[0] : B[0] + B[2], by];
+  return [ax, ay < by ? A[1] + A[3] : A[1], bx, ay < by ? B[1] : B[1] + B[3]];
+}
+
+function render() {
+  svg.innerHTML = '';
+  el('rect', { x: 286, y: 56, width: 334, height: 238, rx: 14, fill: 'none', stroke: 'var(--border)', 'stroke-dasharray': '6 4' }, svg);
+  el('text', { x: 296, y: 290, class: 'lab muted', text: 'agent runtime (your service)' }, svg);
+  const cur = S.lens === 'flow' && S.flowStep >= 0 ? DATA.flow[S.flowStep] : null;
+  DATA.edges.forEach(([a, b]) => {
+    const on = cur && ((cur[0] === a && cur[1] === b) || (cur[0] === b && cur[1] === a)), st = { fill: 'none', stroke: on ? 'var(--accent)' : 'var(--border)', 'stroke-width': on ? 3 : 1.5 };
+    if (a === 'orch' && N[b][0] === 650) {   // tools hang off a vertical bus, routed between the model gateway and the validator
+      const ty = N[b][1] + N[b][3] / 2;
+      el('path', Object.assign({ d: `M446 177 H632 V${ty} H650` }, st), svg); return;
+    }
+    const [x1, y1, x2, y2] = edgePts(a, b);
+    el('line', Object.assign({ x1, y1, x2, y2 }, st), svg);
+  });
+  Object.entries(N).forEach(([id, [x, y, w, h, c, label, sub]]) => {
+    const g = clickable(el('g', {}, svg), () => select(id), `${label}: details`);
+    const found = DATA.findings.some((f, i) => f.node === id && f.lens === S.lens && fixed(i));
+    const ghost = id === 'guard';
+    el('rect', { x, y, width: w, height: h, rx: 9, fill: c, 'fill-opacity': id === S.sel ? .32 : .13, stroke: found ? 'var(--ok)' : c,
+      'stroke-width': id === S.sel || found ? 2.5 : 1.4, 'stroke-dasharray': ghost ? '5 4' : '' }, g);
+    el('text', { x: x + w / 2, y: y + (sub ? h / 2 - 3 : h / 2 + 4), 'text-anchor': 'middle', class: 'hdr', text: label }, g);
+    const lat = S.lens === 'latency' && latOf(id);   // under the bottleneck lens, the sub-label shows the measured figure
+    if (sub || lat) el('text', Object.assign({ x: x + w / 2, y: y + h / 2 + 13, 'text-anchor': 'middle', class: lat ? 'lab' : 'lab muted', text: lat || sub }, lat ? { fill: 'var(--warn)' } : {}), g);
+    if (found) el('text', { x: x + w - 8, y: y + 14, 'text-anchor': 'end', class: 'lab', fill: 'var(--ok)', style: 'font-weight:700', text: '✓ found' }, g);
+  });
+  if (S.lens === 'context') bars('Per-request context (tokens) · budget 32,000', ctxRows, DATA.budget, n => n.toLocaleString('en-GB'));
+  else if (S.lens === 'latency') bars('Request latency, p95 (ms) · SLO 3,000', latRows, DATA.slo, n => n.toLocaleString('en-GB') + ' ms');
+  else if (S.lens === 'flow') {
+    el('text', { x: 14, y: 392, class: 'hdr', text: cur ? `Step ${S.flowStep + 1} / ${DATA.flow.length}` : 'Press Play request ▶' }, svg);
+    if (cur) wrapText(cur[2], 110).forEach((l, k) => el('text', { x: 14, y: 414 + k * 16, class: 'small', text: l }, svg));
+  } else el('text', { x: 14, y: 400, class: 'small muted', text: 'Click any component. Dashed boxes are added in later modules.' }, svg);
+  renderDetail(); renderStats();
+}
+function latOf(id) { return { orch: 'p95 4.2 s', itsm: '600 ms · 10 req/s', kb: '400 ms', provider: '429 at peak' }[id]; }
+
+function bars(title, rowsOf, limit, fmt) {
+  const sc = 700 / Math.max(total(rowsOf(false)), limit);
+  el('text', { x: 14, y: 384, class: 'hdr', text: title }, svg);
+  [[rowsOf(false), 'before review', 392], [rowsOf(true), 'after the fixes you found', 418]].forEach(([rows, lab, y]) => {
+    let x = 14; const tot = total(rows);
+    rows.forEach(r => {
+      const w = r[1] * sc; if (w < .5) return;
+      el('rect', { x, y, width: w, height: 18, fill: r[2], 'fill-opacity': .7 }, svg);
+      if (w > r[0].length * 6.4 + 6) el('text', { x: x + 4, y: y + 13, class: 'lab', fill: '#fff', text: r[0] }, svg);
+      x += w;
+    });
+    el('text', { x: Math.min(x + 6, 724), y: y + 13, class: 'lab', fill: tot > limit ? 'var(--bad)' : 'var(--ok)', text: `${fmt(tot)} ${lab}` }, svg);
+  });
+  el('line', { x1: 14 + limit * sc, y1: 388, x2: 14 + limit * sc, y2: 440, stroke: 'var(--warn)', 'stroke-width': 2, 'stroke-dasharray': '5 3' }, svg);
+}
+
+function renderDetail() {
+  const n = N[S.sel], fs = DATA.findings.map((f, i) => [f, i]).filter(([f]) => f.node === S.sel && f.lens === S.lens);
+  let h = `<h3>${n[5]}</h3><p>${n[7]}</p>`;
+  if (S.lens === 'context' || S.lens === 'latency') h += fs.length ? fs.map(([f]) => `<p class="ok-t">✓ Finding: ${f.title}</p><p>${f.text}</p>`).join('')
+    : `<p class="cmt">No ${S.lens === 'context' ? 'context-window' : 'latency'} issue here. Keep looking.</p>`;
+  const done = DATA.findings.filter((f, i) => fixed(i));
+  if (done.length) h += `<ul>${done.map(f => `<li>${f.title}</li>`).join('')}</ul>`;
+  detail.innerHTML = h;
+}
+function renderStats() {
+  const c = l => DATA.findings.filter((f, i) => f.lens === l && fixed(i)).length;
+  const ctxAfter = total(ctxRows(true)), latAfter = total(latRows(true));
+  stats.innerHTML = `<div class="stat"><b style="color:${S.found.size === 6 ? 'var(--ok)' : 'inherit'}">${S.found.size} / 6</b><span>review findings</span></div>` +
+    `<div class="stat"><b>${c('context')} / 3</b><span>context-window risks</span></div><div class="stat"><b>${c('latency')} / 3</b><span>bottlenecks</span></div>` +
+    `<div class="stat"><b>${ctxAfter.toLocaleString('en-GB')}</b><span>tokens per request after fixes</span></div>` +
+    `<div class="stat"><b style="color:${latAfter > DATA.slo ? 'var(--bad)' : 'var(--ok)'}">${(latAfter / 1000).toFixed(2)} s</b><span>p95 after fixes (SLO 3 s)</span></div>`;
+}
+
+function select(id) {
+  S.sel = id;
+  DATA.findings.forEach((f, i) => {
+    if (f.node === id && f.lens === S.lens && !S.found.has(i)) { S.found.add(i); logLine(logEl, `Finding ${S.found.size}/6: <b>${f.title}</b>`, true); }
+  });
+  render();
+  if (!DATA.findings.some(f => f.node === id && f.lens === S.lens)) logLine(logEl, `${N[id][5]}${S.lens === 'context' || S.lens === 'latency' ? ': no issue under this lens' : ''}`);
+}
+
+async function play() {
+  if (S.busy) return;
+  S.busy = true; const epoch = ++S.epoch;
+  if (S.lens !== 'flow') { S.lens = 'flow'; document.querySelectorAll('#lens button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === 'flow'))); }
+  for (let k = 0; k < DATA.flow.length; k++) {
+    S.flowStep = k; render();
+    const [a, b, txt] = DATA.flow[k], [x1, y1] = mid(a), [x2, y2] = mid(b), dot = el('circle', { r: 8, fill: 'var(--accent)' }, svg);
+    await tween(dot, x1, y1, x2, y2, 520);
+    if (epoch !== S.epoch) return;
+    logLine(logEl, `${k + 1}. ${N[a][5]} → ${N[b][5]}: ${esc(txt)}`, k === DATA.flow.length - 1);
+    await sleep(reducedMotion ? 0 : 160);
+  }
+  S.busy = false;
+}
+
+bindSeg('lens', v => { S.epoch++; S.busy = false; S.lens = v; S.flowStep = -1; render();
+  logLine(logEl, { parts: 'Lens: components', flow: 'Lens: request flow (press Play)', context: 'Lens: context-window risks: click components to find 3 issues', latency: 'Lens: bottlenecks: click components to find 3 issues' }[v], v === 'context' || v === 'latency'); });
+document.getElementById('play').onclick = play;
+document.getElementById('reset').onclick = () => { S.epoch++; S.busy = false; S.found.clear(); S.flowStep = -1; render(); logLine(logEl, 'Review reset'); };
+render();
+logLine(logEl, 'Illustrative blueprint. Click components, play the request, then switch to a review lens.');
+
+renderQuiz('quiz', [
+  { q: 'Policy says the assistant must never change a P1 incident’s priority. Where should that rule be enforced?',
+    options: ['In the system prompt: “never change P1 priority”.',
+      'In the tool contracts and the ITSM integration: v1 exposes read-only tools only (the spec forbids re-prioritising), and every call is authorised against the gateway’s identity claims.',
+      'In the output validator only.',
+      'In the model’s fine-tuning data.'],
+    answer: 1,
+    explain: 'A prompt is guidance, not a control. Put the boundary where it cannot be talked around: the tools you expose and the authorisation behind them (Module 5 adds tool gating and audit logs).' },
+  { q: 'Under “Context risks”, which single component contributes most to the 25,300-token request?',
+    options: ['The system prompt (1,200).',
+      'The user’s message (200).',
+      'Tool outputs from <code>search_kb</code> (12,000): full article bodies instead of snippets with IDs.',
+      'The tool schemas (900).'],
+    answer: 2,
+    explain: 'Tool results are context too, and often the largest part. Bounding them (snippets, <code>top_k</code>, full text on demand) cut this request to about 7,450 tokens once all three context fixes were found.' },
+  { q: 'p95 latency is 4.24 s against a 3 s SLO. Which change from the review removes the provider 429 backoff at peak?',
+    options: ['A fallback model behind the model gateway, SDK retries, and moving non-urgent work to batch so peak traffic fits the rate limit.',
+      'Increasing the context window.',
+      'Adding more few-shot examples.',
+      'Removing the output validator.'],
+    answer: 0,
+    explain: 'With the three bottleneck fixes (parallel tool calls, cached ITSM reads, a fallback route) p95 falls to about 2.64 s. Capacity and routing are architecture decisions, not prompt tweaks.' },
+  { q: 'A teammate says: “Our model has a 1M-token context window, so we can stop worrying about what we send.” What is the problem?',
+    options: ['There is none; bigger windows make budgeting obsolete.',
+      'The window only applies to output.',
+      'Context windows reset every hour.',
+      'Every token is paid for and adds latency on every call, and facts buried in long contexts are recalled less reliably. Set a per-request budget well below the maximum.'],
+    answer: 3,
+    explain: 'The review’s 32,000-token budget is a design choice, not a model limit. Engineering discipline about context pays off in cost, speed and answer quality at once.' },
+  { q: 'In the mini-project flow, the escalation goes to the Network Ops human queue. What decided that?',
+    options: ['The model chose a human at random.',
+      'The user asked for a human.',
+      'The validated <code>EscalationRecord</code> (P2, Network Ops) met rule E1 in the spec (priority P1 or P2), so code set <code>escalate = true</code> and routed it to the Network Ops L2 queue.',
+      'The gateway escalates every request.'],
+    answer: 2,
+    explain: 'Escalation is a contract, defined in the spec (Topic 4) and enforced in code after validation (Topic 2). That makes it testable: replay a ticket and assert on <code>escalate</code> and <code>escalation_target</code>, not on the wording of the reply.' }
+]);
+</script>
+</body>
+</html>

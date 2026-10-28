@@ -1,0 +1,20 @@
+From: Network Ops change manager <netops-change@corp.example>
+To: Change Advisory Board <cab@corp.example>
+Subject: [RFC] CHG-20931 Firmware upgrade on the EU VPN gateways
+
+Hello CAB,
+
+Please review normal change CHG-20931: upgrade the firmware on both EU remote-access
+gateways (vpn-gateway-eu-01 and vpn-gateway-eu-02) from 7.3.9 to 7.4.2. The new
+firmware fixes the credential-cache defect behind the recent VPN password tickets.
+
+Requested by: Network Ops
+Region: EU
+Risk: high. Every remote worker in the EU connects through these two gateways.
+Implementation window: Saturday 7 November 2026, 22:00 to 02:00 CET (UTC+01:00), ending Sunday 8 November.
+Rollback: re-flash 7.3.9 from the staged image on each gateway; about 20 minutes per gateway.
+
+CAB approval is required before we proceed.
+
+Thanks,
+Network Ops change manager

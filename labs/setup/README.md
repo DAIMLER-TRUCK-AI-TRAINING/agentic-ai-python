@@ -14,22 +14,30 @@ you what is missing.
 | [`.env.example`](.env.example) | The environment variables the labs read: names only, no values |
 | [`check_env.py`](check_env.py) | Prints a ✅ / ⚠️ / ❌ table of Python, packages, keys, Tesseract, Redis and local models |
 | [`prefetch_models.py`](prefetch_models.py) | Downloads the open models the labs run locally (about 830 MB for Module 1) |
-| [`llm.py`](llm.py) | Provider factory used from Module 3 on: `get_chat_model()`, `get_client()`, `get_model_name()` |
+| [`llm.py`](llm.py) | Provider factory used from Module 2 Lab 04 on: `get_chat_model()`, `get_client()`, `get_model_name()` |
 
 ---
 
-## 1. Python 3.12+ and the course venv
+## 1. Python 3.12 or 3.13 and the course venv
 
 ```bash
 # (terminal) - from the repo root
-python3 --version                  # 3.12 or newer
-python3 -m venv .venv
+python3.13 --version               # 3.12.x or 3.13.x (use python3.12 if that is what you have)
+python3.13 -m venv .venv           # name the version: plain `python3` may be 3.14
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python --version                   # confirm the venv is 3.12 or 3.13
 python -m pip install --upgrade pip
 pip install -r labs/setup/requirements.txt
 ```
 
 The install pulls PyTorch, so expect a few minutes and roughly 2 GB on disk.
+
+> **Why not Python 3.14.** `guardrails-ai` (Module 5) declares
+> `Requires-Python <3.14`, so on 3.14 pip skips it and stops with
+> `No matching distribution found for guardrails-ai==0.11.0`. Older
+> `guardrails-ai` releases do install on 3.14, but they pin `click<=8.2.0`,
+> which conflicts with `huggingface-hub` 1.x (`click>=8.4.2`). Use 3.12 or 3.13
+> until `guardrails-ai` supports 3.14.
 
 > **Why two SDKs are pinned below their newest major version.** `openai` is
 > held on 2.x because `llama-index-llms-openai` and `guardrails-ai` still
@@ -75,7 +83,7 @@ IDs as they are unless your instructor says otherwise:
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | (provided) | Every lab |
 | `OPENAI_MODEL` / `ANTHROPIC_MODEL` | `gpt-6.1-sol` / `claude-opus-5-5` | Every lab |
 | `OPENAI_SMALL_MODEL` / `ANTHROPIC_SMALL_MODEL` | `gpt-6-luna` / `claude-haiku-5-5` | Module 1 Lab 01 (temperature sweep), Lab 03 (tier comparison), later routing labs |
-| `LLM_PROVIDER` | `openai` | Phase 2 labs through `llm.py` |
+| `LLM_PROVIDER` | `openai` | Module 2 Labs 04–05 and Phase 2 labs, through `llm.py` |
 | `LANGSMITH_*`, `LANGFUSE_*`, `TAVILY_API_KEY`, `REDIS_URL` | empty | Modules 2–5; each lab has a fallback |
 | `AZURE_VISION_*` | empty | Instructor only (Module 1 cloud OCR demo) |
 
@@ -97,6 +105,7 @@ Transformers models (Lab 02) into the standard Hugging Face cache, plus the
 ```bash
 # (terminal) - from the repo root, venv active
 python labs/setup/check_env.py --module 1   # before Module 1
+python labs/setup/check_env.py --module 2   # before Module 2
 python labs/setup/check_env.py              # the whole course
 ```
 
@@ -124,9 +133,9 @@ python labs/setup/check_env.py              # the whole course
 Fix every ❌ row before the lab. A ⚠️ row has a fallback, and the lab tells
 you what changes.
 
-## Using `llm.py` (Phase 2)
+## Using `llm.py` (Module 2 Lab 04 onwards)
 
-From Module 3 on, notebooks pick the provider from `LLM_PROVIDER`:
+From Module 2 Lab 04 on, notebooks pick the provider from `LLM_PROVIDER`:
 
 ```python
 # (notebook) - from labs/module-NN/notebooks
@@ -144,7 +153,8 @@ a key or model ID is missing.
 
 | Symptom | Likely cause | Fix |
 | ------- | ------------ | --- |
-| `❌ Python 3.11…` | The venv was created with an older interpreter | Delete `.venv`, recreate it with `python3.12 -m venv .venv` |
+| `❌ Python 3.11…` or `❌ Python 3.14…` | The venv was created with an unsupported interpreter | Delete `.venv`, recreate it with `python3.13 -m venv .venv` (or `python3.12`) |
+| `No matching distribution found for guardrails-ai` | The venv is Python 3.14, which `guardrails-ai` does not support yet | Same fix: recreate the venv on 3.12 or 3.13 |
 | `ResolutionImpossible` during `pip install` | An older pip, or another package installed into the venv first | `python -m pip install --upgrade pip`, then install into a fresh venv |
 | `TesseractNotFoundError` | The binary is not on `PATH` | Install it (section 3), then restart the Jupyter kernel |
 | `❌ .env missing` | The template was not copied | `cp labs/setup/.env.example .env` from the repo root |

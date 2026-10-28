@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic AI Module 2 Visualizations</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .topics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 24px; }
+  .topic { display: block; text-decoration: none; color: var(--text); transition: border-color .15s, transform .15s; }
+  .topic:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .topic .num { font-family: var(--mono); color: var(--accent); font-size: 13px; font-weight: 600; }
+  .topic h3 { margin: 6px 0; }
+  .topic p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+  .topic .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  ol.hands { margin: 0; padding-left: 20px; }
+  ol.hands li + li { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span>Agentic AI Systems Engineering</span>
+    <div class="nav"><a href="../module-01/index.html">← Module 1</a><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Module 2 · Phase 1 · 10 hours</div>
+  <h1>Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</h1>
+  <p class="lede">Interactive visualizations for each Module 2 topic. Each page has a hands-on simulation you can
+    play with, followed by a 5-question self-quiz with explanations. All data is illustrative; nothing calls a live model.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0"><b style="color:var(--text)">Objective:</b>
+    Design and build single- and multi-agent AI systems using OpenAI SDK and Anthropic Claude SDK with LangChain.</p>
+
+  <div class="topics">
+    <a class="card topic" href="01-prompt-engineering-techniques.html">
+      <div class="num">01</div><h3>Prompt engineering: techniques, templates &amp; debugging</h3>
+      <p>Switch one triage prompt between zero-shot, few-shot and chain-of-thought on ten labelled tickets, compare accuracy against the monthly bill, then plant three template bugs and debug them from the symptoms.</p>
+      <div class="tags"><span class="pill">toggle</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="02-structured-outputs.html">
+      <div class="num">02</div><h3>Structured outputs</h3>
+      <p>Build the change-request schema field by field, switch strict mode on and off, and push five model outputs through the parse, schema and business-rule gates to find the one that is valid JSON and still wrong.</p>
+      <div class="tags"><span class="pill">builder</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="03-openai-claude-sdks.html">
+      <div class="num">03</div><h3>OpenAI SDK and Claude SDK, side by side</h3>
+      <p>Step one tool-calling round trip through the OpenAI Responses API and the Claude Messages API, inspect every payload, break a tool, and replay the final answer as raw streaming events.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="04-agent-skills-openspec.html">
+      <div class="num">04</div><h3>Agent Skills &amp; OpenSpec agent design</h3>
+      <p>Turn a pasted triage prompt into a Skill folder and watch progressive disclosure shrink the context bill, then complete a half-written agent spec until the review finds no gaps.</p>
+      <div class="tags"><span class="pill">builder</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="05-cost-observability-basics.html">
+      <div class="num">05</div><h3>Cost optimisation &amp; observability basics</h3>
+      <p>Run one assistant request as a trace waterfall, pull the caching, batching, trimming and routing levers against the monthly bill and the eval score, then inject a 429, a tool timeout and invalid JSON.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="06-langchain-agents-tools.html">
+      <div class="num">06</div><h3>LangChain architecture &amp; tool integration</h3>
+      <p>Send three operations questions through a fixed LCEL chain and through a <code>create_agent</code> loop with search, SQL and code tools, then switch web search from offline snapshots to Tavily and enable code execution to see what changes.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="07-memory-context-sessions.html">
+      <div class="num">07</div><h3>Memory, context &amp; session management</h3>
+      <p>Play a ten-turn support conversation under buffer, window and summary memory, track the tokens and the facts each one keeps, then share a thread ID between two users and watch a session leak.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="08-agent-architecture-blueprint.html">
+      <div class="num">08</div><h3>Agent architecture blueprint</h3>
+      <p>Explore the Enterprise Operations Assistant component by component, trace the mini-project request flow, and run an architecture review that hunts for context-window risks and bottlenecks.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+  </div>
+
+  <h2>Hands-on for this module</h2>
+  <div class="card">
+    <ol class="hands">
+      <li>Prompt optimisation lab: zero-shot vs few-shot vs CoT on IT support-ticket triage, tested on OpenAI and Claude <span class="pill">45 min</span></li>
+      <li>Structured output generation: JSON schema enforcement on document extraction, OpenAI + Claude <span class="pill">30 min</span></li>
+      <li>Build AI assistant with OpenAI SDK: function calling + streaming <span class="pill">30 min</span></li>
+      <li>Rebuild the assistant with Anthropic Claude SDK: tool use + streaming — compare API design <span class="pill">30 min</span></li>
+      <li>Agent Skills walkthrough: convert a repeated prompting pattern into a reusable Skill <span class="pill">20 min</span></li>
+      <li>OpenSpec walkthrough: complete a partially-filled agent spec for an IT ops use case as a team <span class="pill">30 min</span></li>
+      <li>Build tool-enabled LangChain agent: web search + DB query + summarisation, provider-configurable <span class="pill">60 min</span></li>
+      <li>Memory comparison: buffer vs summary memory on multi-turn support scenario <span class="pill">40 min</span></li>
+      <li>Mini-Project — Enterprise Operations Assistant: incident triage → knowledge lookup → structured escalation output <span class="pill">60 min</span></li>
+      <li>Architecture review: identify context-window risks and bottlenecks <span class="pill">15 min</span></li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

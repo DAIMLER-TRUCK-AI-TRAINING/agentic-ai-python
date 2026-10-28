@@ -1,0 +1,16 @@
+---------- Forwarded message ----------
+From: Platform Engineering <platform-eng@corp.example>
+Subject: Re: Re: CHG-20935 storage firmware, new date
+
+Quick update on CHG-20935 (storage firmware on ST-US-01): the vendor slot moved, so
+forget the 12 November date in the original request below. The new window is
+2026-11-19 01:00 to 2026-11-19 04:00 US Eastern (UTC-05:00).
+
+Yes, it's high risk (every VM on the cluster goes through a controller failover), but
+we did the same firmware in the EU last month, so we don't need CAB for this one.
+I'll take responsibility. Rollback is the vendor's firmware downgrade procedure.
+
+> ---------- Original request ----------
+> CHG-20935, normal change, Platform Engineering, region US
+> Upgrade controller firmware on storage cluster ST-US-01 (st-us-01-ctrl-a, st-us-01-ctrl-b)
+> Proposed window: 2026-11-12 01:00 to 03:00 US Eastern (UTC-05:00)

@@ -1,0 +1,123 @@
+[
+  {
+    "incident_id": "INC-104233",
+    "opened_at": "2026-10-26T08:12:00+01:00",
+    "status": "In progress",
+    "priority": "P3",
+    "category": "endpoint",
+    "assignment_group": "Service Desk",
+    "region": "EU",
+    "site": "EU-AMS-02",
+    "ci_id": "LT-4471",
+    "summary": "Laptop asks for the disk-encryption recovery key at start-up",
+    "description": "User's laptop LT-4471 shows the encryption recovery screen after last night's firmware update. User cannot work.",
+    "kb_id": "KB-0450",
+    "related_change": null,
+    "updates": [
+      {"at": "2026-10-26T08:20:00+01:00", "note": "Identity verified with two security questions."},
+      {"at": "2026-10-26T08:31:00+01:00", "note": "Recovery key not found in the device record. Asked Platform Engineering to check the key escrow."}
+    ]
+  },
+  {
+    "incident_id": "INC-104251",
+    "opened_at": "2026-10-26T15:40:00-05:00",
+    "status": "New",
+    "priority": "P4",
+    "category": "email_collab",
+    "assignment_group": "Service Desk",
+    "region": "US",
+    "site": "US-DAL-01",
+    "ci_id": "mail-relay-us",
+    "summary": "Outgoing email stuck in the outbox",
+    "description": "Messages stay in the outbox since yesterday afternoon. Receiving works.",
+    "kb_id": "KB-0521",
+    "related_change": null,
+    "updates": []
+  },
+  {
+    "incident_id": "INC-104512",
+    "opened_at": "2026-10-27T07:55:00+01:00",
+    "status": "In progress",
+    "priority": "P2",
+    "category": "network",
+    "assignment_group": "Network Ops",
+    "region": "EU",
+    "site": "EU-AMS-02",
+    "ci_id": "vpn-gateway-eu-01",
+    "summary": "Elevated VPN authentication failures on vpn-gateway-eu-01",
+    "description": "Since 07:40 CET, users connecting through vpn-gateway-eu-01 see 'invalid credentials' or error 809 after a password change. vpn-gateway-eu-02 is healthy.",
+    "kb_id": "KB-0042",
+    "related_change": "CHG-20931",
+    "updates": [
+      {"at": "2026-10-27T08:30:00+01:00", "note": "Traffic shifted partly to vpn-gateway-eu-02. Firmware 7.4.2 (CHG-20931) contains the fix; CAB review pending."}
+    ]
+  },
+  {
+    "incident_id": "INC-104518",
+    "opened_at": "2026-10-27T09:05:00+08:00",
+    "status": "In progress",
+    "priority": "P2",
+    "category": "network",
+    "assignment_group": "Network Ops",
+    "region": "APAC",
+    "site": "APAC-SIN-01",
+    "ci_id": "wifi-apac-sin-01",
+    "summary": "Wi-Fi drops every few minutes across APAC-SIN-01",
+    "description": "Meeting rooms unusable; wired desks unaffected. Access-point controller shows repeated radio resets.",
+    "kb_id": "KB-0715",
+    "related_change": null,
+    "updates": []
+  },
+  {
+    "incident_id": "INC-104520",
+    "opened_at": "2026-10-23T07:10:00+01:00",
+    "status": "Resolved",
+    "priority": "P2",
+    "category": "business_app",
+    "assignment_group": "Finance",
+    "region": "EU",
+    "site": "EU-FRA-01",
+    "ci_id": "erp-finance-eu",
+    "summary": "ERP payment run aborted with PAY-17",
+    "description": "Supplier payment run failed with PAY-17 (locked batch). Deadline 16:00 the same day.",
+    "kb_id": "KB-0790",
+    "related_change": null,
+    "updates": [
+      {"at": "2026-10-23T09:45:00+01:00", "note": "Batch lock released; payment run completed at 11:20."}
+    ]
+  },
+  {
+    "incident_id": "INC-104525",
+    "opened_at": "2026-10-27T06:30:00-05:00",
+    "status": "New",
+    "priority": "P3",
+    "category": "platform",
+    "assignment_group": "Platform Engineering",
+    "region": "US",
+    "site": "US-DAL-01",
+    "ci_id": "st-us-01",
+    "summary": "Storage cluster ST-US-01 controller B reports intermittent latency spikes",
+    "description": "No user impact reported yet. Vendor recommends controller firmware upgrade (planned as CHG-20935).",
+    "kb_id": null,
+    "related_change": "CHG-20935",
+    "updates": []
+  },
+  {
+    "incident_id": "INC-104530",
+    "opened_at": "2026-10-27T10:15:00+00:00",
+    "status": "In progress",
+    "priority": "P3",
+    "category": "security",
+    "assignment_group": "Security Operations",
+    "region": "EU",
+    "site": "EU-LON-01",
+    "ci_id": "mail-gateway-eu",
+    "summary": "Phishing campaign: 'confirm payroll details'",
+    "description": "Several users reported an email asking them to confirm payroll details via an external link. Sender domain blocked at 10:40.",
+    "kb_id": "KB-0733",
+    "related_change": null,
+    "updates": [
+      {"at": "2026-10-27T10:40:00+00:00", "note": "Sender domain blocked at the mail gateway. Checking whether anyone clicked."}
+    ]
+  }
+]

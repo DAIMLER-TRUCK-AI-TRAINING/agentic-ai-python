@@ -1,0 +1,53 @@
+{
+  "_note": "Synthetic pages for the offline mock search tool. Every vendor, product and URL here is fictional (the .example domain is reserved for documentation).",
+  "pages": [
+    {
+      "url": "https://support.synthgate.example/advisories/SG-2026-031",
+      "title": "SG-2026-031: SynthGate VPN 7.3.x gateways reject new passwords until the credential cache expires",
+      "published": "2026-10-02",
+      "content": "Affected: SynthGate VPN gateway firmware 7.3.0 to 7.3.9. After a directory password change, the gateway can keep validating against a cached credential for up to 60 minutes and clients report 'invalid credentials' or error 809. Fixed in firmware 7.4.2. Workaround: clear the gateway credential cache or route users to a gateway that has already synchronised."
+    },
+    {
+      "url": "https://support.synthgate.example/release-notes/client-7-4-1",
+      "title": "SynthGate VPN client 7.4.1 release notes",
+      "published": "2026-10-20",
+      "content": "Client 7.4.1 changes the keep-alive interval to 600 seconds. Some networks with aggressive idle timeouts drop the tunnel every 10 to 15 minutes; set keep-alive to 120 seconds in the client profile. Client 7.4.1 does not change credential handling."
+    },
+    {
+      "url": "https://status.synthgate.example/incidents/2026-10-27",
+      "title": "SynthGate cloud licence service: no current incidents",
+      "published": "2026-10-27",
+      "content": "All SynthGate cloud services are operational. On-premises gateways are not covered by this status page."
+    },
+    {
+      "url": "https://kb.synthair.example/articles/SA-1182",
+      "title": "SynthAir access points: radio resets every few minutes on firmware 9.1.0",
+      "published": "2026-09-28",
+      "content": "SynthAir access points on firmware 9.1.0 can reset their 5 GHz radio every 3 to 8 minutes when band steering is enabled. Clients drop and reconnect. Fixed in 9.1.2. Workaround: disable band steering on the controller."
+    },
+    {
+      "url": "https://docs.synthledger.example/erp/errors/PAY-17",
+      "title": "SynthLedger ERP error PAY-17: payment batch locked",
+      "published": "2026-03-11",
+      "content": "PAY-17 means the payment batch is locked by another session or a failed previous run. Release the lock from the batch monitor before re-running. Running the batch twice can create duplicate payments."
+    },
+    {
+      "url": "https://support.synthstor.example/bulletins/SS-2026-07",
+      "title": "SynthStor controller firmware 5.2: latency spikes during background scrubbing",
+      "published": "2026-08-19",
+      "content": "Controllers on firmware 5.1.x show intermittent latency spikes while background scrubbing runs. Upgrade to 5.2.3. The upgrade performs a controller failover; plan a maintenance window."
+    },
+    {
+      "url": "https://security-news.example/2026/10/payroll-phishing-wave",
+      "title": "Payroll-themed phishing wave targets European employers",
+      "published": "2026-10-25",
+      "content": "A phishing campaign asks employees to 'confirm payroll details' on look-alike portals and harvests passwords and MFA codes. Reset the passwords of anyone who entered credentials and revoke their active sessions."
+    },
+    {
+      "url": "https://community.synthgate.example/threads/809-after-update",
+      "title": "Forum: error 809 after the October update?",
+      "published": "2026-10-21",
+      "content": "Several users report error 809 after upgrading to client 7.4.1. Replies suggest it is the gateway credential cache issue (SG-2026-031), not the client. Unverified community content."
+    }
+  ]
+}

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAI and Claude SDKs</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #answer { font-size: 15px; min-height: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>3 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 3</div>
+  <h1>One tool-calling round trip, two wire formats</h1>
+  <p class="lede">Tool calling is an RPC contract: the model asks for a call, <em>your</em> code runs it, and you send the result back.
+    The OpenAI Responses API and the Claude Messages API agree on that loop but disagree on almost every field name. Step through
+    the Lab 02 request “Is the EU VPN gateway healthy, and which KB article applies?”, flip the provider at any step to compare payloads, then make
+    <code>search_kb</code> time out and watch how each API carries the error.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">OpenAI Responses API</button>
+        <button data-v="claude" aria-pressed="false">Claude Messages API</button>
+      </div>
+      <button class="primary" id="step">Step ▶</button>
+      <button id="runAll">Run all</button>
+      <button class="toggle" id="fault" aria-pressed="false">search_kb times out: off</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 310" role="img" aria-label="Sequence of requests and responses between your code, the provider API and your tools"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="pane-title" id="paneTitle">Payload</div>
+    <pre class="pane" id="pane" aria-label="Request, response or stream payload"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Field by field</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Concept</th><th>OpenAI Responses API</th><th>Anthropic Messages API</th></tr></thead>
+      <tbody>
+        <tr><td>Call</td><td><code>client.responses.create(model=…, instructions=…, input=…, tools=…)</code></td><td><code>client.messages.create(model=…, max_tokens=…, system=…, messages=…, tools=…)</code></td></tr>
+        <tr><td>Model selection</td><td><code>model=os.environ["OPENAI_MODEL"]</code> (or <code>OPENAI_SMALL_MODEL</code> for cheap routes); depth via <code>reasoning={"effort": …}</code></td><td><code>model=os.environ["ANTHROPIC_MODEL"]</code> (or <code>ANTHROPIC_SMALL_MODEL</code>); depth via <code>output_config={"effort": …}</code></td></tr>
+        <tr><td>Output limit</td><td><code>max_output_tokens</code>, optional</td><td><code>max_tokens</code>, required</td></tr>
+        <tr><td>Tool definition</td><td><code>{"type": "function", "name", "description", "parameters", "strict"}</code></td><td><code>{"name", "description", "input_schema"}</code>, optional <code>"strict"</code></td></tr>
+        <tr><td>The model asks for a call</td><td>A <code>function_call</code> output item; <code>arguments</code> is a JSON <em>string</em></td><td>A <code>tool_use</code> content block; <code>input</code> is an object; <code>stop_reason: "tool_use"</code></td></tr>
+        <tr><td>Linking result to call</td><td><code>call_id</code></td><td><code>tool_use_id</code> ← the block’s <code>id</code></td></tr>
+        <tr><td>Returning results</td><td>One <code>function_call_output</code> item per call</td><td>All <code>tool_result</code> blocks in the next <code>user</code> message</td></tr>
+        <tr><td>Tool errors</td><td>Describe the error in <code>output</code></td><td><code>"is_error": true</code> on the <code>tool_result</code></td></tr>
+        <tr><td>Reasoning to carry forward</td><td><code>reasoning</code> items: append the whole <code>response.output</code>, or chain with <code>previous_response_id</code></td><td><code>thinking</code> blocks: append <code>msg.content</code> unchanged</td></tr>
+        <tr><td>Choosing tools</td><td><code>tool_choice</code>: <code>"auto"</code>, <code>"required"</code>, <code>"none"</code> or a named function; <code>parallel_tool_calls</code></td><td><code>tool_choice</code>: <code>{"type": "auto" | "any" | "tool" | "none"}</code></td></tr>
+        <tr><td>Streaming helper</td><td><code>with client.responses.stream(…) as s:</code> … <code>s.get_final_response()</code></td><td><code>with client.messages.stream(…) as s:</code> <code>s.text_stream</code> … <code>s.get_final_message()</code></td></tr>
+        <tr><td>Text events</td><td><code>response.output_text.delta</code></td><td><code>content_block_delta</code> with <code>text_delta</code></td></tr>
+        <tr><td>Tool-argument events</td><td><code>response.function_call_arguments.delta</code> / <code>.done</code></td><td><code>content_block_delta</code> with <code>input_json_delta</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Outline vs current API:</b> the outline says “OpenAI SDK … function calling”. This course uses the
+    Responses API as the primary path. Much existing code still uses Chat Completions, where tools are
+    <code>{"type": "function", "function": {…}}</code>, calls arrive in <code>message.tool_calls</code>, and results go back as
+    <code>role: "tool"</code> messages. The loop is identical; only the field names change.</div>
+  <div class="callout warn"><b>Common trap:</b> passing model-chosen arguments straight to a system of record. A strict schema
+    guarantees the shape of <code>{"service": …}</code>, not that this user may query that system. Validate, authorise and
+    log every call in your own code, the same way you would for any untrusted RPC input (Module 5, tool gating).</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="02-structured-outputs.html"><small>← Previous</small>Structured outputs</a>
+    <a class="next" href="04-agent-skills-openspec.html"><small>Next →</small>Agent Skills &amp; OpenSpec agent design</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative payloads (course-map §8.3) for the Lab 02 request and tools (labs/module-02/ops_assistant/tools.py).
+// Shapes follow the OpenAI Responses API and the Claude Messages API;
+// IDs, token counts and text are representative, not recorded. Model IDs come from OPENAI_MODEL / ANTHROPIC_MODEL.
+const SYS = 'You are the Service Desk assistant. Use the tools, cite only KB IDs that search_kb returns, never invent status data.';
+const USER = 'Users at EU-AMS-02 report VPN error 809 after changing their passwords. Is the EU VPN gateway healthy, and which KB article applies?';
+const STATUS = [{ ci_id: 'vpn-gateway-eu-01', service: 'VPN', name: 'EU VPN gateway 01', owner_team: 'Network Ops', region: 'EU', status: 'degraded', note: 'Elevated authentication failures since 07:40 CET. See INC-104512.' }];
+const KB = [{ kb_id: 'KB-0042', title: 'VPN client rejects credentials after a password change', summary: 'After a password change the VPN client keeps offering the cached old password…', escalation: 'Network Ops L2 if still failing after 30 minutes, or more than five users at one site within an hour', score: 0.91 }];
+const ERR = 'search_kb timed out after 5 s';
+const PARAMS = {
+  get_service_status: { type: 'object', properties: { service: { type: 'string', description: "A CI ID such as 'vpn-gateway-eu-01' or a service name such as 'VPN'" } }, required: ['service'], additionalProperties: false },
+  search_kb: { type: 'object', properties: { query: { type: 'string' }, max_results: { type: 'integer' } }, required: ['query', 'max_results'], additionalProperties: false }
+};
+const DESC = { get_service_status: 'Current status of a service or configuration item.', search_kb: 'Search the IT knowledge base by problem description. Cite only IDs returned here.' };
+const DATA = {
+  answer: 'vpn-gateway-eu-01 is degraded: elevated authentication failures since 07:40 CET (INC-104512). KB-0042 applies: wait for directory sync, clear the saved credential and reconnect; escalate to Network Ops L2 if more than five users at the site are affected.',
+  answerErr: 'vpn-gateway-eu-01 is degraded: elevated authentication failures since 07:40 CET (INC-104512). I could not search the knowledge base (it timed out), so I cite no article. Escalate to Network Ops L2.',
+  steps: [['Your code', 'API', 'request 1 + tools'], ['API', 'Your code', 'tool calls'], ['Your code', 'Tools', 'run both calls'],
+          ['Tools', 'Your code', 'results'], ['Your code', 'API', 'request 2 + results'], ['API', 'Your code', 'streamed answer']],
+  openai: {
+    ids: ['call_Qx81', 'call_Rm27'], usage: [[299, 148], [818, 143]], ttft: 0.42,
+    label: ['responses.create(tools=[…])', 'output: reasoning + 2 × function_call', '', '', 'input += output + 2 × function_call_output', 'response.output_text.delta × n'],
+    note: ['Tools use <code>parameters</code> inside <code>{"type": "function"}</code>. <code>max_output_tokens</code> is optional.',
+      'Each call is its own output item. <code>arguments</code> is a JSON <em>string</em>: <code>json.loads</code> it, then validate it. The reasoning item must travel back with the results.',
+      'Dispatch on <code>item.name</code>. The two calls are independent, so run them in parallel.',
+      'Tool results are your data. Keep them small and strip anything this user should not see.',
+      'Append the whole <code>response.output</code> (reasoning included), then one <code>function_call_output</code> per <code>call_id</code>. Alternatively pass <code>previous_response_id</code>.',
+      'Text arrives as <code>response.output_text.delta</code> events; <code>response.completed</code> carries the usage.']
+  },
+  claude: {
+    ids: ['toolu_01A9', 'toolu_01B4'], usage: [[331, 162], [874, 151]], ttft: 0.47,
+    label: ['messages.create(tools=[…])', 'stop_reason: tool_use · 2 × tool_use', '', '', 'assistant content + user [2 × tool_result]', 'content_block_delta (text_delta) × n'],
+    note: ['Tools use <code>input_schema</code>, with no <code>type</code> wrapper. <code>max_tokens</code> is required.',
+      'Calls are <code>tool_use</code> blocks inside one assistant message, and <code>input</code> is already an object. <code>stop_reason: "tool_use"</code> tells your loop to act. Current models also return a <code>thinking</code> block (text omitted by default).',
+      'Dispatch on <code>block.name</code>, run both calls, and keep each <code>block.id</code>.',
+      'Tool results are your data. Keep them small and strip anything this user should not see.',
+      'Append the assistant <code>content</code> unchanged (thinking included), then <b>one</b> user message holding every <code>tool_result</code>, matched by <code>tool_use_id</code>.',
+      'Text arrives as <code>content_block_delta</code> events with <code>text_delta</code>; <code>message_delta</code> carries <code>stop_reason</code> and usage.']
+  }
+};
+
+const S = { prov: 'openai', step: -1, fault: false, busy: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), pane = document.getElementById('pane');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const LANE = { 'Your code': 130, API: 450, Tools: 770 }, Y = i => 84 + i * 37;
+const P = () => DATA[S.prov];
+const kbOut = () => S.fault ? { error: ERR } : KB;
+const NAMES = ['get_service_status', 'search_kb'];
+
+function payload(i) {
+  const o = S.prov === 'openai', [a, b] = P().ids;
+  const tools = o ? NAMES.map(n => ({ type: 'function', name: n, description: DESC[n], parameters: PARAMS[n], strict: true }))
+                  : NAMES.map(n => ({ name: n, description: DESC[n], input_schema: PARAMS[n] }));
+  const req1 = o ? { model: '<OPENAI_MODEL>', instructions: SYS, input: [{ role: 'user', content: USER }], tools }
+                 : { model: '<ANTHROPIC_MODEL>', max_tokens: 2048, system: SYS, messages: [{ role: 'user', content: USER }], tools };
+  if (i === 0) return [req1, o ? ['instructions', 'tools', 'parameters'] : ['system', 'max_tokens', 'tools', 'input_schema']];
+  if (i === 1) return o ? [{ id: 'resp_68f2c…', status: 'completed', output: [
+      { type: 'reasoning', id: 'rs_68f2c…', summary: [] },
+      { type: 'function_call', id: 'fc_01…', call_id: a, name: 'get_service_status', arguments: '{"service":"vpn-gateway-eu-01"}', status: 'completed' },
+      { type: 'function_call', id: 'fc_02…', call_id: b, name: 'search_kb', arguments: '{"query":"VPN error 809 after password change","max_results":3}', status: 'completed' }],
+      usage: { input_tokens: P().usage[0][0], output_tokens: P().usage[0][1], output_tokens_details: { reasoning_tokens: 21 } } }, ['call_id', 'arguments']]
+    : [{ id: 'msg_01X…', type: 'message', role: 'assistant', stop_reason: 'tool_use', content: [
+      { type: 'thinking', thinking: '', signature: 'EqQBCkgI…' },
+      { type: 'tool_use', id: a, name: 'get_service_status', input: { service: 'vpn-gateway-eu-01' } },
+      { type: 'tool_use', id: b, name: 'search_kb', input: { query: 'VPN error 809 after password change', max_results: 3 } }],
+      usage: { input_tokens: P().usage[0][0], output_tokens: P().usage[0][1] } }, ['stop_reason', 'id', 'input']];
+  if (i === 2) return [o ? '# your code\nfor item in resp.output:\n    if item.type == "function_call":\n        args = json.loads(item.arguments)      # a JSON string\n        results[item.call_id] = TOOLS[item.name](**args)'
+    : '# your code\nfor block in msg.content:\n    if block.type == "tool_use":\n        results[block.id] = TOOLS[block.name](**block.input)   # already a dict', []];
+  if (i === 3) return [{ get_service_status: STATUS, search_kb: kbOut() }, S.fault ? ['error'] : []];
+  if (i === 4) return o ? [{ model: '<OPENAI_MODEL>', instructions: SYS, tools: '…same tools…', input: [{ role: 'user', content: USER },
+      '«resp.output: reasoning + 2 function_call items, unchanged»',
+      { type: 'function_call_output', call_id: a, output: JSON.stringify(STATUS) },
+      { type: 'function_call_output', call_id: b, output: JSON.stringify(kbOut()) }] }, ['call_id', 'output']]
+    : [{ model: '<ANTHROPIC_MODEL>', max_tokens: 2048, system: SYS, tools: '…same tools…', messages: [{ role: 'user', content: USER },
+      { role: 'assistant', content: '«msg.content: thinking + 2 tool_use blocks, unchanged»' },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: a, content: JSON.stringify(STATUS) },
+        Object.assign({ type: 'tool_result', tool_use_id: b, content: S.fault ? ERR : JSON.stringify(KB) }, S.fault ? { is_error: true } : {})] }] },
+      ['tool_use_id', 'is_error']];
+  return [null, []];
+}
+
+function events() {
+  const words = (S.fault ? DATA.answerErr : DATA.answer).match(/\S+\s*/g), [ti, to] = P().usage[1];
+  const chunks = []; for (let k = 0; k < words.length; k += 4) chunks.push(words.slice(k, k + 4).join(''));
+  if (S.prov === 'openai') return [['response.created', '{"status": "in_progress"}'], ['response.output_item.added', '{"type": "reasoning"}'], ['response.output_item.done', '{"type": "reasoning"}'],
+    ['response.output_item.added', '{"type": "message"}'], ['response.content_part.added', '{"type": "output_text"}'],
+    ...chunks.map(c => ['response.output_text.delta', JSON.stringify({ delta: c }), c]),
+    ['response.output_text.done', '{…}'], ['response.output_item.done', '{"type": "message"}'],
+    ['response.completed', JSON.stringify({ usage: { input_tokens: ti, output_tokens: to } })]];
+  return [['message_start', '{"message": {"role": "assistant", …}}'], ['ping', '{}'], ['content_block_start', '{"index": 0, "content_block": {"type": "thinking"}}'],
+    ['content_block_delta', '{"index": 0, "delta": {"type": "signature_delta", …}}'], ['content_block_stop', '{"index": 0}'],
+    ['content_block_start', '{"index": 1, "content_block": {"type": "text"}}'],
+    ...chunks.map(c => ['content_block_delta', JSON.stringify({ index: 1, delta: { type: 'text_delta', text: c } }), c]),
+    ['content_block_stop', '{"index": 1}'], ['message_delta', JSON.stringify({ delta: { stop_reason: 'end_turn' }, usage: { output_tokens: to } })], ['message_stop', '{}']];
+}
+
+function render() {
+  svg.innerHTML = '';
+  Object.entries(LANE).forEach(([name, x]) => {
+    const c = name === 'API' ? 'var(--p3)' : name === 'Tools' ? 'var(--p1)' : 'var(--p0)';
+    el('rect', { x: x - 110, y: 10, width: 220, height: 38, rx: 8, fill: c, 'fill-opacity': .14, stroke: c, 'stroke-width': 1.5 }, svg);
+    el('text', { x, y: 34, 'text-anchor': 'middle', class: 'hdr', text: name === 'API' ? (S.prov === 'openai' ? 'OpenAI API + model' : 'Claude API + model') : name === 'Tools' ? 'Your tools' : 'Your code' }, svg);
+    el('line', { x1: x, y1: 48, x2: x, y2: 300, stroke: 'var(--border)', 'stroke-dasharray': '4 4' }, svg);
+  });
+  DATA.steps.forEach(([from, to, txt], i) => {
+    if (i > S.step) return;
+    const x1 = LANE[from], x2 = LANE[to], y = Y(i), dir = x2 > x1 ? 1 : -1, cur = i === S.step;
+    const err = S.fault && i === 3, c = err ? 'var(--bad)' : cur ? 'var(--accent)' : 'var(--muted)';
+    el('line', { x1, y1: y, x2: x2 - dir * 8, y2: y, stroke: c, 'stroke-width': cur ? 2.5 : 1.5 }, svg);
+    el('path', { d: `M${x2} ${y} l${-dir * 9} -5 v10 z`, fill: c }, svg);
+    const lbl = P().label[i] || txt + (err ? ' (search_kb error)' : '');
+    el('text', { x: (x1 + x2) / 2, y: y - 7, 'text-anchor': 'middle', class: 'lab', fill: cur ? 'var(--text)' : 'var(--muted)', style: cur ? 'font-weight:700' : '', text: `${i + 1}. ${lbl}` }, svg);
+  });
+  if (S.step < 0) el('text', { x: 450, y: 170, 'text-anchor': 'middle', class: 'small muted', text: 'Press Step ▶ to send the first request' }, svg);
+  renderPanels();
+}
+
+function renderPanels() {
+  const i = S.step, done = Math.max(0, i + 1);
+  document.getElementById('paneTitle').textContent = i < 0 ? 'Payload' : i === 5 ? `Step 6 · raw stream events (${S.prov === 'openai' ? 'OpenAI' : 'Claude'})` : `Step ${i + 1} · ${DATA.steps[i][2]}`;
+  if (i < 0) { pane.innerHTML = '<span class="cmt"># nothing sent yet</span>'; detail.innerHTML = '<h3>Two lanes you own, one you rent</h3><p>Your code and your tools run in your network. Only the middle lane is the provider. The model never executes anything; it only asks.</p>'; }
+  else if (i < 5) {
+    const [body, hl] = payload(i);
+    pane.innerHTML = typeof body === 'string' ? esc(body) : jsonHtml(body, hl);
+    detail.innerHTML = `<h3>${S.prov === 'openai' ? 'OpenAI' : 'Claude'} · step ${i + 1}</h3><p>${P().note[i]}</p>`;
+  } else detail.innerHTML = `<h3>${S.prov === 'openai' ? 'OpenAI' : 'Claude'} · step 6</h3><p>${P().note[5]}</p><p id="answer"></p>`;
+  const u = P().usage, req = i >= 4 ? 2 : i >= 0 ? 1 : 0;
+  stats.innerHTML = `<div class="stat"><b>${req}</b><span>requests sent</span></div>` +
+    `<div class="stat"><b>${i >= 1 ? 2 : 0}</b><span>tool calls requested</span></div>` +
+    `<div class="stat"><b>${(i >= 1 ? u[0][0] : 0) + (i >= 5 ? u[1][0] : 0)}</b><span>input tokens billed</span></div>` +
+    `<div class="stat"><b>${(i >= 1 ? u[0][1] : 0) + (i >= 5 ? u[1][1] : 0)}</b><span>output tokens billed</span></div>` +
+    `<div class="stat"><b>${i >= 5 ? P().ttft + ' s' : '–'}</b><span>time to first text token</span></div>`;
+  return done;
+}
+
+async function streamOut(epoch) {
+  const ev = events(); let txt = '';
+  pane.innerHTML = '';
+  for (const [name, data, delta] of ev) {
+    if (epoch !== S.epoch) return;
+    pane.innerHTML += `<span class="j-key">event: ${name}</span>\n<span class="cmt">data: ${esc(data)}</span>\n`;
+    pane.scrollTop = pane.scrollHeight;
+    if (delta) { txt += delta; const a = document.getElementById('answer'); if (a) a.textContent = txt; }
+    await sleep(reducedMotion ? 0 : delta ? 110 : 60);
+  }
+}
+
+async function step() {
+  if (S.busy || S.step >= 5) return false;
+  S.busy = true;
+  const epoch = S.epoch, to = S.step + 1, [from, dest] = DATA.steps[to];
+  const env = el('g', {}, svg);
+  el('rect', { x: -14, y: -9, width: 28, height: 18, rx: 3, fill: S.fault && to === 3 ? 'var(--bad)' : 'var(--accent)' }, env);
+  el('path', { d: 'M-14 -9 L0 2 L14 -9', fill: 'none', stroke: '#fff', 'stroke-width': 1.5 }, env);
+  await tween(env, LANE[from], Y(to), LANE[dest], Y(to), 520);
+  if (epoch !== S.epoch) return false;   // reset or fault toggled mid-flight; that handler already cleared busy
+  S.busy = false;
+  S.step = to; render();
+  const msg = to === 3 && S.fault ? `Step 4: get_service_status ok, <b>search_kb failed</b> (${ERR})` : `Step ${to + 1}: ${DATA.steps[to][2]}${P().label[to] ? ' · ' + P().label[to] : ''}`;
+  logLine(logEl, msg, to === 3 && S.fault);
+  if (to === 5) { await streamOut(epoch); if (epoch === S.epoch) logLine(logEl, `Stream complete: ${events().length} events`, true); }
+  return true;
+}
+
+bindSeg('prov', v => { S.prov = v; render(); if (S.step === 5) streamOut(++S.epoch); logLine(logEl, `Provider: ${v === 'openai' ? 'OpenAI Responses API' : 'Claude Messages API'} (same step, different payload)`); });
+bindToggle('fault', on => {
+  S.fault = on; document.getElementById('fault').textContent = 'search_kb times out: ' + (on ? 'on' : 'off');
+  S.epoch++; S.step = -1; S.busy = false; render();
+  logLine(logEl, on ? 'Fault armed: search_kb will time out. Restarted from step 1.' : 'Fault removed. Restarted from step 1.', true);
+});
+document.getElementById('step').onclick = step;
+document.getElementById('runAll').onclick = async () => { while (await step()); };
+document.getElementById('reset').onclick = () => { S.epoch++; S.step = -1; S.busy = false; render(); logLine(logEl, 'Reset'); };
+render();
+logLine(logEl, 'Illustrative payloads. Step through, and switch provider at any step to compare.');
+
+renderQuiz('quiz', [
+  { q: 'In both APIs, who actually executes <code>get_service_status</code>?',
+    options: ['The provider runs it inside the model.',
+      'Your code: the model only returns a structured request (a name and arguments); you validate it, run it and send the result back.',
+      'The SDK runs it automatically as soon as the response arrives.',
+      'Nobody; the model predicts what the tool would return.'],
+    answer: 1,
+    explain: 'That is the RPC contract. The middle lane only ever emits <code>function_call</code> items or <code>tool_use</code> blocks; steps 3 and 4 happen in your code, with your credentials and your logging.' },
+  { q: 'Claude returned two <code>tool_use</code> blocks in one response. How must you send the results back?',
+    options: ['Two separate requests, one per result.',
+      'Inside the assistant message, replacing the <code>tool_use</code> blocks.',
+      'One <code>user</code> message containing both <code>tool_result</code> blocks, each with the matching <code>tool_use_id</code>, after the unchanged assistant content.',
+      'As plain text in the system prompt.'],
+    answer: 2,
+    explain: 'Every <code>tool_use</code> needs a <code>tool_result</code> in the next user turn. On OpenAI the equivalent is one <code>function_call_output</code> item per <code>call_id</code>. Step 5 shows both shapes.' },
+  { q: '<code>search_kb</code> times out. What should your code send back?',
+    options: ['Nothing; leave that call out of the next request.',
+      'A result that reports the error (Claude: <code>"is_error": true</code>; OpenAI: an error description in <code>output</code>), so the model can recover or escalate.',
+      'An empty list, so the model believes there are no KB matches.',
+      'The previous day’s cached result, without saying so.'],
+    answer: 1,
+    explain: 'With the fault on, the final answer says the search failed, cites no article and escalates. An empty list would let it claim “no KB article applies”, a confident and wrong answer built on your silence.' },
+  { q: 'A teammate says: “The model filled the arguments using our schema, so we can pass them straight to the ITSM API.” What is wrong with that?',
+    options: ['Nothing; schema-valid arguments are safe.',
+      'Only that OpenAI arguments arrive as a string.',
+      'Schemas only work on Claude.',
+      'The arguments are model-chosen input: a valid shape says nothing about whether this user may read that record. Parse, validate, authorise and log every call.'],
+    answer: 3,
+    explain: 'Treat tool arguments exactly like an untrusted RPC payload. On OpenAI you must also <code>json.loads</code> the <code>arguments</code> string first. Module 5 adds tool gating and audit logs on top.' },
+  { q: 'To save tokens, you rebuild request 2 from only the tool calls and your results, dropping the OpenAI <code>reasoning</code> item or the Claude <code>thinking</code> block. What is the right practice?',
+    options: ['Dropping them is fine and recommended.',
+      'Send the reasoning as plain text in the user message instead.',
+      'Append the whole <code>response.output</code> (OpenAI) or the assistant <code>content</code> unchanged (Claude), or chain with <code>previous_response_id</code> on OpenAI; both providers expect the reasoning to travel with the tool results.',
+      'Only Claude needs it; OpenAI ignores reasoning items.'],
+    answer: 2,
+    explain: 'The OpenAI function-calling guide says reasoning items returned with tool calls must be passed back; Claude’s thinking blocks are appended unchanged in the tool loop. Editing earlier turns also breaks prompt caching (Topic 5).' }
+]);
+</script>
+</body>
+</html>

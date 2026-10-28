@@ -1,0 +1,30 @@
+[project]
+name = "module02-lab01-prompt-engineering"
+version = "0.1.0"
+description = "Module 2 · Lab 01 as a uv project: prompt engineering and structured outputs with OpenAI and Claude"
+readme = "README.md"
+requires-python = ">=3.12"
+# The same pins as labs/setup/requirements.txt, so this project and the notebook behave alike.
+dependencies = [
+    "anthropic==1.17.0",
+    "openai==2.54.0",
+    "pandas==3.1.0",
+    "pydantic==2.14.1",
+    "python-dotenv==1.2.4",
+]
+
+[project.scripts]
+lab01 = "lab01.cli:main"
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "lab01"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

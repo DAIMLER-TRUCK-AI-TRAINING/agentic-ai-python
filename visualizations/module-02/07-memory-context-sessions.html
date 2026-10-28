@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory, Context &amp; Sessions</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>7 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 7</div>
+  <h1>Memory is whatever your application chooses to resend</h1>
+  <p class="lede">The model is stateless: every turn, your code decides what it sees again. Play the Lab 04 support conversation (a VPN error after a
+    password change, with off-topic detours) under buffer, window and summary memory, and watch the token line and the four facts
+    its last two turns probe. Then keep key facts in explicit state, switch to a second user’s thread, and set every user’s
+    <code>thread_id</code> to <code>"default"</code>.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="strat">
+        <button data-v="buffer" aria-pressed="true">Buffer (full thread)</button>
+        <button data-v="window" aria-pressed="false">Window (last 4 turns)</button>
+        <button data-v="summary" aria-pressed="false">Summary (over 1,000 tokens)</button>
+      </div>
+      <button class="toggle" id="slots" aria-pressed="false">Key facts in state: off</button>
+    </div>
+    <div class="controls">
+      <label class="range">Turn <input type="range" id="turn" min="1" max="10" step="1" value="1" aria-label="Conversation turn"> <b id="turnOut" class="mono">1</b></label>
+      <button class="primary" id="next">Next turn ▶</button>
+      <button id="play">Play to turn 10</button>
+      <div class="seg" id="thread">
+        <button data-v="A" aria-pressed="true">Thread A · u-1029</button>
+        <button data-v="B" aria-pressed="false">Thread B · u-2210</button>
+      </div>
+      <button class="toggle" id="bug" aria-pressed="false">Bug: thread_id = "default": off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 350" role="img" aria-label="Workflow stage, input tokens per turn for three memory strategies, and the context sent at the current turn"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Outline memory types, current implementation</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Outline term</th><th>LangChain 1.x / LangGraph</th><th>Grows</th><th>Loses</th><th>Use when</th></tr></thead>
+      <tbody>
+        <tr><td><b>Conversation buffer</b></td><td>A checkpointer thread: <code>create_agent(…, checkpointer=InMemorySaver())</code>, invoked with <code>{"configurable": {"thread_id": …}}</code></td><td>Every turn, linearly</td><td>Nothing, until the context window overflows</td><td>Short sessions</td></tr>
+        <tr><td><b>Window memory</b></td><td><code>trim_messages(messages, strategy="last", max_tokens=…, token_counter=…, start_on="human")</code> before each model call</td><td>Bounded</td><td>Early facts: the asset ID from turn 1</td><td>Chat where only recent turns matter</td></tr>
+        <tr><td><b>Summary memory</b></td><td><code>SummarizationMiddleware(model=…, trigger=("tokens", 1000), keep=("messages", 4))</code></td><td>Slowly, plus summarisation calls</td><td>Background facts (team Finance, region EU) once off-topic turns pile up</td><td>Long support sessions</td></tr>
+        <tr><td><b>Explicit state</b></td><td>Typed fields in the agent’s state or your database, rendered into every prompt</td><td>Constant</td><td>Only what you chose not to store</td><td>Facts the workflow depends on: IDs, team, region, decisions</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre class="pane">from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
+from langgraph.checkpoint.memory import InMemorySaver      # development only; Module 4 uses a durable store
+
+agent = create_agent(
+    get_chat_model(), tools=tools,
+    checkpointer=InMemorySaver(),                             # buffer: the thread's full history
+    middleware=[SummarizationMiddleware(                      # summary: compress older turns
+        model=get_chat_model(small=True), trigger=("tokens", 1000), keep=("messages", 4))],
+)
+config = {"configurable": {"thread_id": f"{conversation_id}:{user_id}"}}   # server-side, per user and per conversation
+agent.invoke({"messages": [{"role": "user", "content": text}]}, config)</pre>
+  <div class="callout"><b>Outline vs current API:</b> the outline’s “conversation buffer, summary memory, window memory” are the
+    legacy <code>ConversationBufferMemory</code>, <code>ConversationSummaryMemory</code> and <code>ConversationBufferWindowMemory</code>
+    classes, now in <code>langchain-classic</code>. Current LangChain keeps history in a LangGraph checkpointer thread and shapes what
+    the model sees with message trimming and summarisation middleware. The trade-offs on this page are the same either way.</div>
+  <div class="callout warn"><b>Common trap:</b> treating <code>thread_id</code> as a cosmetic label. It is the key to a user’s stored
+    conversation. Build it on the server from the authenticated user and the conversation, never from a request field alone, and never
+    as a constant. Otherwise one user’s laptop ID turns up in another user’s answer.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="06-langchain-agents-tools.html"><small>← Previous</small>LangChain architecture &amp; tool integration</a>
+    <a class="next" href="08-agent-architecture-blueprint.html"><small>Next →</small>Agent architecture blueprint</a>
+  </div>
+</div>
+
+<script>
+// The Lab 04 support conversation (labs/module-02/data/support_conversation.json) and its two probes (T9, T10).
+// Token counts per turn (user + assistant) and assistant replies are illustrative estimates, not recorded output. The summary
+// is modelled as keeping IDs and codes but dropping background facts (team, region) once off-topic turns pile up.
+const DATA = {
+  system: 400, user: 60, slots: 60, trigger: 1000, keepTurns: 2, windowTurns: 4, sumTokens: [180, 200], sumPrompt: 300,
+  turns: [
+    ['Hi, I’m on the Finance team in the EU region. My laptop’s asset tag is LT-4471.', 190, ['team', 'region', 'asset'], 'Thanks. What is going wrong with the laptop?'],
+    ['Since this morning the VPN fails with error 809, right after I changed my password.', 260, ['error'], 'That matches KB-0042: wait 15 minutes for directory sync, then clear the saved VPN credential.'],
+    ['I’ve already restarted the laptop twice. What should I try first?', 240, [], 'Quit the VPN client, remove the saved credential, then sign in with the new password.'],
+    ['OK, I removed the saved credential. While I wait: how do I set up an out-of-office reply?', 230, [], 'Open your mail settings and choose Automatic replies…'],
+    ['Another thing: the printer on our floor, PR-3F-07, has jobs stuck in its queue. Is that a known problem?', 220, [], 'Yes: KB-0213 covers jobs stuck in a shared printer queue.'],
+    ['Is anything going on with the EU VPN gateways today?', 210, [], 'vpn-gateway-eu-01 is degraded: elevated authentication failures since 07:40 CET (INC-104512).'],
+    ['A colleague says the Wi-Fi in the Singapore office is down. Is that related to my problem?', 200, [], 'Probably not: INC-104518 is a Wi-Fi problem at APAC-SIN-01, not the EU VPN.'],
+    ['It’s been 35 minutes and the VPN still fails with the same error.', 230, [], 'KB-0042 says to escalate after 30 minutes, so I am escalating to Network Ops L2.'],
+    ['Remind me: which asset tag and which error code did I give you at the start?', 120, [], null],
+    ['Write the one-line incident summary you would log for me, including my team and region.', 150, [], null]
+  ],
+  facts: { asset: 'LT-4471', error: 'error 809', team: 'Finance', region: 'EU' },
+  inSummary: ['asset', 'error'],
+  stages: [['Collect details', 1, 2], ['Troubleshoot', 3, 3], ['Side questions', 4, 7], ['Follow-up & probes', 8, 10]],
+  threadB: [['Please install the diagramming tool on my laptop LT-5120.', 150], ['Which laptop did I give you?', 90]]
+};
+
+const S = { strat: 'buffer', slots: false, turn: 1, thread: 'A', bug: false, busy: false };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+const sum = a => a.reduce((x, y) => x + y.t, 0);
+
+// Replays the conversation under one strategy; returns, per turn, the blocks sent to the model plus summarisation cost.
+function simulate(strat) {
+  let hist = []; const rows = []; let extraIn = 0, extraCalls = 0, si = 0;
+  DATA.turns.forEach(([text, tok, fact], i) => {
+    let event = null;
+    if (strat === 'summary' && sum(hist) > DATA.trigger) {
+      const older = hist.slice(0, -DATA.keepTurns), facts = new Set();
+      older.forEach(b => b.facts.forEach(f => DATA.inSummary.includes(f) && facts.add(f)));
+      extraIn += sum(older) + DATA.sumPrompt; extraCalls++;
+      hist = [{ label: 'summary', t: DATA.sumTokens[Math.min(si++, 1)], facts: [...facts], summary: true }, ...hist.slice(-DATA.keepTurns)];
+      event = `summarised ${older.length} block${older.length > 1 ? 's' : ''} (${sum(older)} tokens) → ${hist[0].t}`;
+    }
+    const view = strat === 'window' ? hist.slice(-DATA.windowTurns) : hist;
+    const input = DATA.system + (S.slots ? DATA.slots : 0) + sum(view) + DATA.user;
+    rows.push({ input, view: view.slice(), event });
+    hist.push({ label: 'T' + (i + 1), t: tok, facts: fact });
+  });
+  return { rows, extraIn, extraCalls, total: rows.reduce((a, r) => a + r.input, 0) + extraIn };
+}
+function known(turn) { return Object.keys(DATA.facts).filter(f => DATA.turns.findIndex(t => t[2].includes(f)) < turn - 1); }
+function present(row, turn) {
+  const have = new Set();
+  row.view.forEach(b => b.facts.forEach(f => have.add(f)));
+  if (S.slots) known(turn).forEach(f => have.add(f));
+  return have;
+}
+
+function render() {
+  svg.innerHTML = '';
+  const SIM = { buffer: simulate('buffer'), window: simulate('window'), summary: simulate('summary') }, sim = SIM[S.strat], row = sim.rows[S.turn - 1];
+  DATA.stages.forEach(([name, a, b], k) => {
+    const on = S.turn >= a && S.turn <= b, x = 20 + k * 218;
+    el('rect', { x, y: 8, width: 206, height: 28, rx: 14, fill: on ? 'var(--accent)' : 'var(--surface)', stroke: on ? 'var(--accent)' : 'var(--border)' }, svg);
+    el('text', { x: x + 103, y: 27, 'text-anchor': 'middle', class: 'small', fill: on ? '#fff' : 'var(--muted)', style: 'font-weight:600', text: `${name} (T${a}${b > a ? '–' + b : ''})` }, svg);
+  });
+  const CX = t => 60 + (t - 1) * 44, CY = v => 300 - v * 0.095;
+  el('text', { x: 20, y: 60, class: 'hdr', text: 'Input tokens sent per turn' }, svg);
+  [0, 1000, 2000].forEach(v => { el('line', { x1: 50, y1: CY(v), x2: 460, y2: CY(v), stroke: 'var(--border)' }, svg); el('text', { x: 44, y: CY(v) + 4, 'text-anchor': 'end', class: 'lab muted', text: v.toLocaleString('en-GB') }, svg); });
+  for (let t = 1; t <= 10; t++) el('text', { x: CX(t), y: 316, 'text-anchor': 'middle', class: 'lab muted', text: 'T' + t }, svg);
+  el('line', { x1: CX(S.turn), y1: 70, x2: CX(S.turn), y2: 304, stroke: 'var(--accent)', 'stroke-dasharray': '4 3' }, svg);
+  [['buffer', 'var(--p0)'], ['window', 'var(--p1)'], ['summary', 'var(--p3)']].forEach(([k, c]) => {
+    const pts = SIM[k].rows.map((r, i) => `${CX(i + 1)},${CY(r.input)}`).join(' ');
+    el('polyline', { points: pts, fill: 'none', stroke: c, 'stroke-width': k === S.strat ? 3 : 1.5, opacity: k === S.strat ? 1 : .5 }, svg);
+    SIM[k].rows.forEach((r, i) => r.event && el('path', { d: `M${CX(i + 1)} ${CY(r.input) - 7} l6 7 l-6 7 l-6 -7 z`, fill: c }, svg));
+  });
+  let prevY = -1e9;   // end-of-line labels, highest value first, kept at least 13 px apart
+  [['buffer', 'var(--p0)'], ['window', 'var(--p1)'], ['summary', 'var(--p3)']].map(([k, c]) => [k, c, CY(SIM[k].rows[9].input) + 4])
+    .sort((a, b) => a[2] - b[2]).forEach(([k, c, y]) => { y = Math.max(y, prevY + 13); prevY = y; el('text', { x: 466, y, class: 'lab', fill: c, text: k }, svg); });
+  el('text', { x: 20, y: 340, class: 'lab muted', text: '◆ = summarisation call (extra model call, extra tokens)' }, svg);
+  renderContext(row);
+  renderDetail(SIM, row);
+}
+
+function renderContext(row) {
+  const X = 540, W = 340, sc = 0.105;
+  el('text', { x: X, y: 60, class: 'hdr', text: S.thread === 'A' ? `Sent at T${S.turn} · thread chat-7741:u-1029` : `Sent · thread ${S.bug ? '"default"' : 'chat-7742:u-2210'}` }, svg);
+  let blocks;
+  if (S.thread === 'A') blocks = [['system', DATA.system, 'var(--p5)']].concat(S.slots ? [['state: ' + known(S.turn).map(f => DATA.facts[f]).join(', ').slice(0, 40), DATA.slots, 'var(--ok)']] : [],
+    row.view.map(b => [b.summary ? `summary (${b.facts.map(f => DATA.facts[f]).join(', ')})` : `${b.label} · ${b.t}${b.facts.length ? ' · ★ ' + b.facts.map(f => DATA.facts[f]).join(', ') : ''}`, b.t, b.summary ? 'var(--p3)' : 'var(--p0)']),
+    [[`T${S.turn} user`, DATA.user, 'var(--accent)']]);
+  else blocks = [['system', DATA.system, 'var(--p5)']].concat(S.bug ? DATA.turns.slice(0, 9).map((t, i) => [`T${i + 1} · u-1029 ⚠ ${t[2].map(f => DATA.facts[f]).join(', ')}`, t[1], 'var(--bad)']) : [],
+    DATA.threadB.map(([t, n], i) => [`u-2210 T${i + 1} · ${t.slice(0, 30)}…`, n, 'var(--p0)']));
+  const total = blocks.reduce((a, b) => a + b[1], 0), s = Math.min(sc, 248 / total);
+  let y = 72;
+  blocks.forEach(([lab, n, c]) => {
+    const h = Math.max(n * s, 14);
+    el('rect', { x: X, y, width: W, height: h - 1, rx: 3, fill: c, 'fill-opacity': .2, stroke: c }, svg);
+    if (h >= 12) el('text', { x: X + 6, y: y + Math.min(h, 22) / 2 + 4, class: 'lab', text: lab.length > 50 ? lab.slice(0, 49) + '…' : lab }, svg);
+    y += h;
+  });
+  if (S.thread === 'A') Object.keys(DATA.facts).forEach((f, k) => {
+    const have = present(row, S.turn).has(f), seen = known(S.turn).includes(f), c = have ? 'var(--ok)' : seen ? 'var(--bad)' : 'var(--muted)';
+    el('rect', { x: X + k * 69, y: 326, width: 64, height: 20, rx: 10, fill: c, 'fill-opacity': .15, stroke: c }, svg);
+    el('text', { x: X + k * 69 + 32, y: 340, 'text-anchor': 'middle', class: 'lab', fill: c, text: DATA.facts[f] }, svg);
+  });
+}
+
+function answer(turn, row) {
+  const have = present(row, turn), core = have.has('asset') && have.has('error'), ctx = have.has('team') && have.has('region');
+  if (turn === 9) return core ? ['ok', 'Asset tag LT-4471 and error code 809.'] : ['bad', 'I no longer have the asset tag or error code from the start of our chat. Could you repeat them?'];
+  if (core && ctx) return ['ok', 'Finance (EU): VPN error 809 on LT-4471 since a password change; KB-0042 steps failed after 35 minutes; escalated to Network Ops L2.'];
+  if (core) return ['warn', 'VPN error 809 on LT-4471 since a password change; KB-0042 steps failed after 35 minutes. (Team and region are missing, and this log line must include them.)'];
+  return ['bad', 'VPN fails after a password change; escalated to Network Ops L2. (No asset tag, error code, team or region: the probe fails.)'];
+}
+function renderDetail(SIM, row) {
+  const sim = SIM[S.strat];
+  let h;
+  if (S.thread === 'B') h = S.bug ? `<h3 class="bad-t">Session leak</h3><p>u-2210 asks “Which laptop did I give you?” and the shared thread answers: “<b>LT-4471</b> (VPN error 809, Finance, EU) and LT-5120.” Another user’s asset, team and problem just crossed a session boundary.</p>`
+    : `<h3>Thread B is isolated</h3><p>u-2210 asks “Which laptop did I give you?” → “LT-5120.” A different <code>thread_id</code> means a different stored history; nothing from u-1029 is visible.</p>`;
+  else if (S.turn < 9) h = `<h3>T${S.turn}: “${esc(DATA.turns[S.turn - 1][0])}”</h3><p>Assistant (representative): “${esc(DATA.turns[S.turn - 1][3])}”</p>${row.event ? `<p class="warn-t">Before this call: ${row.event}.</p>` : ''}`;
+  else { const [v, a] = answer(S.turn, row); h = `<h3>T${S.turn} probe: “${esc(DATA.turns[S.turn - 1][0])}”</h3><p class="${v}-t">Assistant (representative): “${esc(a)}”</p>${row.event ? `<p class="warn-t">Before this call: ${row.event}.</p>` : ''}`; }
+  detail.innerHTML = h;
+  const have = present(row, S.turn), k = known(S.turn);
+  stats.innerHTML = `<div class="stat"><b>${row.input.toLocaleString('en-GB')}</b><span>input tokens at T${S.turn}</span></div>` +
+    `<div class="stat"><b>${sim.total.toLocaleString('en-GB')}</b><span>input tokens over 10 turns, summaries included</span></div>` +
+    `<div class="stat"><b>${sim.extraCalls}</b><span>extra summarisation calls</span></div>` +
+    `<div class="stat"><b style="color:${k.every(f => have.has(f)) ? 'var(--ok)' : 'var(--bad)'}">${k.filter(f => have.has(f)).length} / ${k.length}</b><span>facts mentioned so far still in context</span></div>`;
+}
+
+function setTurn(t, why) {
+  S.turn = t; document.getElementById('turn').value = t; document.getElementById('turnOut').textContent = t; render();
+  const row = simulate(S.strat).rows[t - 1], lost = known(t).filter(f => !present(row, t).has(f));
+  logLine(logEl, `T${t} (${S.strat}${S.slots ? ' + state' : ''}): ${row.input} input tokens${row.event ? ' · ' + row.event : ''}${lost.length ? ` · <b>lost: ${lost.map(f => DATA.facts[f]).join(', ')}</b>` : ''}${why ? ' · ' + why : ''}`, lost.length > 0 || !!row.event);
+}
+async function next() {
+  if (S.busy || S.turn >= 10) return false;
+  S.busy = true;
+  const chip = el('g', {}, svg);
+  el('rect', { x: -30, y: -10, width: 60, height: 20, rx: 10, fill: 'var(--accent)' }, chip);
+  el('text', { y: 4, 'text-anchor': 'middle', class: 'lab', fill: '#fff', text: 'T' + (S.turn + 1) }, chip);
+  await tween(chip, 470, 330, 710, 72, 420);
+  S.busy = false; setTurn(S.turn + 1);
+  return true;
+}
+
+bindSeg('strat', v => { S.strat = v; setTurn(S.turn, `strategy → ${v}`); });
+bindToggle('slots', on => { S.slots = on; document.getElementById('slots').textContent = 'Key facts in state: ' + (on ? 'on' : 'off'); setTurn(S.turn, on ? 'facts stored as typed state (+60 tokens per turn)' : 'facts only in the transcript'); });
+bindSeg('thread', v => { S.thread = v; render(); logLine(logEl, v === 'A' ? 'Viewing thread A (u-1029)' : `Viewing thread B (u-2210)${S.bug ? ': <b>shared thread, leak</b>' : ''}`, v === 'B' && S.bug); });
+bindToggle('bug', on => { S.bug = on; document.getElementById('bug').textContent = 'Bug: thread_id = "default": ' + (on ? 'on' : 'off'); render(); logLine(logEl, on ? '<b>Every user now shares thread "default"</b>: switch to thread B' : 'thread_id is per user and conversation again', on); });
+document.getElementById('turn').addEventListener('input', e => setTurn(+e.target.value));
+document.getElementById('next').onclick = next;
+document.getElementById('play').onclick = async () => { while (await next()); };
+setTurn(1);
+logLine(logEl, 'Illustrative token estimates. Play to turn 10 under each strategy and compare the answers to the T9 and T10 probes.');
+
+renderQuiz('quiz', [
+  { q: 'What does a checkpointer’s <code>thread_id</code> actually do?',
+    options: ['It names the model version to use.',
+      'It is the key under which a conversation’s state is stored: the same <code>thread_id</code> restores that history on the next call; a new one starts empty.',
+      'It encrypts the conversation.',
+      'It tells the provider to remember the conversation on its side.'],
+    answer: 1,
+    explain: 'The state lives in your checkpointer, not in the model. That makes <code>thread_id</code> a security-relevant key: the shared-thread bug turned it into a cross-user leak.' },
+  { q: 'Under window memory, the T9 probe cannot name the asset tag or the error code. Why?',
+    options: ['The model’s context window was full.',
+      'Window memory deletes the checkpointer.',
+      'Trimming keeps only the last 4 turns (T5–T8); the asset tag and error code were given in T1 and T2, so they were never sent on this call.',
+      'The summariser removed them.'],
+    answer: 2,
+    explain: 'The window bounds cost, but forgets early facts first, and in support conversations those are usually the most important ones. Turn on “Key facts in state” and both probes pass for 60 tokens a turn.' },
+  { q: 'Summary memory kept LT-4471 and error 809 but dropped “Finance” and “EU” after the off-topic turns, and the T10 log line must include team and region. What is the robust fix?',
+    options: ['Store the facts the workflow depends on (asset tag, error code, team, region) as explicit state fields and render them into every prompt, whatever the memory strategy.',
+      'Switch to window memory.',
+      'Ask the model to remember harder.',
+      'Increase the summary trigger to 10,000 tokens.'],
+    answer: 0,
+    explain: 'Summaries are lossy by design. Workflow-critical data belongs in typed state (or your ticket system), where no summariser can drop it.' },
+  { q: 'A colleague says: “The assistant remembers turn 1 because the model keeps the conversation.” What is actually happening under buffer memory?',
+    options: ['The provider stores the chat and replays it.',
+      'Each call is stateless: your application loads the thread from the checkpointer and resends every earlier turn, which is why input tokens climb with every turn.',
+      'The model fine-tunes itself after each turn.',
+      'Turn 1 is cached in the model’s weights.'],
+    answer: 1,
+    explain: 'The rising buffer line is that resend made visible: from 460 input tokens at T1 to 2,360 at T10. Memory is an application feature you pay for in tokens.' },
+  { q: 'Over the ten turns, window memory sends the fewest input tokens (11,180) but fails both probes; summary sends 12,650 (two summarisation calls included); buffer sends 14,570. Which design passes both probes for less than the buffer?',
+    options: ['Window memory with a larger model.',
+      'Summary memory plus key facts in explicit state: 13,250 tokens, and both probes pass.',
+      'Buffer memory is always the cheapest option that works.',
+      'None; correct answers always cost the full buffer.'],
+    answer: 1,
+    explain: 'The cheapest strategy is not the cheapest system if it forgets what the workflow needs. Pick memory by session length, and keep the facts that matter in state. The saving grows in longer threads, where the buffer keeps climbing.' }
+]);
+</script>
+</body>
+</html>

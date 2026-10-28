@@ -30,7 +30,7 @@ environment setup at the start of Lab 01.
 
 | Requirement | Check with | Notes |
 | ----------- | ---------- | ----- |
-| Python 3.12+ and the course venv | `python --version` | See [`labs/setup/README.md`](../setup/README.md) |
+| Python 3.12 or 3.13 and the course venv | `python --version` | See [`labs/setup/README.md`](../setup/README.md) |
 | Course packages | `python labs/setup/check_env.py --module 1` | Pinned in `labs/setup/requirements.txt` |
 | OpenAI and Anthropic keys in `.env` | `check_env.py` shows ✅ | Provided for the bootcamp; never commit `.env` |
 | Tesseract OCR 5.x | `tesseract --version` | Lab 02 only. Without it, the Tesseract cells print a note and skip; the rest still runs |

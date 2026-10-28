@@ -1,6 +1,8 @@
 # Agentic AI Systems Engineering — course-wide Python dependencies
 #
-# Python 3.12+. Install once, from the repo root, with the course venv active:
+# Python 3.12 or 3.13 (not 3.14: guardrails-ai 0.11.0 declares Requires-Python <3.14,
+# so pip on 3.14 stops with "No matching distribution found for guardrails-ai==0.11.0").
+# Install once, from the repo root, with the course venv active:
 #     pip install -r labs/setup/requirements.txt
 #
 # Versions were resolved together on 2026-10-27 with `pip install --dry-run`
@@ -42,6 +44,8 @@ langchain-anthropic==1.7.6
 langchain-community==0.4.2
 langsmith==0.14.12
 langchain-tavily==0.2.18
+pyyaml==6.0.3                  # Lab 03 parses SKILL.md frontmatter (already installed by langchain-core)
+# Labs 04-05 also import langgraph (checkpointer, middleware state); it is pinned under Module 4.
 
 # --- Module 3: enterprise RAG & fine-tuning strategy ---------------------------
 llama-index-core==0.14.25

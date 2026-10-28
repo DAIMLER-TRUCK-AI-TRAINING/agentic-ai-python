@@ -30,6 +30,7 @@ from urllib.parse import urlparse
 SETUP_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SETUP_DIR.parents[1]
 MIN_PYTHON = (3, 12)
+MAX_PYTHON = (3, 13)  # guardrails-ai 0.11.0 declares Requires-Python <3.14
 
 OK, WARN, FAIL, INFO = "✅", "⚠️ ", "❌", "ℹ️ "
 
@@ -59,6 +60,7 @@ PACKAGES: dict[int, dict[str, str]] = {
         "azure.ai.vision.imageanalysis": "azure-ai-vision-imageanalysis",
     },
     2: {
+        "yaml": "pyyaml",
         "langchain": "langchain",
         "langchain_openai": "langchain-openai",
         "langchain_anthropic": "langchain-anthropic",
@@ -89,7 +91,7 @@ ENV_VARS: list[tuple[str, int, bool, str]] = [
     ("ANTHROPIC_API_KEY", 1, True, FAIL),
     ("ANTHROPIC_MODEL", 1, False, FAIL),
     ("ANTHROPIC_SMALL_MODEL", 1, False, WARN),
-    ("LLM_PROVIDER", 3, False, WARN),
+    ("LLM_PROVIDER", 2, False, WARN),
     ("LANGSMITH_TRACING", 2, False, WARN),
     ("LANGSMITH_API_KEY", 2, True, WARN),
     ("TAVILY_API_KEY", 2, True, WARN),
@@ -98,6 +100,9 @@ ENV_VARS: list[tuple[str, int, bool, str]] = [
     ("LANGFUSE_SECRET_KEY", 5, True, WARN),
     ("LANGFUSE_HOST", 5, False, WARN),
 ]
+
+# Every lab calls both providers, so their keys and main models are checked whatever --module says.
+ALWAYS_CHECKED = {"OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"}
 
 FALLBACK_NOTES = {
     "OPENAI_SMALL_MODEL": "Lab 01 skips the temperature sweep",
@@ -126,9 +131,15 @@ class Row:
 
 def check_python() -> Row:
     version = platform.python_version()
-    if sys.version_info[:2] >= MIN_PYTHON:
+    if MIN_PYTHON <= sys.version_info[:2] <= MAX_PYTHON:
         return Row(OK, "Python", version, sys.executable)
-    return Row(FAIL, "Python", version, f"needs {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+")
+    return Row(
+        FAIL,
+        "Python",
+        version,
+        f"needs {MIN_PYTHON[0]}.{MIN_PYTHON[1]} to {MAX_PYTHON[0]}.{MAX_PYTHON[1]}: "
+        f"recreate .venv with python{MAX_PYTHON[0]}.{MAX_PYTHON[1]} -m venv .venv",
+    )
 
 
 def check_packages(modules: list[int]) -> list[Row]:
@@ -172,7 +183,7 @@ def load_env_file() -> Row:
 def check_env_vars(modules: list[int]) -> list[Row]:
     rows = []
     for name, module, secret, severity in ENV_VARS:
-        if module not in modules:
+        if module not in modules and name not in ALWAYS_CHECKED:
             continue
         value = os.getenv(name, "").strip()
         if value:

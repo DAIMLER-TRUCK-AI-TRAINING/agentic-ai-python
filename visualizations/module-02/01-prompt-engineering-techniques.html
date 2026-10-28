@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt Engineering Techniques</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  .strike { text-decoration: line-through; color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>1 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 1</div>
+  <h1>Same tickets, same model, four prompts: different answers and a different bill</h1>
+  <p class="lede">A prompt is code: each technique changes accuracy, latency and what you pay on every call. Switch the triage
+    prompt between zero-shot, few-shot and chain-of-thought, add a role with label definitions, and compare OpenAI with Claude on
+    ten labelled tickets. Then plant a <b>template bug</b> and work out the cause from the symptoms alone.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="tech">
+        <button data-v="zero" aria-pressed="true">Zero-shot</button>
+        <button data-v="few" aria-pressed="false">Few-shot (3 examples)</button>
+        <button data-v="cot" aria-pressed="false">Chain-of-thought</button>
+      </div>
+      <button class="toggle" id="role" aria-pressed="false">Role + label definitions: off</button>
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">OpenAI</button>
+        <button data-v="claude" aria-pressed="false">Claude</button>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">Template bug:</span>
+      <div class="seg" id="fault">
+        <button data-v="none" aria-pressed="true">None</button>
+        <button data-v="format" aria-pressed="false">Output format line missing</button>
+        <button data-v="labels" aria-pressed="false">Stale label list</button>
+        <button data-v="skew" aria-pressed="false">Skewed examples</button>
+      </div>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 372" role="img" aria-label="Ten labelled tickets with gold and predicted labels, and accuracy and monthly cost for each technique"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="pane-title">Prompt template and bindings</div>
+    <pre class="pane" id="prompt" aria-label="Prompt template"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Four techniques, four cost drivers</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Technique</th><th>What you add</th><th>Cost driver</th><th>Helps when</th><th>Watch out for</th></tr></thead>
+      <tbody>
+        <tr><td><b>Zero-shot</b></td><td>The task and the label set</td><td>Shortest prompt</td><td>Labels are self-explanatory</td><td>The model’s conventions are not your team’s (VPN credential errors, lockouts)</td></tr>
+        <tr><td><b>Few-shot</b></td><td>3–5 labelled examples</td><td>Examples are resent on every call (cache them: Topic 5)</td><td>House conventions, edge cases, exact output format</td><td>Skewed or stale examples bias every prediction</td></tr>
+        <tr><td><b>Chain-of-thought</b></td><td>“Reason first, then answer”</td><td>Output tokens and latency (here 160 vs 5 output tokens)</td><td>Multi-step judgement</td><td>Reasoning text breaks a naive parser; on reasoning models, set effort instead</td></tr>
+        <tr><td><b>Role + instructions</b></td><td>A persona, label definitions and rules</td><td>A longer system prompt (cacheable)</td><td>Ambiguous categories with house rules</td><td>Vague or contradictory rules; a role is not a security boundary (Module 5)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Where each part goes in the two SDKs</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Prompt part</th><th>OpenAI Responses API</th><th>Anthropic Messages API</th></tr></thead>
+      <tbody>
+        <tr><td>Role and instructions</td><td><code>instructions="…"</code>, or a <code>developer</code> message in <code>input</code></td><td>Top-level <code>system="…"</code></td></tr>
+        <tr><td>Few-shot examples</td><td>User/assistant message pairs in <code>input</code>, or inline in the instructions</td><td>User/assistant pairs in <code>messages</code>, or inline, wrapped in <code>&lt;example&gt;</code> tags</td></tr>
+        <tr><td>Reasoning</td><td><code>reasoning={"effort": …}</code> on reasoning models; prompted CoT only where effort is <code>none</code></td><td>Adaptive thinking is on by default on current models; tune <code>output_config={"effort": …}</code></td></tr>
+        <tr><td>Output format</td><td><code>text={"format": {"type": "json_schema", …}}</code> (Topic 2)</td><td><code>output_config={"format": {"type": "json_schema", …}}</code> (Topic 2)</td></tr>
+        <tr><td>Template</td><td colspan="2">One template renders the text for both; only where each part is placed differs. Version it like code.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Outline vs current API:</b> the outline’s “chain-of-thought” is still taught as a prompt, and it still helps on
+    models run without reasoning. Current reasoning models already think before answering, so asking them to “think step by step”
+    mostly duplicates paid output tokens. Raise <code>reasoning.effort</code> (OpenAI) or <code>output_config.effort</code> (Claude) instead,
+    and keep your final answer in a separate, parseable field.</div>
+
+  <h2>Prompt debugging: from symptom to cause</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Symptom on the labelled set</th><th>Likely cause</th><th>Debug step</th></tr></thead>
+      <tbody>
+        <tr><td>Labels outside the allowed set (<code>network_incident</code>)</td><td>A template variable rendered from a stale list</td><td>Print the <em>rendered</em> prompt; generate <code>{labels}</code> from the same enum the parser validates against</td></tr>
+        <tr><td>Prose instead of a label</td><td>Output format not pinned, or CoT with no answer line</td><td>Pin the format, or use structured outputs (Topic 2)</td></tr>
+        <tr><td>One class over-predicted</td><td>Few-shot examples all from one class</td><td>Balance the examples; read the confusion matrix, not just accuracy</td></tr>
+        <tr><td>A fix for one ticket breaks another</td><td>No regression set</td><td>Score every prompt change on the full labelled set, on both providers</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><b>Common trap:</b> tuning the prompt on the one ticket a user complained about. Every change here moves
+    several rows at once, sometimes in opposite directions. Keep a labelled set, version your prompts, and accept a change only when
+    the whole set improves on the provider you ship.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="index.html"><small>← Back</small>Module overview</a>
+    <a class="next" href="02-structured-outputs.html"><small>Next →</small>Structured outputs</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative results on a synthetic labelled ticket set (course-map §8.3), using the Lab 01 category names and the
+// POL-OPS-004 house rules (labs/module-02/data/triage_policy.md). Predictions are representative of how
+// small models behave with each technique; they are not recorded model output. Token counts are illustrative.
+// Prices: small tier at $0.10 / $0.50 per 1M input / output tokens (Claude Haiku 5.5 and GPT-6 Luna list prices, 27 Oct 2026).
+const DATA = {
+  labels: { N: 'network', A: 'access', H: 'endpoint', B: 'business_app', S: 'security' },   // five of the lab's seven categories
+  tickets: [
+    ['INC-104701', 'VPN drops every 10 minutes with error 809 on LT-4471', 'N', 'Clear network signal: VPN plus an error code.'],
+    ['INC-104702', 'Please give the new contractor access to the Finance SharePoint site', 'A', 'Textbook access request.'],
+    ['INC-104703', 'ERP shows invoice INV-88341 as paid twice for the licence renewal', 'B', 'ERP and invoices: business_app, routed to Finance.'],
+    ['INC-104704', 'Laptop fan is loud and the battery bulges near the trackpad', 'H', 'A user’s device: endpoint, urgent because of the battery.'],
+    ['INC-104705', 'I clicked a link in an email that asked me to re-enter my password', 'S', 'The word “password” pulls towards access; credentials entered on a suspicious page are a confirmed security incident.'],
+    ['INC-104706', 'Video calls drop only when I am connected to the VPN', 'N', 'Only happens on the VPN, so it is network.'],
+    ['INC-104707', 'Since my password change the VPN client rejects my credentials', 'N', 'POL-OPS-004: a VPN problem is network even when the error mentions credentials. Without the rule, models pick access.'],
+    ['INC-104708', 'Locked out after the password change this morning', 'A', 'House rule: lockouts are access. Over-cautious reasoning calls it a security incident.'],
+    ['INC-104709', 'Dock charges the laptop but both monitors stay black after the firmware update', 'H', '“Firmware update” suggests software or network; the failing part is the dock, an endpoint.'],
+    ['INC-104710', 'Unknown device signed in to my mailbox from another country', 'S', 'Suspected account compromise: security.']
+  ],
+  // predicted label codes per provider and technique, one letter per ticket; R = role + definitions on
+  pred: {
+    openai: { zero: 'NABHANAANS', few: 'NABHSNNANS', cot: 'NABHSNASHS', zeroR: 'NABHSNNANS', fewR: 'NABHSNNANS', cotR: 'NABHSNNAHS' },
+    claude: { zero: 'NABHSNASNS', few: 'NABHSNNANS', cot: 'NABHSNASHS', zeroR: 'NABHSNNANS', fewR: 'NABHSNNAHS', cotR: 'NABHSNNAHS' }
+  },
+  tech: { zero: { name: 'Zero-shot', tin: 160, tout: 5, lat: 0.35 }, few: { name: 'Few-shot', tin: 640, tout: 5, lat: 0.45 },
+          cot: { name: 'Chain-of-thought', tin: 190, tout: 160, lat: 1.9 } },
+  roleTokens: 220, price: { in: 0.10, out: 0.50 }, perMonth: 180000,     // 6,000 tickets a day
+  formatFail: { zero: [1, 5], few: [], cot: [0, 2, 3, 5, 6, 8, 9] },    // answers that came back as prose
+  skewed: [3, 8]                                                         // endpoint tickets pulled to network
+};
+
+const S = { tech: 'zero', role: false, prov: 'openai', fault: 'none', sel: 4, prev: null };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const stats = document.getElementById('stats'), detail = document.getElementById('detail');
+const VALID = Object.values(DATA.labels), techs = ['zero', 'few', 'cot'];
+let hlBox = null;
+
+function predict(tech) {
+  return DATA.pred[S.prov][tech + (S.role ? 'R' : '')].split('').map((c, i) => {
+    let out = DATA.labels[c];
+    if (S.fault === 'skew' && tech === 'few' && DATA.skewed.includes(i)) { c = 'N'; out = DATA.labels.N; }
+    if (S.fault === 'labels' && c === 'N') out = 'network_incident';
+    const prose = S.fault === 'format' && DATA.formatFail[tech].includes(i);
+    return { c, out: prose ? null : out, ok: !prose && out === DATA.labels[DATA.tickets[i][2]], valid: !prose && VALID.includes(out) };
+  });
+}
+function cost(tech) {
+  const t = DATA.tech[tech], tin = t.tin + (S.role ? DATA.roleTokens : 0);
+  return { tin, tout: t.tout, lat: t.lat, month: DATA.perMonth * (tin * DATA.price.in + t.tout * DATA.price.out) / 1e6 };
+}
+
+function render() {
+  svg.innerHTML = '';
+  const P = predict(S.tech), short = s => s.length > 44 ? s.slice(0, 43) + '…' : s;
+  el('text', { x: 20, y: 22, class: 'hdr', text: 'Ticket' }, svg);
+  el('text', { x: 380, y: 22, class: 'hdr', text: 'Gold label' }, svg);
+  el('text', { x: 502, y: 22, class: 'hdr', text: 'Prediction' }, svg);
+  DATA.tickets.forEach(([id, text, gold], i) => {
+    const y = 34 + i * 33, p = P[i], changed = S.prev && S.prev[i] !== p.out;
+    const g = clickable(el('g', {}, svg), () => select(i), `Ticket ${id}: ${p.ok ? 'correct' : 'wrong'}`);
+    el('rect', { x: 12, y, width: 640, height: 28, rx: 6, fill: i === S.sel ? 'var(--accent-soft)' : 'var(--surface)',
+      stroke: changed ? 'var(--warn)' : 'var(--border)', 'stroke-width': changed ? 2 : 1 }, g);
+    el('text', { x: 20, y: y + 18, class: 'lab', text: id }, g);
+    el('text', { x: 96, y: y + 18, class: 'small', text: short(text) }, g);
+    el('text', { x: 380, y: y + 18, class: 'lab muted', text: DATA.labels[gold] }, g);
+    const col = p.ok ? 'var(--ok)' : 'var(--bad)';
+    el('text', { x: 502, y: y + 18, class: 'lab', fill: col, style: 'font-weight:700',
+      text: (p.ok ? '✓ ' : '✗ ') + (p.out === null ? '(prose)' : p.valid ? p.out : p.out + ' ⚠') }, g);
+  });
+  el('text', { x: 672, y: 22, class: 'hdr', text: 'Same settings, each technique' }, svg);
+  techs.forEach((t, k) => {
+    const y = 34 + k * 108, acc = predict(t).filter(p => p.ok).length, c = cost(t), on = t === S.tech;
+    el('text', { x: 680, y: y + 20, class: 'hdr', fill: on ? 'var(--accent)' : 'var(--text)', text: DATA.tech[t].name }, svg);
+    el('text', { x: 680, y: y + 40, class: 'lab muted', text: 'accuracy' }, svg);
+    el('rect', { x: 744, y: y + 30, width: 110, height: 12, rx: 3, fill: 'var(--surface)' }, svg);
+    el('rect', { x: 744, y: y + 30, width: 11 * acc, height: 12, rx: 3, fill: acc >= 9 ? 'var(--ok)' : acc >= 7 ? 'var(--warn)' : 'var(--bad)' }, svg);
+    el('text', { x: 860, y: y + 41, class: 'lab', text: `${acc}/10` }, svg);
+    el('text', { x: 680, y: y + 62, class: 'lab muted', text: 'per month' }, svg);
+    el('rect', { x: 744, y: y + 52, width: 110, height: 12, rx: 3, fill: 'var(--surface)' }, svg);
+    el('rect', { x: 744, y: y + 52, width: Math.min(110, 4.4 * c.month), height: 12, rx: 3, fill: 'var(--p1)' }, svg);
+    el('text', { x: 860, y: y + 63, class: 'lab', text: money(c.month, 2) }, svg);
+    el('text', { x: 680, y: y + 84, class: 'lab muted', text: `${c.tin} in · ${c.tout} out tokens · ${c.lat} s` }, svg);
+  });
+  hlBox = el('rect', { x: 666, y: -4, width: 228, height: 100, rx: 8, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2,
+    transform: `translate(0,${34 + techs.indexOf(S.tech) * 108})` }, svg);
+  S.prev = P.map(p => p.out);
+  renderPrompt(); renderDetail(P); renderStats(P);
+}
+
+function renderPrompt() {
+  const v = n => `<span class="var-t">{${n}}</span>`, L = DATA.labels;
+  const labels = (S.fault === 'labels' ? ['network_incident', ...VALID.slice(1)] : VALID).join(', ');
+  const fmt = S.tech === 'cot' ? 'Think step by step, then end with one line: "Label: &lt;label&gt;".' : 'Reply with the label only.';
+  const ex = S.fault === 'skew'
+    ? [['VPN will not connect from the hotel', 'N'], ['Office Wi-Fi keeps dropping', 'N'], ['DNS lookups time out on the build server', 'N']]
+    : [['VPN will not connect from the hotel', 'N'], ['Docking station not detected after an update', 'H'], ['Account locked after three wrong passwords', 'A']];
+  let t = `<span class="cmt"># instructions  (OpenAI: instructions=…  ·  Claude: system=…)</span>\n`;
+  if (S.role) t += `You are a Service Desk triage analyst for an enterprise IT team.\n`;
+  t += `Classify the ticket into exactly one label from: ${v('labels')}\n`;
+  if (S.role) t += `Follow POL-OPS-004: a VPN problem is ${L.N} even when the error mentions credentials;\n` +
+    `  lockouts are ${L.A}; credentials entered on a suspicious page are ${L.S}; laptops, docks and\n  peripherals are ${L.H}; ERP, invoices and payments are ${L.B}.\n`;
+  t += S.fault === 'format' ? `<span class="strike">${fmt}</span>  <span class="bad-t">← missing from this version</span>\n` : fmt + '\n';
+  if (S.tech === 'few') t += `\n<span class="cmt"># examples (user/assistant pairs)</span>\n${v('examples')}\n`;
+  t += `\n<span class="cmt"># user</span>\nTicket: ${v('ticket')}\n\n<span class="cmt"># bindings</span>\n` +
+    `{labels}   = ${S.fault === 'labels' ? `<span class="bad-t">${labels}</span>  ← stale copy; the parser expects ${L.N}` : labels}\n`;
+  if (S.tech === 'few') t += ex.map(([q, a], k) => `{examples} ${k ? '  ' : '= '}“${q}” → ${S.fault === 'skew' ? `<span class="warn-t">${L[a]}</span>` : L[a]}`).join('\n') + '\n';
+  t += `{ticket}   = “${DATA.tickets[S.sel][1]}”`;
+  document.getElementById('prompt').innerHTML = t;
+}
+
+function renderDetail(P) {
+  const [id, text, gold, why] = DATA.tickets[S.sel], p = P[S.sel], lab = DATA.labels[p.c];
+  const out = p.out === null ? `This ticket is most likely a ${lab.replace('_', ' ')}, because…` :
+    S.tech === 'cot' ? `…reasoning (about 150 tokens)… Label: ${p.out}` : p.out;
+  detail.innerHTML = `<h3>${id} · gold <code>${DATA.labels[gold]}</code> · ${p.ok ? '<span class="ok-t">correct</span>' : '<span class="bad-t">wrong</span>'}</h3>` +
+    `<p>“${esc(text)}”</p><p><b>Model output (representative):</b> <code>${esc(out)}</code>` +
+    `${p.out === null ? ' <span class="bad-t">→ parser cannot find a label</span>' : !p.valid ? ' <span class="bad-t">→ not in the label enum</span>' : ''}</p><p>${why}</p>`;
+}
+
+function renderStats(P) {
+  const c = cost(S.tech), acc = P.filter(p => p.ok).length, bad = P.filter(p => !p.valid).length;
+  stats.innerHTML = `<div class="stat"><b style="color:${acc >= 9 ? 'var(--ok)' : acc >= 7 ? 'var(--warn)' : 'var(--bad)'}">${acc} / 10</b><span>accuracy</span></div>` +
+    `<div class="stat"><b style="color:${bad ? 'var(--bad)' : 'inherit'}">${bad}</b><span>unparseable or invalid labels</span></div>` +
+    `<div class="stat"><b>${c.tin} / ${c.tout}</b><span>tokens in / out per ticket</span></div>` +
+    `<div class="stat"><b>${money(c.month, 2)}</b><span>per month at 6,000 tickets/day</span></div>` +
+    `<div class="stat"><b>${c.lat} s</b><span>typical latency</span></div>`;
+}
+
+function select(i) { S.sel = i; render(); logLine(logEl, `${DATA.tickets[i][0]} selected: ${predict(S.tech)[i].ok ? 'correct' : 'wrong'}`); }
+function changed(what) {
+  const before = S.prev, from = techs.indexOf(S.tech);
+  render();
+  const P = predict(S.tech), n = before ? P.filter((p, i) => p.out !== before[i]).length : 0;
+  logLine(logEl, `${what} → ${P.filter(p => p.ok).length}/10 correct, ${n} prediction${n === 1 ? '' : 's'} changed, ${money(cost(S.tech).month, 2)}/month`, true);
+  return from;
+}
+
+bindSeg('tech', async v => {
+  const from = techs.indexOf(S.tech); S.tech = v;
+  if (hlBox) await tween(hlBox, 0, 34 + from * 108, 0, 34 + techs.indexOf(v) * 108, 350);
+  changed(`Technique: ${DATA.tech[v].name}`);
+});
+bindToggle('role', on => { S.role = on; document.getElementById('role').textContent = 'Role + label definitions: ' + (on ? 'on' : 'off'); changed(`Role + definitions ${on ? 'on' : 'off'}`); });
+bindSeg('prov', v => { S.prov = v; changed(`Provider: ${v === 'openai' ? 'OpenAI' : 'Claude'}`); });
+bindSeg('fault', v => {
+  S.fault = v;
+  const note = { none: 'Template bug removed', format: 'Bug: output-format line deleted', labels: 'Bug: {labels} rendered from a stale list',
+    skew: S.tech === 'few' ? 'Bug: all three examples are network' : 'Bug: examples skewed (no effect until you select few-shot)' }[v];
+  changed(note);
+});
+render();
+logLine(logEl, 'Illustrative results on 10 labelled tickets. Rows outlined in amber changed with your last switch.');
+
+renderQuiz('quiz', [
+  { q: 'What does few-shot prompting give the model that zero-shot does not?',
+    options: ['A fine-tuned copy of the model trained on your examples.',
+      'Worked examples that show your label conventions and the exact output format, resent as input tokens on every call.',
+      'Access to your ticket history through retrieval.',
+      'A guarantee that the output will match the examples exactly.'],
+    answer: 1,
+    explain: 'Few-shot examples live in the prompt, not in the weights. They taught the VPN-credential and lockout conventions here, and they cost about 480 extra input tokens per ticket, which is why caching them pays off (Topic 5).' },
+  { q: 'With “Output format line missing”, few-shot still produced 10 parseable labels while chain-of-thought produced 7 prose answers. Why?',
+    options: ['Few-shot uses a different model.',
+      'Chain-of-thought is less accurate, so the parser rejects it.',
+      'The examples demonstrate the bare-label format, so the model copies it; chain-of-thought writes reasoning first and, without an answer line, the parser has nothing to extract.',
+      'Few-shot answers are cached.'],
+    answer: 2,
+    explain: 'Examples are also format instructions. Open a prose row: the model often knew the right label, but the parser could not find it. Pin the format explicitly, or use structured outputs so the answer lands in its own field (Topic 2).' },
+  { q: 'After a colleague edits the shared prompt file, every VPN ticket fails validation with <code>network_incident</code>. What is the most likely cause, and the durable fix?',
+    options: ['The model has drifted; switch provider.',
+      'The <code>{labels}</code> variable now renders from a stale list. Generate it from the same enum the parser validates against, and run the labelled set on every prompt change.',
+      'Add “never say network” to the instructions.',
+      'Lower the validation strictness so <code>network_incident</code> is accepted.'],
+    answer: 1,
+    explain: 'The rendered prompt shows the bug immediately: the model was told to use the old name <code>network_incident</code>. One source of truth for labels, plus a regression run, turns this from a production incident into a failed check.' },
+  { q: 'A teammate says: “Chain-of-thought always improves accuracy, so add it to every prompt.” What does this page show?',
+    options: ['They are right; CoT won on every setting.',
+      'CoT is free because reasoning tokens are not billed.',
+      'CoT only works on Claude.',
+      'It depends: on OpenAI without definitions, CoT scored 8/10 against few-shot’s 9/10 while costing more and taking about 1.9 s instead of 0.45 s. On reasoning models you would raise effort instead.'],
+    answer: 3,
+    explain: 'CoT can over-think: it flagged the routine lockout as a security incident. Measure every technique on your labelled set and provider, and count output tokens and latency as part of the score.' },
+  { q: 'On OpenAI with role + definitions on, few-shot scores 9/10 and chain-of-thought 10/10. What does the extra correct ticket cost at 6,000 tickets a day?',
+    options: ['About $5.85 more per month and roughly 4× the latency (1.9 s vs 0.45 s).',
+      'Nothing; both prompts have the same length.',
+      'About $585 more per month.',
+      'It halves the cost, because fewer tickets need rework.'],
+    answer: 0,
+    explain: 'Few-shot + role is $15.93/month; CoT + role is $21.78/month at these small-tier prices. The money is small here, but the latency is not, and at mid-tier prices it is 20× larger. Decide by the cost of one mis-routed ticket, not by accuracy alone.' }
+]);
+</script>
+</body>
+</html>

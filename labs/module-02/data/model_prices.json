@@ -1,0 +1,15 @@
+{
+  "_note": "List prices in USD per 1M tokens, used only to estimate cost in the labs. Re-check the provider pricing pages before a real business case. A model missing here shows its cost as '—': add a row.",
+  "prices_as_of": "2026-10-27",
+  "models": {
+    "claude-fable-5-1": {"input": 10.0, "cached_input": 0.25, "output": 50.0},
+    "claude-opus-5-5": {"input": 4.0, "cached_input": 0.2, "output": 20.0},
+    "claude-sonnet-5-5": {"input": 2.0, "cached_input": 0.2, "output": 10.0},
+    "claude-haiku-5-5": {"input": 0.1, "cached_input": 0.01, "output": 0.5},
+    "gpt-6-astra": {"input": 10.0, "cached_input": 1.0, "output": 50.0},
+    "gpt-6.1-sol": {"input": 2.0, "cached_input": 0.1, "output": 10.0},
+    "gpt-6.1-terra": {"input": 1.0, "cached_input": 0.05, "output": 5.0},
+    "gpt-6-luna": {"input": 0.1, "cached_input": 0.01, "output": 0.5},
+    "gpt-5-mini": {"input": 0.25, "cached_input": 0.025, "output": 2.0}
+  }
+}

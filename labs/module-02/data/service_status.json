@@ -1,0 +1,14 @@
+[
+  {"ci_id": "vpn-gateway-eu-01", "service": "VPN", "name": "EU VPN gateway 01", "owner_team": "Network Ops", "region": "EU", "status": "degraded", "note": "Elevated authentication failures since 07:40 CET. See INC-104512."},
+  {"ci_id": "vpn-gateway-eu-02", "service": "VPN", "name": "EU VPN gateway 02", "owner_team": "Network Ops", "region": "EU", "status": "operational", "note": ""},
+  {"ci_id": "vpn-gateway-us-01", "service": "VPN", "name": "US VPN gateway 01", "owner_team": "Network Ops", "region": "US", "status": "operational", "note": ""},
+  {"ci_id": "wifi-apac-sin-01", "service": "Wi-Fi", "name": "APAC-SIN-01 office Wi-Fi", "owner_team": "Network Ops", "region": "APAC", "status": "degraded", "note": "Access points resetting. See INC-104518."},
+  {"ci_id": "idp-global", "service": "Identity", "name": "Identity provider (sign-in)", "owner_team": "Platform Engineering", "region": "EU", "status": "operational", "note": ""},
+  {"ci_id": "mail-relay-us", "service": "Email", "name": "US mail relay", "owner_team": "Platform Engineering", "region": "US", "status": "operational", "note": ""},
+  {"ci_id": "mail-gateway-eu", "service": "Email", "name": "EU mail gateway", "owner_team": "Platform Engineering", "region": "EU", "status": "operational", "note": "Phishing sender domain blocked at 10:40 UTC (INC-104530)."},
+  {"ci_id": "erp-finance-eu", "service": "ERP", "name": "ERP finance (EU instance)", "owner_team": "Finance", "region": "EU", "status": "operational", "note": ""},
+  {"ci_id": "erp-finance-apac", "service": "ERP", "name": "ERP finance (APAC instance)", "owner_team": "Finance", "region": "APAC", "status": "operational", "note": "Patch FIN-2026.11 planned (CHG-20933)."},
+  {"ci_id": "st-us-01", "service": "Storage", "name": "Storage cluster ST-US-01", "owner_team": "Platform Engineering", "region": "US", "status": "operational", "note": "Intermittent latency on controller B (INC-104525). Firmware change CHG-20935 planned."},
+  {"ci_id": "print-server-us-01", "service": "Printing", "name": "US print server 01", "owner_team": "Service Desk", "region": "US", "status": "operational", "note": ""},
+  {"ci_id": "build-agents", "service": "CI/CD", "name": "Deployment pipeline build agents", "owner_team": "Platform Engineering", "region": "EU", "status": "operational", "note": ""}
+]

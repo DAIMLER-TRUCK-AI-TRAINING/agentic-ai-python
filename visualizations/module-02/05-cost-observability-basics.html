@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cost &amp; Observability Basics</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 2 · Prompt Engineering, OpenAI &amp; Claude SDKs, LangChain &amp; Single Agent</a>
+    <div class="nav"><span>5 / 8</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 5</div>
+  <h1>Every cost lever and every failure shows up in the trace</h1>
+  <p class="lede">You cannot optimise what you do not measure. One assistant request is a tree of spans: two model calls, two
+    tools and a validator, each with tokens, latency and a request ID. Pull the cost levers and watch the monthly bill <em>and</em>
+    the eval score, then press <b>Send request ▶</b> with a 429, a tool timeout or invalid JSON injected, and read how the trace and
+    the structured logs tell the story.</p>
+
+  <div class="card">
+    <div class="controls">
+      <button class="toggle" id="cache" aria-pressed="false">Prompt caching: off</button>
+      <button class="toggle" id="batch" aria-pressed="false">Batch the overnight backlog: off</button>
+      <button class="toggle" id="trim" aria-pressed="false">Trim few-shot 5 → 3: off</button>
+      <button class="toggle" id="route" aria-pressed="false">Route P3/P4 to small model: off</button>
+      <button class="toggle" id="bug" aria-pressed="false">Bug: timestamp first in system prompt: off</button>
+    </div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">Inject:</span>
+      <div class="seg" id="fault">
+        <button data-v="none" aria-pressed="true">Nothing</button>
+        <button data-v="429" aria-pressed="false">429 rate limit</button>
+        <button data-v="timeout" aria-pressed="false">Tool timeout</button>
+        <button data-v="json" aria-pressed="false">Invalid JSON</button>
+      </div>
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">OpenAI fields</button>
+        <button data-v="claude" aria-pressed="false">Claude fields</button>
+      </div>
+      <button class="primary" id="send">Send request ▶</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 356" role="img" aria-label="Trace waterfall of one assistant request and the monthly bill"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Cost levers across providers</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Lever</th><th>OpenAI</th><th>Anthropic Claude</th><th>Trade-off</th></tr></thead>
+      <tbody>
+        <tr><td><b>Token budgeting</b></td><td>Count with <code>client.responses.input_tokens.count(…)</code>; cap with <code>max_output_tokens</code></td><td>Count with <code>client.messages.count_tokens(…)</code>; cap with <code>max_tokens</code></td><td>Trimming context can cost accuracy: re-run the eval</td></tr>
+        <tr><td><b>Prompt caching</b></td><td>Automatic for long prompts (from 1,024 tokens on current models); <code>prompt_cache_key</code>; read <code>usage.input_tokens_details.cached_tokens</code></td><td><code>cache_control</code> breakpoints or top-level automatic caching; read <code>usage.cache_read_input_tokens</code> and <code>cache_creation_input_tokens</code></td><td>Reads cost about 0.1× input (less on some models), writes more than 1×. Static content first; one changed byte invalidates everything after it</td></tr>
+        <tr><td><b>Batching</b></td><td>Batch API: a JSONL file of <code>/v1/responses</code> requests, <code>completion_window="24h"</code>, 50 % off</td><td>Message Batches API: <code>client.messages.batches.create(requests=[…])</code>, 50 % off; most finish within an hour, at most 24 h</td><td>Only for work that can wait</td></tr>
+        <tr><td><b>Model routing</b></td><td>A small model for easy tickets, the configured <code>OPENAI_MODEL</code> for the rest</td><td>Same, with <code>ANTHROPIC_SMALL_MODEL</code> and <code>ANTHROPIC_MODEL</code></td><td>Every route needs its own eval</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Observability and error handling basics</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Failure</th><th>HTTP</th><th>OpenAI SDK</th><th>Anthropic SDK</th><th>What to do</th></tr></thead>
+      <tbody>
+        <tr><td>Rate limited</td><td>429</td><td><code>openai.RateLimitError</code></td><td><code>anthropic.RateLimitError</code></td><td>Both SDKs retry twice by default (<code>max_retries=2</code>) with backoff; then queue, shed or batch load</td></tr>
+        <tr><td>Overloaded or unavailable</td><td>5xx (Claude also 529)</td><td><code>InternalServerError</code></td><td><code>InternalServerError</code>, <code>OverloadedError</code> (529)</td><td>Retried automatically; then fail over or degrade gracefully</td></tr>
+        <tr><td>Timeout</td><td>–</td><td><code>APITimeoutError</code></td><td><code>APITimeoutError</code></td><td>Set <code>timeout=</code>; stream long outputs</td></tr>
+        <tr><td>Bad request</td><td>400</td><td><code>BadRequestError</code></td><td><code>BadRequestError</code></td><td>Never retry; fix the request (context too long, invalid schema)</td></tr>
+        <tr><td>Tool failure</td><td>–</td><td colspan="2">Your code: return an error result to the model (Topic 3)</td><td>Escalate; never pretend the call succeeded</td></tr>
+        <tr><td>Invalid output</td><td>–</td><td colspan="2">Pydantic <code>ValidationError</code> in your code (Topic 2)</td><td>One repair attempt with the error message, then escalate; prefer strict outputs</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> log one structured line per span with the trace ID, the provider request ID
+    (<code>resp._request_id</code> / <code>msg._request_id</code>), the model, token usage <em>including cached tokens</em>, latency and the
+    outcome. With LangChain, <code>LANGSMITH_TRACING=true</code> records this tree for you; for raw SDK calls, use
+    <code>langsmith.traceable</code> or <code>wrap_openai</code> / <code>wrap_anthropic</code>. Module 5 adds Langfuse and dashboards.</div>
+  <div class="callout warn"><b>Common trap:</b> a value that changes on every request, such as a timestamp, a request UUID or unsorted
+    JSON, near the top of the prompt. Caching silently stops working and every request pays the cache-write premium; turn on the bug
+    to see the bill rise <em>above</em> the uncached baseline. Put static content first and check the cached-token fields in your logs.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="04-agent-skills-openspec.html"><small>← Previous</small>Agent Skills &amp; OpenSpec agent design</a>
+    <a class="next" href="06-langchain-agents-tools.html"><small>Next →</small>LangChain architecture &amp; tool integration</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative numbers (course-map §8.3). Prices: mid tier $2 / $10 and small tier $0.10 / $0.50 per 1M input / output
+// tokens (Claude Sonnet 5.5 · GPT-6.1 Sol and Claude Haiku 5.5 · GPT-6 Luna list prices, 27 Oct 2026). Cache reads are modelled at
+// 0.1× input and writes at 1.25×, with a 95 % hit rate when caching works. Latencies and eval scores are representative.
+const DATA = {
+  price: { mid: [2, 10], small: [0.10, 0.50] }, perMonth: 180000, batchShare: 0.3, routeShare: 0.6, hit: 0.95,
+  tok: { system: 600, tools: 300, shots: 1200, shotsTrim: 720, ticket: 300, out1: 120, toolRes: 450, out2: 180 },
+  lat: { mid: [900, 1300], small: [400, 600] }, cacheSpeedup: 0.75, eval: 92,
+  ticket: 'INC-104289 · P4 · “Locked out after the password change this morning”'
+};
+
+const S = { cache: false, batch: false, trim: false, route: false, bug: false, fault: 'none', prov: 'openai', sel: 1, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const stats = document.getElementById('stats'), detail = document.getElementById('detail');
+const X0 = 210, XW = 670;
+
+function tokens() {
+  const t = DATA.tok, prefix = t.system + t.tools + (S.trim ? t.shotsTrim : t.shots), in1 = prefix + t.ticket, in2 = in1 + t.out1 + t.toolRes;
+  return { prefix, in1, in2, totalIn: in1 + in2, out: t.out1 + t.out2, cached: prefix + in1 };
+}
+// Per-request cost split into uncached input, cache reads/writes and output, in dollars.
+function reqCost(tier) {
+  const t = tokens(), [pi, po] = DATA.price[tier], u = 1e-6;
+  let inU = t.totalIn * pi * u, inC = 0;
+  if (S.cache && S.bug) inC = t.cached * pi * 0.25 * u;                    // a write premium on every request, never read back
+  else if (S.cache) {
+    inU = (t.totalIn - t.cached) * pi * u;
+    inC = (DATA.hit * 0.1 + (1 - DATA.hit) * 1.25) * t.cached * pi * u;
+  }
+  return { inU, inC, out: t.out * po * u };
+}
+function monthly() {
+  const m = reqCost('mid'), s = reqCost('small'), f = S.route ? DATA.routeShare : 0, b = (S.batch ? 1 - DATA.batchShare * 0.5 : 1) * DATA.perMonth;
+  const mix = k => ((1 - f) * m[k] + f * s[k]) * b;
+  return { inU: mix('inU'), inC: mix('inC'), out: mix('out'), total: mix('inU') + mix('inC') + mix('out') };
+}
+function baseline() { const keep = { ...S }; Object.assign(S, { cache: false, batch: false, trim: false, route: false, bug: false }); const b = monthly(); Object.assign(S, keep); return b; }
+
+// The trace for one interactive request (INC-104289, routable when routing is on).
+function spans() {
+  const tier = S.route ? 'small' : 'mid', k = S.cache && !S.bug ? DATA.cacheSpeedup : 1, trimMs = S.trim ? 50 : 0;
+  const [l1, l2] = DATA.lat[tier].map(x => Math.round(x * k) - trimMs), t = tokens(), sp = [];
+  let now = 20;
+  if (S.fault === '429') { sp.push({ name: 'llm.call #1 (attempt 1)', kind: 'error', s: now, d: 60, status: 429 }); now += 60;
+    sp.push({ name: 'SDK backoff (retry-after: 1)', kind: 'wait', s: now, d: 1000 }); now += 1000; }
+  sp.push({ name: S.fault === '429' ? 'llm.call #1 (attempt 2)' : 'llm.call #1', kind: 'llm', s: now, d: l1, tin: t.in1, tout: DATA.tok.out1, cached: S.cache && !S.bug ? t.prefix : 0, tier });
+  now += l1 + 10;
+  const kbD = S.fault === 'timeout' ? 5000 : 180;
+  sp.push({ name: 'tool.get_service_status', kind: 'tool', s: now, d: 120 });
+  sp.push({ name: 'tool.search_kb', kind: S.fault === 'timeout' ? 'error' : 'tool', s: now, d: kbD, status: S.fault === 'timeout' ? 'timeout' : 'ok' });
+  now += kbD + 10;
+  sp.push({ name: 'llm.call #2', kind: 'llm', s: now, d: l2, tin: t.in2, tout: DATA.tok.out2, cached: S.cache && !S.bug ? t.in1 : 0, tier });
+  now += l2 + 5;
+  sp.push({ name: 'validate_output', kind: S.fault === 'json' ? 'error' : 'ok', s: now, d: 8 }); now += 13;
+  if (S.fault === 'json') {
+    const d = Math.round(l2 * .8);
+    sp.push({ name: 'llm.call #3 (repair)', kind: 'llm', s: now, d, tin: t.in2 + DATA.tok.out2 + 100, tout: DATA.tok.out2, cached: 0, tier }); now += d + 5;
+    sp.push({ name: 'validate_output (retry)', kind: 'ok', s: now, d: 8 }); now += 13;
+  }
+  sp.unshift({ name: 'triage_request', kind: 'root', s: 0, d: now + 10 });
+  return sp;
+}
+const spanCost = s => { if (s.kind !== 'llm') return 0; const [pi, po] = DATA.price[s.tier]; return ((s.tin - s.cached) * pi + s.cached * pi * 0.1 + s.tout * po) / 1e6; };
+const COL = { root: 'var(--p0)', llm: 'var(--p3)', tool: 'var(--p1)', ok: 'var(--p2)', error: 'var(--bad)', wait: 'var(--warn)' };
+
+function render() {
+  svg.innerHTML = '';
+  const sp = spans(), T = sp[0].d, sc = XW / Math.max(T, 3000);
+  el('text', { x: 16, y: 16, class: 'hdr', text: `Trace · ${DATA.ticket}` }, svg);
+  for (let ms = 0; ms <= Math.max(T, 3000); ms += Math.max(T, 3000) > 6000 ? 1000 : 500) {
+    el('line', { x1: X0 + ms * sc, y1: 42, x2: X0 + ms * sc, y2: 282, stroke: 'var(--border)' }, svg);
+    el('text', { x: X0 + ms * sc, y: 37, 'text-anchor': 'middle', class: 'lab muted', text: (ms / 1000).toFixed(1) + ' s' }, svg);
+  }
+  const clip = el('clipPath', { id: 'reveal' }, el('defs', {}, svg));
+  const clipRect = el('rect', { x: X0, y: 42, width: XW + 20, height: 244 }, clip);
+  const bars = el('g', { 'clip-path': 'url(#reveal)' }, svg);
+  sp.forEach((s, k) => {
+    const y = 50 + k * 29, g = clickable(el('g', {}, svg), () => select(k), `${s.name}: ${s.d} ms`);
+    el('rect', { x: 10, y: y - 3, width: 196, height: 24, rx: 5, fill: k === S.sel ? 'var(--accent-soft)' : 'transparent' }, g);
+    el('text', { x: 16 + (k ? 12 : 0), y: y + 13, class: 'lab', fill: s.kind === 'error' ? 'var(--bad)' : 'var(--text)', text: s.name }, g);
+    const bar = el('rect', { x: X0 + s.s * sc, y, width: Math.max(3, s.d * sc), height: 18, rx: 4, fill: COL[s.kind], 'fill-opacity': s.kind === 'root' ? .2 : .8,
+      stroke: k === S.sel ? 'var(--text)' : 'none', 'stroke-dasharray': s.kind === 'wait' ? '4 3' : '' }, bars);
+    clickable(bar, () => select(k), `${s.name} bar`);
+    const note = s.kind === 'llm' ? `${s.d} ms · ${s.tin} → ${s.tout} tokens` : s.status && s.status !== 'ok' ? `${s.d} ms · ${s.status}` : `${s.d} ms`;
+    const endX = X0 + (s.s + s.d) * sc, left = endX + note.length * 6.7 > 892;
+    el('text', { x: left ? X0 + s.s * sc - 6 : endX + 6, y: y + 13, 'text-anchor': left ? 'end' : 'start', class: 'lab muted', text: note }, bars);
+  });
+  const M = monthly(), B = baseline(), W = 430 / Math.max(B.total, M.total);
+  el('text', { x: 16, y: 304, class: 'hdr', text: 'Monthly bill' }, svg);
+  el('text', { x: 16, y: 320, class: 'lab muted', text: '180,000 requests' }, svg);
+  el('rect', { x: X0, y: 294, width: B.total * W, height: 26, rx: 4, fill: 'none', stroke: 'var(--muted)', 'stroke-dasharray': '4 3' }, svg);
+  let x = X0;
+  [['inU', 'var(--p0)', 'input'], ['inC', 'var(--warn)', 'cache'], ['out', 'var(--p3)', 'output']].forEach(([key, c, lab]) => {
+    const w = M[key] * W; if (w < .5) return;
+    el('rect', { x, y: 294, width: w, height: 26, fill: c, 'fill-opacity': .75 }, svg);
+    if (w > 44) el('text', { x: x + w / 2, y: 311, 'text-anchor': 'middle', class: 'lab', fill: '#fff', text: lab }, svg);
+    x += w;
+  });
+  el('text', { x: X0 + Math.max(B.total, M.total) * W + 10, y: 312, class: 'hdr', text: `${money(M.total, 0)} vs ${money(B.total, 0)} baseline` }, svg);
+  el('text', { x: X0, y: 342, class: 'lab muted', text: 'dashed outline = no levers · blue = uncached input · amber = cache reads and writes · purple = output' }, svg);
+  renderStats(sp, M, B); renderDetail(sp);
+  return { sp, clipRect };
+}
+
+function pct(M, B) { const p = Math.round(100 * M.total / B.total - 100); return p ? `${p > 0 ? '+' : '−'}${Math.abs(p)} % vs baseline` : 'same as baseline'; }
+function renderStats(sp, M, B) {
+  const ev = DATA.eval - (S.trim ? 1 : 0) - (S.route ? 1 : 0), cost = sp.reduce((a, s) => a + spanCost(s), 0);
+  const t = tokens(), hit = S.cache && !S.bug ? Math.round(100 * DATA.hit * t.cached / t.totalIn) : 0;
+  stats.innerHTML = `<div class="stat"><b>${(sp[0].d / 1000).toFixed(2)} s</b><span>this request, end to end</span></div>` +
+    `<div class="stat"><b>${money(cost, 4)}</b><span>this request</span></div>` +
+    `<div class="stat"><b style="color:${M.total > B.total ? 'var(--bad)' : 'inherit'}">${money(M.total, 0)}</b><span>per month (${pct(M, B)})</span></div>` +
+    `<div class="stat"><b>${hit} %</b><span>input tokens read from cache</span></div>` +
+    `<div class="stat"><b style="color:${ev < DATA.eval ? 'var(--warn)' : 'var(--ok)'}">${ev} %</b><span>eval accuracy (200 tickets)</span></div>`;
+}
+
+function attrs(s) {
+  const o = S.prov === 'openai';
+  if (s.kind === 'llm') return o
+    ? `model=$OPENAI_${s.tier === 'small' ? 'SMALL_' : ''}MODEL · request_id=req_7f3a… · usage.input_tokens=${s.tin} · usage.input_tokens_details.cached_tokens=${s.cached} · usage.output_tokens=${s.tout}`
+    : `model=$ANTHROPIC_${s.tier === 'small' ? 'SMALL_' : ''}MODEL · request_id=req_011C… · usage.input_tokens=${s.tin - s.cached} · usage.cache_read_input_tokens=${s.cached} · usage.output_tokens=${s.tout}`;
+  if (s.status === 429) return `${o ? 'openai' : 'anthropic'}.RateLimitError · status 429 · retry-after: 1 · the SDK retries automatically (max_retries=2)`;
+  if (s.kind === 'wait') return 'No tokens billed for the rejected attempt; latency is the cost.';
+  if (s.status === 'timeout') return 'TimeoutError after 5 s → returned to the model as an error result; the EscalationRecord sets escalate=true';
+  if (s.name.startsWith('validate') && s.kind === 'error') return 'pydantic.ValidationError: EscalationRecord · priority: Input should be \'P1\', \'P2\', \'P3\' or \'P4\' [type=literal_error, input_value=\'low\']';
+  if (s.kind === 'root') return `trace_id=4bf92f3577b34da6 · ${s.d} ms · ${S.fault === 'none' ? 'ok' : S.fault === 'timeout' ? 'ok, escalated to a human' : 'ok after recovery'}`;
+  return 'ok';
+}
+function renderDetail(sp) {
+  const s = sp[Math.min(S.sel, sp.length - 1)];
+  detail.innerHTML = `<h3>${s.name} · ${s.d} ms</h3><p><code>${esc(attrs(s))}</code></p>` +
+    (s.kind === 'llm' ? `<p>Cost ${money(spanCost(s), 5)} at ${s.tier === 'small' ? 'small' : 'mid'}-tier prices${s.cached ? `; ${s.cached} tokens read from cache at about 0.1×` : ''}.</p>` : '');
+}
+function select(k) { S.sel = k; render(); }
+
+function logTrace(sp) {
+  const o = S.prov === 'openai';
+  sp.slice(1).forEach(s => {
+    const lvl = s.kind === 'error' ? 'ERROR' : s.kind === 'wait' ? 'WARN' : 'INFO';
+    const u = s.kind === 'llm' ? (o ? `,"in":${s.tin},"cached_tokens":${s.cached},"out":${s.tout}` : `,"in":${s.tin - s.cached},"cache_read_input_tokens":${s.cached},"out":${s.tout}`) : '';
+    logLine(logEl, esc(`{"level":"${lvl}","trace":"4bf92f35","span":"${s.name}","ms":${s.d}${s.status && s.status !== 'ok' ? `,"status":"${s.status}"` : ''}${u}}`), lvl !== 'INFO');
+  });
+}
+
+async function send() {
+  const epoch = ++S.epoch, { sp, clipRect } = render();
+  await tween(clipRect, -XW - 20, 0, 0, 0, Math.min(2200, 300 + sp[0].d / 3));
+  if (epoch !== S.epoch) return;
+  logTrace(sp);
+}
+function changed(what) {
+  S.epoch++; render();
+  const M = monthly(), B = baseline();
+  logLine(logEl, `${what} → ${money(M.total, 0)}/month (${pct(M, B)}), eval ${DATA.eval - (S.trim ? 1 : 0) - (S.route ? 1 : 0)} %`, true);
+}
+const LABEL = { cache: 'Prompt caching', batch: 'Batch the overnight backlog', trim: 'Trim few-shot 5 → 3', route: 'Route P3/P4 to small model', bug: 'Bug: timestamp first in system prompt' };
+Object.keys(LABEL).forEach(k => bindToggle(k, on => { S[k] = on; document.getElementById(k).textContent = `${LABEL[k]}: ${on ? 'on' : 'off'}`; changed(`${LABEL[k]} ${on ? 'on' : 'off'}`); }));
+bindSeg('fault', v => { S.fault = v; S.sel = 1; changed(v === 'none' ? 'No fault injected' : `Injected: ${{ 429: '429 rate limit', timeout: 'search_kb timeout', json: 'invalid JSON from call #2' }[v]}`); });
+bindSeg('prov', v => { S.prov = v; render(); logLine(logEl, `Showing ${v === 'openai' ? 'OpenAI' : 'Claude'} usage field names`); });
+document.getElementById('send').onclick = send;
+render();
+logLine(logEl, 'Illustrative prices and latencies. Press Send request ▶, then switch on prompt caching.');
+
+renderQuiz('quiz', [
+  { q: 'What exactly does prompt caching save you?',
+    options: ['The cost of output tokens, because answers are reused.',
+      'Re-processing an identical prompt <em>prefix</em>: cached input tokens are billed at a fraction of the input price and arrive faster. Output is generated and billed as usual.',
+      'All costs for repeated questions, because the provider returns the previous answer.',
+      'Nothing; it only reduces latency.'],
+    answer: 1,
+    explain: 'Watch the bill bar: with caching on, the blue input block shrinks and a small amber cache block appears, while the purple output block does not change. That is why caching pays most on long, stable prefixes such as system prompts, tools and few-shot examples.' },
+  { q: 'Caching cuts the monthly bill from $2,473 to $1,108 (about −55 %), but turning on the timestamp bug makes it $2,878. Why is the bug worse than no caching at all?',
+    options: ['Timestamps are billed as output tokens.',
+      'The changing timestamp at the top makes every prefix unique, so nothing is ever read from cache, yet every request still pays the cache-write premium.',
+      'The provider disables caching as a penalty.',
+      'Timestamps make prompts longer than the context window.'],
+    answer: 1,
+    explain: 'Cache keys are exact byte prefixes. A dynamic value near the top invalidates everything after it. The fix is ordering: static content first, per-request values last, and an alert on the cached-token field in your logs.' },
+  { q: 'At the 09:00 peak, logs show <code>RateLimitError</code> (429) on the first model call, then success. What is the right response?',
+    options: ['Wrap the call in a tight <code>while True</code> retry loop.',
+      'Nothing; 429s are harmless.',
+      'Let the SDK’s built-in retries (backoff honouring <code>retry-after</code>) absorb short bursts, log the request IDs, and for sustained 429s raise the rate limit, queue, or move non-urgent work to batch.',
+      'Switch provider for every request that gets a 429.'],
+    answer: 2,
+    explain: 'The trace shows the cost of a 429: no tokens, but a full second of backoff. Tight loops make rate limiting worse. Capacity is a design input: smooth the traffic or buy headroom.' },
+  { q: 'A teammate says: “Turn on batching and the assistant will answer faster and cheaper.” What is wrong?',
+    options: ['Batching is cheaper (50 % off) but asynchronous: results can take up to 24 hours, so it suits the overnight backlog, never an interactive chat.',
+      'Nothing; batching is faster.',
+      'Batching costs more but is faster.',
+      'Batching only works on OpenAI.'],
+    answer: 0,
+    explain: 'In the simulation, batching only touches the 30 % backlog share and leaves this interactive trace unchanged. Both providers offer batch APIs at half price for work that can wait.' },
+  { q: 'Routing P3/P4 tickets to the small model cuts the bill sharply. What else changed that you must check before shipping?',
+    options: ['Nothing; routing is free.',
+      'The output format, which small models cannot produce.',
+      'Latency, which always gets worse on small models.',
+      'The eval score: it fell by one point here. Each route needs its own eval on the tickets it will see, and a way to send hard cases back to the larger model.'],
+    answer: 3,
+    explain: 'Cost levers move quality too. Trimming few-shot examples also cost a point. Keep the eval score next to the bill on every optimisation dashboard, so a saving that breaks routing never ships unnoticed.' }
+]);
+</script>
+</body>
+</html>
