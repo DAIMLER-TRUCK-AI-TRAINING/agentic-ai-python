@@ -14,7 +14,7 @@ you what is missing.
 | [`.env.example`](.env.example) | The environment variables the labs read: names only, no values |
 | [`check_env.py`](check_env.py) | Prints a ✅ / ⚠️ / ❌ table of Python, packages, keys, Tesseract, Redis and local models |
 | [`prefetch_models.py`](prefetch_models.py) | Downloads the open models the labs run locally (about 830 MB for Module 1) |
-| [`llm.py`](llm.py) | Provider factory used from Module 2 Lab 04 on: `get_chat_model()`, `get_client()`, `get_model_name()` |
+| [`llm.py`](llm.py) | Provider factory used from Module 2 Lab 04 on: `get_chat_model()`, `get_client()`, `get_model_name()`; from Module 3, also LlamaIndex models (`get_llama_llm()`), embeddings (`get_embeddings()`, `get_llama_embed_model()`) and the Azure providers |
 
 ---
 
@@ -86,6 +86,9 @@ IDs as they are unless your instructor says otherwise:
 | `LLM_PROVIDER` | `openai` | Module 2 Labs 04–05 and Phase 2 labs, through `llm.py` |
 | `LANGSMITH_*`, `LANGFUSE_*`, `TAVILY_API_KEY`, `REDIS_URL` | empty | Modules 2–5; each lab has a fallback |
 | `AZURE_VISION_*` | empty | Instructor only (Module 1 cloud OCR demo) |
+| `AZURE_OPENAI_*`, `ANTHROPIC_FOUNDRY_*` | empty | Module 3 onwards, only with `LLM_PROVIDER=azure-openai` or `azure-anthropic`: deployment names, not model IDs |
+| `EMBEDDING_PROVIDER`, `ST_MODEL`, `RERANK_MODEL` | `local`, the multilingual MiniLM, `ms-marco-MiniLM-L-6-v2` | Module 3 onwards: local embeddings and re-ranking, no key needed |
+| `PINECONE_API_KEY`, `PINECONE_INDEX`, `PINECONE_CLOUD`, `PINECONE_REGION` | empty, empty, `aws`, `us-east-1` | Module 3 Lab 03 (optional; Chroma otherwise) |
 
 `.env` is git-ignored. Never paste a key into a notebook cell, a commit or a chat.
 
@@ -94,6 +97,7 @@ IDs as they are unless your instructor says otherwise:
 ```bash
 # (terminal) - from the repo root, venv active
 python labs/setup/prefetch_models.py --module 1
+python labs/setup/prefetch_models.py --module 3   # the embedding model and the re-ranker for the RAG labs
 ```
 
 This downloads `HuggingFaceTB/SmolLM2-135M` (Lab 01) and two Sentence
@@ -148,6 +152,24 @@ llm = get_chat_model()     # ChatOpenAI or ChatAnthropic
 
 `get_chat_model()` raises `ProviderConfigError` with the variable to fix when
 a key or model ID is missing.
+
+From Module 3 on, the same settings drive LlamaIndex and the embeddings, and
+`LLM_PROVIDER` also accepts the Azure providers:
+
+| `LLM_PROVIDER` | Calls | Comparison partner (`partner_provider()`) |
+| -------------- | ----- | ----------------------------------------- |
+| `openai` / `anthropic` | The providers' own APIs | the other one |
+| `azure-openai` | Azure OpenAI v1 API on `AZURE_OPENAI_ENDPOINT` (Bearer key) | `azure-anthropic` |
+| `azure-anthropic` | Claude on Microsoft Foundry, `https://<ANTHROPIC_FOUNDRY_RESOURCE>.services.ai.azure.com/anthropic` | `azure-openai` |
+
+```python
+# (notebook)
+from llm import get_llama_llm, get_llama_embed_model, get_embeddings
+llm = get_llama_llm()                 # OpenAIResponses or Anthropic, for LLM_PROVIDER
+embed = get_llama_embed_model()       # EMBEDDING_PROVIDER: local (default), openai or azure-openai
+```
+
+Module 2 Labs 04–05 use `openai` or `anthropic` only.
 
 ## Troubleshooting
 

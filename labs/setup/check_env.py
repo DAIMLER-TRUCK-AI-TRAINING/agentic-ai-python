@@ -76,6 +76,11 @@ PACKAGES: dict[int, dict[str, str]] = {
         "llama_index.embeddings.huggingface": "llama-index-embeddings-huggingface",
         "faiss": "faiss-cpu",
         "chromadb": "chromadb",
+        "langchain_text_splitters": "langchain-text-splitters",
+        "llama_index.vector_stores.chroma": "llama-index-vector-stores-chroma",
+        "llama_index.retrievers.bm25": "llama-index-retrievers-bm25",
+        "pinecone": "pinecone",
+        "llama_index.vector_stores.pinecone": "llama-index-vector-stores-pinecone",
     },
     4: {"langgraph": "langgraph", "mcp": "mcp", "redis": "redis"},
     5: {"langfuse": "langfuse", "guardrails": "guardrails-ai"},
@@ -95,6 +100,8 @@ ENV_VARS: list[tuple[str, int, bool, str]] = [
     ("LANGSMITH_TRACING", 2, False, WARN),
     ("LANGSMITH_API_KEY", 2, True, WARN),
     ("TAVILY_API_KEY", 2, True, WARN),
+    ("EMBEDDING_PROVIDER", 3, False, WARN),
+    ("PINECONE_API_KEY", 3, True, WARN),
     ("REDIS_URL", 4, False, WARN),
     ("LANGFUSE_PUBLIC_KEY", 5, True, WARN),
     ("LANGFUSE_SECRET_KEY", 5, True, WARN),
@@ -104,6 +111,16 @@ ENV_VARS: list[tuple[str, int, bool, str]] = [
 # Every lab calls both providers, so their keys and main models are checked whatever --module says.
 ALWAYS_CHECKED = {"OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"}
 
+# Module 3 onwards can run on Azure instead (LLM_PROVIDER=azure-openai | azure-anthropic).
+AZURE_VARS: dict[str, list[tuple[str, bool]]] = {
+    "azure-openai": [("AZURE_OPENAI_API_KEY", True), ("AZURE_OPENAI_ENDPOINT", True), ("AZURE_OPENAI_DEPLOYMENT", False)],
+    "azure-anthropic": [
+        ("ANTHROPIC_FOUNDRY_API_KEY", True),
+        ("ANTHROPIC_FOUNDRY_RESOURCE", True),
+        ("ANTHROPIC_FOUNDRY_DEPLOYMENT", False),
+    ],
+}
+
 FALLBACK_NOTES = {
     "OPENAI_SMALL_MODEL": "Lab 01 skips the temperature sweep",
     "OPENAI_EMBEDDING_MODEL": "Lab 02 skips the OpenAI embedding comparison",
@@ -112,6 +129,8 @@ FALLBACK_NOTES = {
     "LANGSMITH_TRACING": "tracing off",
     "LANGSMITH_API_KEY": "tracing off",
     "TAVILY_API_KEY": "labs use the mock search tool",
+    "EMBEDDING_PROVIDER": "llm.py embeds locally with ST_MODEL",
+    "PINECONE_API_KEY": "Module 3 Lab 03 runs the same cells on Chroma",
     "REDIS_URL": "labs use the in-memory store",
     "LANGFUSE_PUBLIC_KEY": "Langfuse tracing off",
     "LANGFUSE_SECRET_KEY": "Langfuse tracing off",
@@ -182,9 +201,13 @@ def load_env_file() -> Row:
 
 def check_env_vars(modules: list[int]) -> list[Row]:
     rows = []
+    provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+    on_azure = provider.startswith("azure-") and min(modules, default=0) >= 3
     for name, module, secret, severity in ENV_VARS:
         if module not in modules and name not in ALWAYS_CHECKED:
             continue
+        if on_azure and name in ALWAYS_CHECKED:
+            severity = WARN  # the Azure provider replaces the direct keys for Module 3 onwards
         value = os.getenv(name, "").strip()
         if value:
             # Secrets are only ever reported as present; model IDs are public and useful to see.
@@ -192,6 +215,16 @@ def check_env_vars(modules: list[int]) -> list[Row]:
         else:
             note = FALLBACK_NOTES.get(name, "required by the labs")
             rows.append(Row(severity, f"Env (M{module})", name, f"missing: {note}"))
+    if any(m >= 3 for m in modules):
+        for azure_provider, variables in AZURE_VARS.items():
+            # Endpoints and resource names are reported as present, like keys: they identify a tenant.
+            missing = [n for n, _ in variables if not os.getenv(n, "").strip()]
+            if provider == azure_provider:
+                status, detail = (FAIL, f"LLM_PROVIDER={provider} but missing: {', '.join(missing)}") if missing else (
+                    OK, "present (active provider)")
+            else:
+                status, detail = INFO, "present" if not missing else "not set: optional, only for LLM_PROVIDER=" + azure_provider
+            rows.append(Row(status, "Env (M3)", f"{azure_provider} settings", detail))
     if 1 in modules:
         azure = all(os.getenv(n) for n in ("AZURE_VISION_ENDPOINT", "AZURE_VISION_KEY"))
         rows.append(

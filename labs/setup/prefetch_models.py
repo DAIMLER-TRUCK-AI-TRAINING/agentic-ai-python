@@ -23,6 +23,10 @@ MODELS: dict[int, list[str]] = {
         "sentence-transformers/all-MiniLM-L6-v2",  # Lab 02: English-only embeddings
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # Lab 02: multilingual
     ],
+    3: [
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # ST_MODEL: local embeddings
+        "cross-encoder/ms-marco-MiniLM-L-6-v2",  # RERANK_MODEL: Labs 02-04 re-ranking
+    ],
 }
 
 # tiktoken encodings used as an offline token-count approximation.
