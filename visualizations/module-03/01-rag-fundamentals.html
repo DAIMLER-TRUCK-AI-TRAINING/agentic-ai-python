@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Fundamentals</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #answer { font-size: 15px; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>1 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 1</div>
+  <h1>A search index in front of a generator</h1>
+  <p class="lede">The model has never read your knowledge base. You can ignore that, paste the whole KB into every prompt, train the
+    facts into the weights, or retrieve the few passages that matter at question time. Ask the Service Desk question below in each
+    mode, then <b>revise KB-0042</b> and <b>grow the corpus</b> to 4,000 articles. Watch which answers go stale, which stop fitting,
+    and what each one costs.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-v="model" aria-pressed="false">Model only</button>
+        <button data-v="stuff" aria-pressed="false">Prompt stuffing</button>
+        <button data-v="tuned" aria-pressed="false">Fine-tuned model</button>
+        <button data-v="rag" aria-pressed="true">RAG (top 3)</button>
+      </div>
+      <button class="primary" id="ask">Ask ▶</button>
+    </div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">Corpus:</span>
+      <div class="seg" id="corpus">
+        <button data-v="0" aria-pressed="true">40 articles</button>
+        <button data-v="1" aria-pressed="false">400</button>
+        <button data-v="2" aria-pressed="false">4,000</button>
+      </div>
+      <button class="toggle" id="update" aria-pressed="false">KB-0042 revised this morning: off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 300" role="img" aria-label="RAG pipeline: offline ingestion and the per-question path, with the stages used by the selected mode highlighted"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="controls">
+      <div class="seg" id="tab">
+        <button data-v="prompt" aria-pressed="true">Prompt sent</button>
+        <button data-v="openai" aria-pressed="false">OpenAI call</button>
+        <button data-v="claude" aria-pressed="false">Claude call</button>
+      </div>
+    </div>
+    <pre class="pane" id="pane" aria-label="The prompt or the SDK call for the selected mode"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Four ways to get your knowledge into an answer</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>Model only</th><th>Prompt stuffing</th><th>Fine-tuning</th><th>RAG</th></tr></thead>
+      <tbody>
+        <tr><td>Where your knowledge lives</td><td>Nowhere</td><td>In every prompt, all of it</td><td>In the weights, as of training day</td><td>In an index, fetched per question</td></tr>
+        <tr><td>A KB article changes</td><td>—</td><td>Next request sees it</td><td>Retrain to see it</td><td>Re-index that article (minutes)</td></tr>
+        <tr><td>Input tokens per question</td><td>Smallest</td><td>Grows with the corpus; stops fitting</td><td>Small</td><td>Roughly constant: k chunks</td></tr>
+        <tr><td>Citations and audit</td><td>None</td><td>Possible, but the model must find the passage</td><td>None: facts have no source</td><td>Natural: each chunk carries its source ID</td></tr>
+        <tr><td>Per-user access control</td><td>—</td><td>Hard: everyone sees the whole prompt</td><td>Impossible: weights are shared</td><td>Filter chunks by the caller’s permissions</td></tr>
+        <tr><td>Good for</td><td>General language tasks</td><td>A handful of short, stable documents</td><td>Behaviour: format, style, a narrow task (Topic 2)</td><td>Large, changing, permissioned knowledge</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> RAG is a search index in front of a generator. The generator can only be as good as
+    what the search returns, so most RAG engineering is retrieval engineering: chunking (Topic 4), metadata and hybrid search (Topic 5)
+    and measurement (Topic 6). The model call is the easy part.</div>
+  <div class="callout warn"><b>Common trap:</b> believing that RAG removes hallucination. It lowers the odds by putting the right
+    passage in front of the model, but the model can still ignore it, blend it with its own priors, or answer when nothing relevant was
+    retrieved. Require a citation for every claim, check that the cited ID was actually retrieved, and let the assistant say “not in
+    the knowledge base”.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="index.html"><small>← Back</small>Module overview</a>
+    <a class="next" href="02-fine-tuning-decision-framework.html"><small>Next →</small>Fine-tuning overview &amp; decision framework</a>
+  </div>
+</div>
+
+<script>
+// Canned, illustrative numbers (course-map §8.3). Prices are an illustration ($1 per million input tokens,
+// $5 per million output tokens), not a provider's price list; the 200,000-token context window is an example size.
+const PRICE = { in: 1.0, out: 5.0 }, WINDOW = 200000, TOKENS_PER_ARTICLE = 850, BASE = 300;
+const QUESTION = 'Users get VPN error 809 straight after changing their password. What should the Service Desk tell them?';
+const DATA = {
+  corpus: [40, 400, 4000],
+  searchMs: [18, 41, 86],
+  kbOld: 'The gateway keeps the old credential for up to 60 minutes after a password change. Tell the user to clear the saved VPN password, wait for directory sync and reconnect; escalate to Network Ops L2 if it still fails after 60 minutes or more than five users at one site are affected [KB-0042].',
+  kbNew: 'Since firmware 7.4.2 reached vpn-gateway-eu-01 at 06:00 today, the gateway no longer caches old credentials: tell the user to clear the saved VPN password and reconnect, and escalate to Network Ops L2 at once if it still fails [KB-0042, revised 06:10].',
+  generic: 'Ask them to reinstall the VPN client and reset their password again from the self-service portal; error 809 usually means a firewall is blocking the connection.',
+  chunks: [
+    ['KB-0042 §2', 0.89, 'Error 809 after a password change: clear the saved VPN password and reconnect…'],
+    ['KB-0042 §3', 0.84, 'Escalate to the Network Ops L2 queue if the connection still fails…'],
+    ['KB-0107 §1', 0.61, 'Account locked after repeated failed sign-ins: unlock in the identity portal…']
+  ],
+  modes: {
+    model: { name: 'Model only', out: 120, gen: 1.4 },
+    stuff: { name: 'Prompt stuffing', out: 130, gen: 1.5 },
+    tuned: { name: 'Fine-tuned model', out: 110, gen: 1.2 },
+    rag:   { name: 'RAG (top 3)', out: 125, gen: 1.5 }
+  }
+};
+// Pipeline layout: offline ingestion on the top row, the per-question path on the bottom row.
+const NODES = {
+  docs:   [70, 70, 'KB articles'],    chunk: [235, 70, 'Chunk'],     embed: [400, 70, 'Embed'],    index: [565, 70, 'Vector index'],
+  train:  [400, 70, 'Fine-tune job'], weights: [565, 70, 'Tuned weights'],
+  q:      [70, 215, 'Question'],      qemb: [205, 215, 'Embed query'], ret: [340, 215, 'Retrieve top 3'],
+  aug:    [475, 215, 'Augment prompt'], llm: [640, 215, 'LLM generates'], ans: [810, 215, 'Answer']
+};
+const PATHS = {
+  model: { nodes: ['q', 'aug', 'llm', 'ans'], edges: [['q', 'aug'], ['aug', 'llm'], ['llm', 'ans']] },
+  stuff: { nodes: ['docs', 'q', 'aug', 'llm', 'ans'], edges: [['docs', 'aug'], ['q', 'aug'], ['aug', 'llm'], ['llm', 'ans']] },
+  tuned: { nodes: ['docs', 'train', 'weights', 'q', 'aug', 'llm', 'ans'], edges: [['docs', 'train'], ['train', 'weights'], ['weights', 'llm'], ['q', 'aug'], ['aug', 'llm'], ['llm', 'ans']] },
+  rag:   { nodes: ['docs', 'chunk', 'embed', 'index', 'q', 'qemb', 'ret', 'aug', 'llm', 'ans'],
+           edges: [['docs', 'chunk'], ['chunk', 'embed'], ['embed', 'index'], ['index', 'ret'], ['q', 'qemb'], ['qemb', 'ret'], ['ret', 'aug'], ['aug', 'llm'], ['llm', 'ans']] }
+};
+const ONLINE = { model: ['q', 'aug', 'llm', 'ans'], stuff: ['docs', 'aug', 'llm', 'ans'], tuned: ['q', 'aug', 'llm', 'ans'], rag: ['q', 'qemb', 'ret', 'aug', 'llm', 'ans'] };
+
+const S = { mode: 'rag', corpus: 0, update: false, tab: 'prompt', asked: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log'), pane = document.getElementById('pane');
+const detail = document.getElementById('detail'), stats = document.getElementById('stats');
+
+function outcome() {
+  const n = DATA.corpus[S.corpus], m = DATA.modes[S.mode];
+  let tokensIn = BASE, status, answer, cite = '—', fresh;
+  if (S.mode === 'stuff') tokensIn = BASE + n * TOKENS_PER_ARTICLE;
+  if (S.mode === 'rag') tokensIn = BASE + 3 * 420;
+  const tooBig = tokensIn > WINDOW;
+  if (S.mode === 'model') { answer = DATA.generic; status = 'bad'; fresh = 'not grounded'; }
+  else if (tooBig) { answer = `400 Bad Request: the prompt is ${tokensIn.toLocaleString('en-GB')} tokens; the context window is ${WINDOW.toLocaleString('en-GB')}.`; status = 'bad'; fresh = 'request rejected'; }
+  else if (S.mode === 'tuned') { answer = DATA.kbOld.replace(' [KB-0042]', ''); status = S.update ? 'warn' : 'ok-ish'; fresh = S.update ? 'stale since 06:10' : 'as of training day'; }
+  else { answer = S.update ? DATA.kbNew : DATA.kbOld; status = 'ok'; cite = 'KB-0042'; fresh = S.mode === 'rag' ? (S.update ? 'current (re-indexed 06:15)' : 'current') : 'current'; }
+  const seconds = tooBig ? 0 : m.gen + tokensIn / 12000 + (S.mode === 'rag' ? 0.15 + DATA.searchMs[S.corpus] / 1000 : 0);
+  const cost = tooBig ? 0 : (tokensIn * PRICE.in + m.out * PRICE.out) / 1e6 * 1000;
+  return { tokensIn, tooBig, status, answer, cite, fresh, seconds, cost };
+}
+
+function render(active) {
+  svg.innerHTML = '';
+  const P = PATHS[S.mode], on = id => P.nodes.includes(id);
+  el('text', { x: 14, y: 22, class: 'hdr', fill: 'var(--muted)', text: S.mode === 'tuned' ? 'Training time (weeks before the question)' : 'Ingestion, ahead of time' }, svg);
+  el('text', { x: 14, y: 168, class: 'hdr', fill: 'var(--muted)', text: 'Per question' }, svg);
+  el('line', { x1: 10, y1: 145, x2: 890, y2: 145, stroke: 'var(--border)', 'stroke-dasharray': '4 4' }, svg);
+  P.edges.forEach(([a, b]) => {
+    const [x1, y1] = NODES[a], [x2, y2] = NODES[b], hot = active && active.includes(a) && active.includes(b);
+    el('line', { x1: x1 + (y1 === y2 ? 62 : 0), y1: y1 + (y1 === y2 ? 0 : 20), x2: x2 - (y1 === y2 ? 62 : 0), y2: y2 - (y1 === y2 ? 0 : 20),
+      stroke: hot ? 'var(--accent)' : 'var(--muted)', 'stroke-width': hot ? 2.5 : 1.5, 'marker-end': 'url(#arr)' }, svg);
+  });
+  const defs = el('defs', {}, svg), mk = el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto' }, defs);
+  el('path', { d: 'M0 0 L10 5 L0 10 z', fill: 'var(--muted)' }, mk);
+  const shown = ['docs', 'q', 'aug', 'llm', 'ans', ...(S.mode === 'tuned' ? ['train', 'weights'] : ['chunk', 'embed', 'index', 'qemb', 'ret'])];
+  shown.forEach(id => {
+    const [x, y, label] = NODES[id], used = on(id), hot = active && active.includes(id);
+    const c = id === 'llm' ? 'var(--p3)' : ['docs', 'q'].includes(id) ? 'var(--p0)' : ['index', 'weights'].includes(id) ? 'var(--p4)' : id === 'ans' ? 'var(--p2)' : 'var(--p1)';
+    const g = el('g', { opacity: used ? 1 : 0.28 }, svg);
+    el('rect', { x: x - 62, y: y - 20, width: 124, height: 40, rx: 8, fill: c, 'fill-opacity': hot ? 0.32 : 0.12, stroke: c, 'stroke-width': hot ? 2.5 : 1.5 }, g);
+    let txt = label;
+    if (id === 'docs') txt = `${DATA.corpus[S.corpus].toLocaleString('en-GB')} KB articles`;
+    if (id === 'aug') txt = S.mode === 'stuff' ? 'Paste all articles' : S.mode === 'rag' ? 'Augment prompt' : 'Build prompt';
+    if (id === 'llm' && S.mode === 'tuned') txt = 'Tuned LLM';
+    el('text', { x, y: y + 4, 'text-anchor': 'middle', class: 'small', style: 'font-weight:600', text: txt }, g);
+  });
+  if (S.update) {
+    const [x, y] = NODES.docs;
+    el('text', { x, y: y + 36, 'text-anchor': 'middle', class: 'lab', fill: 'var(--warn)', text: 'KB-0042 revised 06:10' }, svg);
+    if (S.mode === 'tuned') el('text', { x: NODES.weights[0], y: y + 36, 'text-anchor': 'middle', class: 'lab', fill: 'var(--bad)', text: 'trained 6 weeks ago' }, svg);
+    if (S.mode === 'rag') el('text', { x: NODES.index[0], y: y + 36, 'text-anchor': 'middle', class: 'lab', fill: 'var(--ok)', text: 're-indexed 06:15' }, svg);
+  }
+  renderPanels();
+}
+
+function renderPanels() {
+  const o = outcome(), m = DATA.modes[S.mode];
+  const head = S.asked ? `<p id="answer">${esc(o.answer)}</p>` : '<p>Press <b>Ask ▶</b> to send the question.</p>';
+  const chunks = S.mode === 'rag' ? '<p><b>Retrieved:</b> ' + DATA.chunks.map(([id, s]) => `<span class="chip ${s > 0.8 ? 'rel' : 'irr'}">${id} · ${s.toFixed(2)}</span>`).join(' ') + '</p>' : '';
+  detail.innerHTML = `<h3>${m.name}</h3>${head}${chunks}`;
+  const ctx = S.mode === 'rag' ? DATA.chunks.map(([id, , t]) => `[${id}] ${t}`).join('\n')
+    : S.mode === 'stuff' ? `«${DATA.corpus[S.corpus].toLocaleString('en-GB')} articles × ~${TOKENS_PER_ARTICLE} tokens»` : null;
+  const prompt = (S.mode === 'tuned' ? '' : 'SYSTEM: You are the Service Desk assistant. Answer only from the context and cite the KB ID.\n\n') +
+    (ctx ? `<context>\n${ctx}\n</context>\n\n` : '') + `USER: ${QUESTION}`;
+  const model = S.mode === 'tuned' ? '"<your fine-tuned model ID>"' : 'os.environ["%s"]';
+  const body = S.mode === 'rag' ? 'prompt = render(question, hits)        # the augmented prompt above\n' : S.mode === 'stuff' ? 'prompt = render(question, ALL_ARTICLES)  # every article, every time\n' : '';
+  const tabs = {
+    prompt: esc(prompt),
+    openai: esc((S.mode === 'rag' ? 'hits = vector_store.similarity_search(question, k=3)   # retrieve\n' : '') + body +
+      `resp = client.responses.create(\n    model=${model.replace('%s', 'OPENAI_MODEL')},\n    instructions=SYSTEM,\n    input=${body ? 'prompt' : 'question'},\n)\nprint(resp.output_text)`),
+    claude: esc((S.mode === 'rag' ? 'hits = vector_store.similarity_search(question, k=3)   # retrieve\n' : '') + body +
+      (S.mode === 'tuned' ? '# Use the fine-tuned model where your provider hosts it; the call shape is unchanged.\n' : '') +
+      `msg = client.messages.create(\n    model=${model.replace('%s', 'ANTHROPIC_MODEL')},\n    max_tokens=1024,\n    system=SYSTEM,\n    messages=[{"role": "user", "content": ${body ? 'prompt' : 'question'}}],\n)\nprint(next(b.text for b in msg.content if b.type == "text"))`)
+  };
+  pane.innerHTML = tabs[S.tab];
+  const colour = o.status === 'ok' ? 'var(--ok)' : o.status === 'bad' ? 'var(--bad)' : o.status === 'warn' ? 'var(--warn)' : 'inherit';
+  stats.innerHTML = `<div class="stat"><b>${o.tokensIn.toLocaleString('en-GB')}</b><span>input tokens per question</span></div>` +
+    `<div class="stat"><b>${o.tooBig ? '—' : money(o.cost)}</b><span>per 1,000 questions</span></div>` +
+    `<div class="stat"><b>${o.tooBig ? '—' : o.seconds.toFixed(1) + ' s'}</b><span>latency</span></div>` +
+    `<div class="stat"><b style="color:${colour}">${o.fresh}</b><span>freshness</span></div>` +
+    `<div class="stat"><b>${o.cite}</b><span>citation</span></div>`;
+}
+
+async function ask() {
+  const epoch = ++S.epoch, steps = ONLINE[S.mode];
+  S.asked = false; render([]);
+  for (let i = 0; i < steps.length - 1 && epoch === S.epoch; i++) {
+    const [x1, y1] = NODES[steps[i]], [x2, y2] = NODES[steps[i + 1]];
+    render(steps.slice(0, i + 1));
+    const dot = el('circle', { r: 7, fill: 'var(--accent)' }, svg);
+    await tween(dot, x1, y1, x2, y2, 380);
+    dot.remove();
+  }
+  if (epoch !== S.epoch) return;
+  S.asked = true; render(steps);
+  const o = outcome();
+  logLine(logEl, `${DATA.modes[S.mode].name} · ${DATA.corpus[S.corpus].toLocaleString('en-GB')} articles${S.update ? ' · KB-0042 revised' : ''}: ` +
+    `${o.tokensIn.toLocaleString('en-GB')} input tokens, ${o.fresh}${o.tooBig ? '' : ', ' + money(o.cost) + ' per 1,000'}`, o.status !== 'ok');
+}
+
+function changed(msg) { S.asked = false; S.epoch++; render(); logLine(logEl, msg); }
+bindSeg('mode', v => { S.mode = v; changed(`Mode: ${DATA.modes[v].name}`); });
+bindSeg('corpus', v => { S.corpus = +v; changed(`Corpus: ${DATA.corpus[S.corpus].toLocaleString('en-GB')} articles`); });
+bindSeg('tab', v => { S.tab = v; renderPanels(); });
+bindToggle('update', on => {
+  S.update = on; document.getElementById('update').textContent = 'KB-0042 revised this morning: ' + (on ? 'on' : 'off');
+  changed(on ? 'KB-0042 revised at 06:10: firmware 7.4.2 removes the 60-minute wait. The index re-embeds it at 06:15.' : 'KB-0042 back to the old version');
+});
+document.getElementById('ask').onclick = ask;
+render();
+logLine(logEl, 'Illustrative numbers. Press Ask ▶, then switch mode, revise KB-0042 or grow the corpus.');
+
+renderQuiz('quiz', [
+  { q: 'What is the essential difference between RAG and fine-tuning for getting KB facts into answers?',
+    options: ['RAG trains a smaller model; fine-tuning trains a larger one.',
+      'RAG fetches the relevant passages at question time and puts them in the prompt; fine-tuning changes the weights at training time, so facts are frozen as of training day.',
+      'They are the same technique with different names.',
+      'Fine-tuning retrieves documents; RAG does not.'],
+    answer: 1,
+    explain: 'That timing difference drives everything else on the page: freshness, citations, access control and cost per question. RAG reads the index on every request; a fine-tuned model only knows what it was trained on.' },
+  { q: 'KB-0042 is revised at 06:10. Which modes give the current answer at 09:00?',
+    options: ['All four, because the model reads the web.',
+      'Only the fine-tuned model.',
+      'RAG (the article was re-indexed at 06:15) and prompt stuffing (it pastes the live articles); the fine-tuned model still gives the old 60-minute advice.',
+      'None, until you retrain.'],
+    answer: 2,
+    explain: 'Switch the revision on and compare the freshness stat. RAG needs only that one article re-chunked and re-embedded; the fine-tuned model needs a new training run.' },
+  { q: 'The corpus grows from 40 to 400 articles. What happens to prompt stuffing, and what is the fix?',
+    options: ['Nothing; long prompts are free.',
+      'It becomes more accurate because it has more context.',
+      'The provider automatically switches to RAG.',
+      'It needs about 340,000 input tokens per question, more than the 200,000-token window, so the request is rejected. Retrieve the top few chunks instead: RAG stays at about 1,560 tokens.'],
+    answer: 3,
+    explain: 'Stuffing cost scales with the corpus; RAG cost scales with k. Even inside the window, paying for 34,000 tokens to use one article is a poor trade, and long contexts dilute attention.' },
+  { q: 'A teammate says: “We use RAG now, so the assistant cannot hallucinate.” What is the accurate reply?',
+    options: ['Not quite: RAG lowers the risk, but the model can still ignore or misread the context, or answer when nothing relevant was retrieved. Require citations, check them against the retrieved IDs, and allow “not in the KB”.',
+      'Correct: grounded models cannot invent facts.',
+      'Correct, as long as the temperature is 0.',
+      'RAG makes hallucination worse, so it should be avoided.'],
+    answer: 0,
+    explain: 'This is the most common misconception about RAG. Retrieval quality bounds answer quality (Topic 6), and evaluation of groundedness is a Module 5 topic.' },
+  { q: 'With RAG, what happens to input tokens per question as the corpus grows from 40 to 4,000 articles?',
+    options: ['They grow a hundredfold.',
+      'They drop, because the index compresses the documents.',
+      'They stay at about 1,560: the prompt holds k chunks regardless of corpus size. What grows is the index and, slightly, the search time.',
+      'They depend on how many articles mention VPN.'],
+    answer: 2,
+    explain: 'Grow the corpus in RAG mode: the token count and the cost stay flat, and latency rises only by the search time (18 ms to 86 ms in this illustration). That flat cost curve is why RAG is the default for large knowledge.' }
+]);
+</script>
+</body>
+</html>

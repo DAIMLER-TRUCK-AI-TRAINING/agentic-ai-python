@@ -1,0 +1,32 @@
+{
+  "_comment": "Offline export of the SharePoint site 'WarrantyCompliance', library 'Published'. Synthetic. Columns and permissions are what SharePointReader would return as metadata.",
+  "site": "WarrantyCompliance",
+  "folder": "Published",
+  "exported": "2026-10-20T07:00:00Z",
+  "items": [
+    {"file": "POL-WAR-001.md", "id": "01SPWC0001", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-WAR-001.md",
+     "lastModified": "2026-01-05T08:00:00Z", "columns": {"DocId": "POL-WAR-001", "DocType": "policy", "Region": "EU", "Version": "2026", "Status": "published", "Audience": "dealer", "Owner": "Warranty EU"},
+     "permissions": ["dealers_eu", "warranty_eu", "aftersales_eu", "all_employees"]},
+    {"file": "POL-WAR-001_v2025.md", "id": "01SPWC0002", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-WAR-001_v2025.md",
+     "lastModified": "2025-01-03T08:00:00Z", "columns": {"DocId": "POL-WAR-001", "DocType": "policy", "Region": "EU", "Version": "2025", "Status": "retired", "Audience": "dealer", "Owner": "Warranty EU"},
+     "permissions": ["dealers_eu", "warranty_eu", "aftersales_eu", "all_employees"]},
+    {"file": "POL-WAR-002.md", "id": "01SPWC0003", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-WAR-002.md",
+     "lastModified": "2026-01-08T15:30:00Z", "columns": {"DocId": "POL-WAR-002", "DocType": "policy", "Region": "US", "Version": "2026", "Status": "published", "Audience": "dealer", "Owner": "Warranty US"},
+     "permissions": ["dealers_us", "warranty_us", "aftersales_us", "all_employees"]},
+    {"file": "POL-WAR-007.md", "id": "01SPWC0004", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-WAR-007.md",
+     "lastModified": "2026-02-11T10:00:00Z", "columns": {"DocId": "POL-WAR-007", "DocType": "policy", "Region": "ALL", "Version": "2026", "Status": "published", "Audience": "dealer", "Owner": "Warranty EU"},
+     "permissions": ["dealers_eu", "dealers_us", "warranty_eu", "warranty_us", "aftersales_eu", "aftersales_us", "all_employees"]},
+    {"file": "POL-GDW-003.md", "id": "01SPWC0005", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-GDW-003.md",
+     "lastModified": "2026-03-02T09:45:00Z", "columns": {"DocId": "POL-GDW-003", "DocType": "policy", "Region": "ALL", "Version": "2026", "Status": "published", "Audience": "internal", "Owner": "After-Sales"},
+     "permissions": ["warranty_eu", "warranty_us", "aftersales_eu", "aftersales_us"]},
+    {"file": "POL-SEC-012.md", "id": "01SPWC0006", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-SEC-012.md",
+     "lastModified": "2026-04-14T12:00:00Z", "columns": {"DocId": "POL-SEC-012", "DocType": "policy", "Region": "ALL", "Version": "2026", "Status": "published", "Audience": "dealer", "Owner": "Vehicle Security"},
+     "permissions": ["dealers_eu", "dealers_us", "aftersales_eu", "aftersales_us", "engineering", "all_employees"]},
+    {"file": "POL-DAT-004.md", "id": "01SPWC0007", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/POL-DAT-004.md",
+     "lastModified": "2026-05-19T07:20:00Z", "columns": {"DocId": "POL-DAT-004", "DocType": "policy", "Region": "ALL", "Version": "2026", "Status": "published", "Audience": "internal", "Owner": "Data Protection"},
+     "permissions": ["all_employees", "engineering", "service_desk"]},
+    {"file": "CTR-2026-118.md", "id": "01SPWC0008", "webUrl": "https://sharepoint.example/sites/WarrantyCompliance/Published/CTR-2026-118.md",
+     "lastModified": "2026-03-01T11:00:00Z", "columns": {"DocId": "CTR-2026-118", "DocType": "contract", "Region": "EU", "Version": "1", "Status": "published", "Audience": "internal", "Owner": "Key Accounts EU"},
+     "permissions": ["aftersales_eu", "warranty_eu"]}
+  ]
+}

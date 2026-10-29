@@ -1,0 +1,54 @@
+[project]
+name = "module03-lab03-connectors-assistants"
+version = "0.1.0"
+description = "Module 3 · Lab 03 as a uv project: connectors, delta sync, access trimming on Chroma or Pinecone, and two RAG assistants"
+readme = "README.md"
+requires-python = ">=3.12"
+# The same pins as labs/setup/requirements.txt, so this project and the notebook behave alike.
+dependencies = [
+    "anthropic==1.17.0",
+    "chromadb==1.5.9",
+    "llama-index-core==0.14.25",
+    "llama-index-embeddings-huggingface==0.8.0",
+    "llama-index-embeddings-openai==0.7.0",
+    "llama-index-llms-anthropic==0.12.3",
+    "llama-index-llms-openai==0.8.3",
+    "llama-index-retrievers-bm25==0.8.0",
+    "llama-index-vector-stores-chroma==0.6.0",
+    "llama-index-vector-stores-pinecone==0.9.0",
+    "numpy==2.5.4",
+    "openai==2.54.0",
+    "pandas==3.1.0",
+    "pinecone==9.1.0",
+    "pydantic==2.14.1",
+    "python-dotenv==1.2.4",
+    "sentence-transformers==6.2.0",
+    "torch==2.14.1",
+    "transformers==5.21.0",
+]
+
+[project.scripts]
+lab03 = "lab03.cli:main"
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "lab03"
+
+# CPU-only PyTorch on Linux and Windows: the default PyPI wheels there pull in the CUDA libraries,
+# which small embedding and re-ranking models on a laptop do not need. macOS wheels come from PyPI.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

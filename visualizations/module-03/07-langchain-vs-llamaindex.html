@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LangChain vs LlamaIndex</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  .lab10 { font-family: var(--mono); font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>7 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 7</div>
+  <h1>Same pipeline, different defaults</h1>
+  <p class="lede">LangChain and LlamaIndex build the same six-stage RAG pipeline with different classes, abstractions and defaults.
+    Toggle the framework and click each stage to compare the code. Then run three test questions with each framework’s
+    <em>defaults</em>, and switch on <b>Align settings</b>: most of the “framework difference” in answer quality was the defaults all along.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="fw">
+        <button data-v="lc" aria-pressed="true">LangChain</button>
+        <button data-v="li" aria-pressed="false">LlamaIndex</button>
+      </div>
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">OpenAI</button>
+        <button data-v="claude" aria-pressed="false">Claude</button>
+      </div>
+      <button class="toggle" id="align" aria-pressed="false">Align settings: off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 250" role="img" aria-label="The six pipeline stages with the LangChain class on top and the LlamaIndex class below; click a stage"></svg></div>
+    <div class="detail" id="detail"></div>
+    <pre class="pane" id="pane" aria-label="Code for the selected stage and framework" style="margin-top:10px"></pre>
+    <h3 style="margin-top:16px">Three test questions with the current settings</h3>
+    <div class="table-wrap"><table id="results"></table></div>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Architecture, side by side</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>LangChain</th><th>LlamaIndex</th></tr></thead>
+      <tbody>
+        <tr><td>Centre of gravity</td><td>Composing LLM applications and agents; retrieval is one component (and a tool)</td><td>Data and retrieval: ingestion, indexes, query engines, with agents on top</td></tr>
+        <tr><td>Core units</td><td><code>Document</code>, text splitters, <code>VectorStore</code>, retrievers, runnables, <code>create_agent</code></td><td><code>Document</code> → <code>Node</code>, node parsers, indexes, retrievers, query and chat engines</td></tr>
+        <tr><td>Default chunking</td><td><code>RecursiveCharacterTextSplitter</code>: 4,000 characters, 200 overlap</td><td><code>SentenceSplitter</code>: 1,024 tokens, 200 overlap</td></tr>
+        <tr><td>Default top-k</td><td><code>as_retriever()</code> returns 4</td><td><code>similarity_top_k</code> is 2</td></tr>
+        <tr><td>Citations</td><td>You format them from <code>doc.metadata</code></td><td><code>response.source_nodes</code>, with scores, out of the box</td></tr>
+        <tr><td>Advanced retrieval</td><td>Ensemble (RRF), parent-document, multi-query and compression retrievers (many in <code>langchain-classic</code>)</td><td>Fusion, auto-merging, router and sub-question query engines, node post-processors</td></tr>
+        <tr><td>Connectors</td><td>Document loaders in <code>langchain-community</code> and partner packages</td><td>LlamaHub readers (<code>llama-index-readers-*</code>) (Topic 8)</td></tr>
+        <tr><td>Choose it when</td><td>Retrieval is one tool in a larger agent or workflow (Module 4 builds on LangGraph)</td><td>The application is mostly about indexing and querying many documents well</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> compare frameworks with aligned settings and one eval set (Topic 6): same
+    chunking, embedding model, k and prompt. Then choose on developer experience, connectors and how retrieval fits the rest of your
+    system. Mixing is normal: LlamaIndex ingestion and retrieval wrapped as a tool in a LangChain or LangGraph agent works well.</div>
+  <div class="callout warn"><b>Common trap:</b> shipping a framework’s defaults. They were picked for quick starts, not for your
+    documents: LlamaIndex’s top 2 misses multi-part answers, and LangChain’s 4,000-character chunks send whole articles. Set
+    chunk size, overlap and k explicitly, and record them with your eval results.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="06-retrieval-quality-evaluation.html"><small>← Previous</small>Retrieval quality evaluation</a>
+    <a class="next" href="08-enterprise-connectors-use-cases.html"><small>Next →</small>Enterprise connectors &amp; use cases</a>
+  </div>
+</div>
+
+<script>
+// Stage classes and defaults verified against langchain-text-splitters, langchain-core 1.x and llama-index-core 0.14.
+// Retrieval results are illustrative, over the synthetic KB; the aligned rows match the first-stage results in Topic 6.
+const DATA = {
+  stages: [
+    ['Load', 'DirectoryLoader', 'SimpleDirectoryReader'],
+    ['Split', 'RecursiveCharacter\nTextSplitter', 'SentenceSplitter'],
+    ['Embed + store', 'InMemoryVectorStore', 'VectorStoreIndex'],
+    ['Retrieve', 'as_retriever(\nsearch_kwargs)', 'as_retriever(\nsimilarity_top_k=…)'],
+    ['Generate', 'create_agent\n+ dynamic_prompt', 'as_query_engine()'],
+    ['Cite', 'doc.metadata\n["source"]', 'response\n.source_nodes']
+  ],
+  defaults: { lc: { chunk: '4,000 chars / 200 overlap', k: 4 }, li: { chunk: '1,024 tokens / 200 overlap', k: 2 }, aligned: { chunk: '512 tokens / 50 overlap', k: 4 } },
+  // question → per setting: [retrieved, context tokens, facts found, facts needed, verdict]
+  results: {
+    'TQ-01 VPN error 809 after a password change': {
+      lc: [['KB-0042', 'KB-0107', 'KB-0608', 'POL-SEC-012'], 3350, 2, 2, 'complete, but four whole articles'],
+      li: [['KB-0042', 'KB-0107'], 1690, 2, 2, 'complete'],
+      aligned: [['KB-0042 §2', 'KB-0107 §1', 'KB-0042 §3', 'KB-0608 §1'], 1560, 2, 2, 'complete'] },
+    'TQ-05 I clicked a payroll link and typed my password': {
+      lc: [['KB-0733', 'KB-0107', 'KB-0608', 'KB-0318'], 3420, 3, 3, 'complete, but four whole articles'],
+      li: [['KB-0733', 'KB-0608'], 1710, 2, 3, 'misses the account-reset step (KB-0107)'],
+      aligned: [['KB-0733 §1', 'KB-0733 §2', 'KB-0318 §1', 'KB-0790 §2'], 1560, 2, 3, 'misses KB-0107 §2 (rank 6)'] },
+    'TQ-03 What does PAY-17 mean?': {
+      lc: [['KB-0318', 'CTR-2026-118', 'KB-0790', 'KB-0521'], 3600, 1, 1, 'complete, but four whole articles'],
+      li: [['KB-0318', 'CTR-2026-118'], 1720, 0, 1, 'wrong: explains invoice mismatches (KB-0790 was 3rd)'],
+      aligned: [['KB-0318 §1', 'CTR-2026-118 §3', 'KB-0790 §1', 'KB-0318 §2'], 1560, 1, 1, 'complete'] }
+  }
+};
+const S = { fw: 'lc', prov: 'openai', align: false, stage: 1 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function code() {
+  const a = S.align, o = S.prov === 'openai';
+  const lc = [
+    `from langchain_community.document_loaders import DirectoryLoader, TextLoader\n\ndocs = DirectoryLoader("data/kb", glob="**/*.md", loader_cls=TextLoader).load()\n# each Document: page_content + metadata={"source": "data/kb/KB-0042.md"}`,
+    a ? `from langchain_text_splitters import RecursiveCharacterTextSplitter\n\nsplitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(\n    encoding_name="o200k_base", chunk_size=512, chunk_overlap=50)   # count tokens, not characters\nchunks = splitter.split_documents(docs)`
+      : `from langchain_text_splitters import RecursiveCharacterTextSplitter\n\nsplitter = RecursiveCharacterTextSplitter()   # defaults: chunk_size=4000 CHARACTERS, chunk_overlap=200\nchunks = splitter.split_documents(docs)        # a typical KB article fits in one chunk`,
+    `from langchain_openai import OpenAIEmbeddings\nfrom langchain_core.vectorstores import InMemoryVectorStore   # or FAISS / Chroma\n\nstore = InMemoryVectorStore(OpenAIEmbeddings(model="text-embedding-3-small"))\nstore.add_documents(chunks)` +
+      (o ? '' : '\n# Claude has no embeddings endpoint: keep OpenAI embeddings or use an open model\n# (langchain_huggingface.HuggingFaceEmbeddings) while Claude generates.'),
+    `retriever = store.as_retriever(search_kwargs={"k": ${a ? 4 : 4}})   # default k = 4\nhits = retriever.invoke(question)`,
+    `import os\nfrom langchain.chat_models import init_chat_model\nfrom langchain.agents import create_agent\nfrom langchain.agents.middleware import dynamic_prompt, ModelRequest\n\n` +
+      `model = init_chat_model(os.environ["${o ? 'OPENAI_MODEL' : 'ANTHROPIC_MODEL'}"], model_provider="${o ? 'openai' : 'anthropic'}")\n\n@dynamic_prompt\ndef with_context(request: ModelRequest) -> str:\n    question = request.state["messages"][-1].text\n    hits = retriever.invoke(question)\n` +
+      `    context = "\\n\\n".join(f"[{d.metadata['source']}] {d.page_content}" for d in hits)\n    return f"Answer only from the context and cite sources.\\n<context>\\n{context}\\n</context>"\n\nagent = create_agent(model, tools=[], middleware=[with_context])\nresult = agent.invoke({"messages": [{"role": "user", "content": question}]})`,
+    `# LangChain returns Documents; citations are yours to format\nsources = sorted({d.metadata["source"] for d in hits})\nanswer = result["messages"][-1].text`
+  ];
+  const li = [
+    `from llama_index.core import SimpleDirectoryReader\n\ndocs = SimpleDirectoryReader("data/kb").load_data()\n# each Document: text + metadata={"file_name": "KB-0042.md", "file_path": …, …}`,
+    a ? `from llama_index.core.node_parser import SentenceSplitter\n\nsplitter = SentenceSplitter(chunk_size=512, chunk_overlap=50)   # tokens`
+      : `from llama_index.core.node_parser import SentenceSplitter\n\nsplitter = SentenceSplitter()   # defaults: chunk_size=1024 TOKENS, chunk_overlap=200`,
+    `from llama_index.core import Settings, VectorStoreIndex\nfrom llama_index.embeddings.openai import OpenAIEmbedding\n\nSettings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")\nindex = VectorStoreIndex.from_documents(docs, transformations=[splitter])   # in memory; StorageContext for FAISS / Chroma` +
+      (o ? '' : '\n# Claude has no embeddings endpoint: keep OpenAI embeddings or use\n# llama_index.embeddings.huggingface.HuggingFaceEmbedding while Claude generates.'),
+    `retriever = index.as_retriever(similarity_top_k=${a ? 4 : 2})   # default similarity_top_k = 2\nnodes = retriever.retrieve(question)`,
+    `import os\n${o ? 'from llama_index.llms.openai import OpenAI' : 'from llama_index.llms.anthropic import Anthropic'}\n\nSettings.llm = ${o ? 'OpenAI(model=os.environ["OPENAI_MODEL"])' : 'Anthropic(model=os.environ["ANTHROPIC_MODEL"])'}\nengine = index.as_query_engine(similarity_top_k=${a ? 4 : 2})\nresponse = engine.query(question)`,
+    `# Sources come back with the response, with similarity scores\nfor n in response.source_nodes:\n    print(n.node.metadata["file_name"], round(n.score, 2))`
+  ];
+  return (S.fw === 'lc' ? lc : li)[S.stage];
+}
+
+function render() {
+  svg.innerHTML = '';
+  const X = i => 80 + i * 148;
+  el('text', { x: 12, y: 30, class: 'hdr', fill: S.fw === 'lc' ? 'var(--text)' : 'var(--muted)', text: 'LangChain' }, svg);
+  el('text', { x: 12, y: 228, class: 'hdr', fill: S.fw === 'li' ? 'var(--text)' : 'var(--muted)', text: 'LlamaIndex' }, svg);
+  DATA.stages.forEach(([name, lc, li], i) => {
+    const x = X(i), sel = i === S.stage;
+    el('line', { x1: x, y1: 84, x2: x, y2: 166, stroke: sel ? 'var(--accent)' : 'var(--border)', 'stroke-dasharray': '4 4', 'stroke-width': sel ? 2 : 1 }, svg);
+    [[lc, 64, 'lc'], [li, 186, 'li']].forEach(([cls, y, fw]) => {
+      const on = S.fw === fw, c = on ? 'var(--p1)' : 'var(--p5)';
+      el('rect', { x: x - 70, y: y - 20, width: 140, height: 40, rx: 8, fill: c, 'fill-opacity': on ? (sel ? 0.3 : 0.14) : 0.06, stroke: c, 'stroke-width': on && sel ? 2.5 : 1 }, svg);
+      cls.split('\n').forEach((t, k, all) => el('text', { x, y: y + 4 + (k - (all.length - 1) / 2) * 12, 'text-anchor': 'middle', class: 'lab10', fill: on ? 'var(--text)' : 'var(--muted)', text: t }, svg));
+    });
+    const g = clickable(el('g', {}, svg), () => { S.stage = i; render(); logLine(logEl, `Stage: ${name}`); }, `Stage ${i + 1}: ${name}`);
+    el('rect', { x: x - 62, y: 110, width: 124, height: 30, rx: 15, fill: sel ? 'var(--accent)' : 'var(--surface)', stroke: 'var(--accent)' }, g);
+    el('text', { x, y: 130, 'text-anchor': 'middle', class: 'small', fill: sel ? '#fff' : 'var(--accent)', style: 'font-weight:600', text: `${i + 1}. ${name}` }, g);
+    if (i < 5) el('path', { d: `M${x + 66} 125 l10 0`, stroke: 'var(--muted)' }, svg);
+  });
+  el('text', { x: 520, y: 244, 'text-anchor': 'middle', class: 'lab', fill: 'var(--muted)', text: 'Click a stage. Dashed lines join the equivalent classes.' }, svg);
+
+  const set = S.align ? 'aligned' : S.fw, d = DATA.defaults[set];
+  document.getElementById('detail').innerHTML = `<h3>${S.fw === 'lc' ? 'LangChain' : 'LlamaIndex'} · ${DATA.stages[S.stage][0]}</h3>` +
+    `<p><b>Settings in use:</b> chunks ${d.chunk}, top-k ${d.k}${S.align ? ' (aligned for both frameworks, same embedding model and prompt)' : ` (${S.fw === 'lc' ? 'LangChain' : 'LlamaIndex'} defaults)`}.</p>`;
+  document.getElementById('pane').textContent = code();
+
+  const rows = Object.entries(DATA.results).map(([q, r]) => [q, r[set]]);
+  document.getElementById('results').innerHTML = '<thead><tr><th>Question</th><th>Retrieved</th><th>Context tokens</th><th>Facts found</th><th>Answer</th></tr></thead><tbody>' +
+    rows.map(([q, [ids, tok, got, need, verdict]]) => `<tr><td>${esc(q)}</td><td>${ids.map(i => `<code>${i}</code>`).join(' ')}</td><td>${tok.toLocaleString('en-GB')}</td>` +
+      `<td class="${got === need ? 'ok-t' : 'bad-t'}">${got} / ${need}</td><td>${esc(verdict)}</td></tr>`).join('') + '</tbody>';
+  const tok = rows.reduce((s, [, r]) => s + r[1], 0) / rows.length, facts = rows.reduce((s, [, r]) => s + r[2], 0), need = rows.reduce((s, [, r]) => s + r[3], 0);
+  document.getElementById('stats').innerHTML = `<div class="stat"><b>${Math.round(tok).toLocaleString('en-GB')}</b><span>avg context tokens</span></div>` +
+    `<div class="stat"><b>${facts} / ${need}</b><span>facts found across the 3 questions</span></div>` +
+    `<div class="stat"><b>${d.k}</b><span>chunks per question</span></div>`;
+  return { tok, facts, need };
+}
+function report(msg) { const r = render(); logLine(logEl, `${msg}: ${r.facts}/${r.need} facts, ${Math.round(r.tok).toLocaleString('en-GB')} tokens on average`, r.facts < r.need); }
+bindSeg('fw', v => { S.fw = v; report(v === 'lc' ? 'LangChain' + (S.align ? ' (aligned)' : ' defaults') : 'LlamaIndex' + (S.align ? ' (aligned)' : ' defaults')); });
+bindSeg('prov', v => { S.prov = v; render(); logLine(logEl, `Generator: ${v === 'openai' ? 'OpenAI' : 'Claude'} (embeddings unchanged)`); });
+bindToggle('align', on => { S.align = on; document.getElementById('align').textContent = 'Align settings: ' + (on ? 'on' : 'off'); report(on ? 'Aligned settings, both frameworks' : 'Back to defaults'); });
+render();
+logLine(logEl, 'Illustrative results. Toggle the framework, click each stage, then align the settings.');
+
+renderQuiz('quiz', [
+  { q: 'With defaults, LlamaIndex answers the PAY-17 question wrongly and LangChain gets it right. What is the most likely cause?',
+    options: ['The defaults: LlamaIndex retrieves 2 chunks (similarity_top_k = 2) and the right article ranked 3rd; LangChain retrieves 4. With aligned settings both return the same chunks.',
+      'LlamaIndex uses a worse model.',
+      'LangChain has better embeddings.',
+      'LlamaIndex cannot read Markdown.'],
+    answer: 0,
+    explain: 'Turn on Align settings: the retrieved IDs become identical for both frameworks. Framework comparisons are only meaningful with the same chunking, embedding model, k and prompt.' },
+  { q: 'What does LangChain’s default <code>RecursiveCharacterTextSplitter()</code> do to a typical 850-token KB article?',
+    options: ['Splits it into 128-token chunks.',
+      'Splits it at every sentence.',
+      'Leaves it as one chunk: the default limit is 4,000 <em>characters</em> (about 1,000 tokens), so with k = 4 every answer pays for about four whole articles.',
+      'Drops it, because it has no headings.'],
+    answer: 2,
+    explain: 'Note the unit: LangChain’s default counts characters; LlamaIndex’s SentenceSplitter counts tokens. <code>from_tiktoken_encoder</code> makes the LangChain splitter count tokens.' },
+  { q: 'You switch the generator from OpenAI to Claude. What else must change in the pipeline?',
+    options: ['Everything: Claude needs a different vector store.',
+      'Only the model line. Claude has no embeddings endpoint, so the embedding model stays as it was (OpenAI or an open model); re-embedding is only needed if you change the embedding model.',
+      'The chunk size must double.',
+      'You must switch from LlamaIndex to LangChain.'],
+    answer: 1,
+    explain: 'Generation and embedding are separate choices. Changing the embedding model invalidates the index (vectors from different models are not comparable); changing the generator does not.' },
+  { q: 'Which statement best describes when to pick each framework?',
+    options: ['LlamaIndex for agents, LangChain for retrieval.',
+      'Always LangChain, because it is older.',
+      'Always LlamaIndex, because it has citations.',
+      'LlamaIndex when the application centres on ingesting and querying many documents; LangChain when retrieval is one tool in a broader agent or workflow. Combining them is common.'],
+    answer: 3,
+    explain: 'Both can do both. The deciding factors are the shape of your system, the connectors you need, your team’s familiarity and eval results with aligned settings.' },
+  { q: 'Where does each framework give you the sources for citations?',
+    options: ['LangChain: from each retrieved <code>Document</code>’s <code>metadata</code>, formatted by your code. LlamaIndex: <code>response.source_nodes</code>, nodes with metadata and similarity scores.',
+      'Neither supports citations.',
+      'Both put citations in the answer text automatically.',
+      'Only in LangSmith traces.'],
+    answer: 0,
+    explain: 'Either way, keep the source IDs next to the answer and check that every cited ID was actually retrieved (Topic 1’s trap).' }
+]);
+</script>
+</body>
+</html>

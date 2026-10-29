@@ -1,0 +1,37 @@
+{
+  "_comment": "Offline export of the Confluence space ENGDOCS, shaped like the Confluence REST API (body.storage is XHTML). Synthetic.",
+  "space": "ENGDOCS",
+  "exported": "2026-10-20T07:00:00Z",
+  "results": [
+    {
+      "id": "884211",
+      "type": "page",
+      "title": "ENG-SPEC-0417 ED-26 HV battery thermal management",
+      "version": {"number": 7, "when": "2026-07-02T09:12:00Z"},
+      "metadata": {"labels": {"results": [{"name": "ed-26"}, {"name": "hv-battery"}, {"name": "spec"}]}},
+      "restrictions": {"read": {"group": ["engineering", "aftersales_eu", "aftersales_us"]}},
+      "_links": {"webui": "/spaces/ENGDOCS/pages/884211"},
+      "body": {"storage": {"value": "<h2>Purpose</h2><p>This specification defines how the battery management system (BMS) keeps the ED-26 high-voltage battery packs in their operating window.</p><h2>Temperature windows</h2><table><tr><th>Condition</th><th>Cell module temperature</th></tr><tr><td>Operation</td><td>-25 to 55 °C</td></tr><tr><td>Target during DC charging</td><td>25 to 35 °C</td></tr><tr><td>Preconditioning heater</td><td>2 x 7 kW PTC heaters</td></tr></table><h2>Alarm thresholds</h2><table><tr><th>Signal</th><th>Threshold</th><th>Reaction</th></tr><tr><td>Cell temperature spread</td><td>&gt; 8 K</td><td>FC-BAT-2201 warning</td></tr><tr><td>Cell temperature spread</td><td>&gt; 12 K</td><td>DC charging limited to 50 kW</td></tr><tr><td>Cell temperature spread</td><td>&gt; 15 K</td><td>Charging stopped</td></tr><tr><td>Coolant flow</td><td>&lt; 12 L/min (nominal 18 L/min)</td><td>FC-EAX-1310, eAxle power reduced</td></tr></table><h2>Software</h2><p>BMS-3.2.1 raises the coolant pump speed at cold start and starts cooling 2 minutes earlier during DC charging.</p>"}}
+    },
+    {
+      "id": "884305",
+      "type": "page",
+      "title": "ENG-SPEC-0422 DTE-13 SCR AdBlue dosing system",
+      "version": {"number": 12, "when": "2026-04-28T14:40:00Z"},
+      "metadata": {"labels": {"results": [{"name": "dte-13"}, {"name": "aftertreatment"}, {"name": "spec"}]}},
+      "restrictions": {"read": {"group": ["engineering", "aftersales_eu", "aftersales_us"]}},
+      "_links": {"webui": "/spaces/ENGDOCS/pages/884305"},
+      "body": {"storage": {"value": "<h2>Purpose</h2><p>Requirements for the selective catalytic reduction (SCR) dosing system of the DTE-13 engine.</p><h2>Operating values</h2><table><tr><th>Parameter</th><th>Value</th></tr><tr><td>Dosing pressure, nominal</td><td>5.0 bar ± 0.3 bar</td></tr><tr><td>FC-ADB-0412 threshold</td><td>below 3.5 bar for more than 60 s</td></tr><tr><td>AdBlue urea concentration</td><td>32.5 % (31.8 to 33.2 %)</td></tr><tr><td>Dosing line heater resistance</td><td>2.5 to 3.5 ohm at 20 °C</td></tr></table><h2>Derate strategy</h2><p>Step 1: torque limited to 75 % while FC-ADB-0412 is active. Step 2: 20 km/h limp mode after the next engine stop.</p><h2>Engineering change</h2><p>Engineering change ECN-2026-0131 introduced the revised dosing valve PN 47-0118-334 from production week 14/2026.</p>"}}
+    },
+    {
+      "id": "884377",
+      "type": "page",
+      "title": "ENG-SPEC-0440 TCU-5 over-the-air update architecture",
+      "version": {"number": 4, "when": "2026-08-11T08:05:00Z"},
+      "metadata": {"labels": {"results": [{"name": "tcu-5"}, {"name": "ota"}, {"name": "spec"}]}},
+      "restrictions": {"read": {"group": ["engineering"]}},
+      "_links": {"webui": "/spaces/ENGDOCS/pages/884377"},
+      "body": {"storage": {"value": "<h2>Partitions</h2><p>The TCU-5 has two software partitions, A and B. An update is written to the inactive partition, so the vehicle always keeps one working version.</p><h2>Update stages</h2><table><tr><th>Progress</th><th>Stage</th></tr><tr><td>0 to 50 %</td><td>Download while driving</td></tr><tr><td>50 to 60 %</td><td>Signature verification; needs the time within ±5 minutes from GNSS or the backend</td></tr><tr><td>60 to 95 %</td><td>Installation to the inactive partition, ignition off</td></tr><tr><td>95 to 100 %</td><td>Activation and self-test</td></tr></table><h2>Rollback</h2><p>If the self-test fails, the TCU-5 switches back to the previous partition and reports the failure to the backend.</p>"}}
+    }
+  ]
+}

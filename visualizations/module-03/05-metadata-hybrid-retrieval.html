@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metadata and Hybrid Retrieval</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>5 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 5</div>
+  <h1>Keywords find codes, vectors find meaning, metadata finds the right version</h1>
+  <p class="lede">Each retrieval method fails a different kind of query. BM25 keyword search nails an exact error code and misses a
+    paraphrase; vector search does the opposite; and neither can tell a current policy from a superseded one. Run all three queries in
+    each mode, fuse the lists with reciprocal rank fusion, add a cross-encoder re-ranker, then switch on the metadata filters.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="query">
+        <button data-v="Q1" aria-pressed="true">“What does PAY-17 mean?”</button>
+        <button data-v="Q2" aria-pressed="false">“wifi keeps dropping at the Singapore office”</button>
+        <button data-v="Q3" aria-pressed="false">“Can contractors use personal laptops for remote access?”</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-v="bm25" aria-pressed="false">Keyword (BM25)</button>
+        <button data-v="vector" aria-pressed="true">Vector</button>
+        <button data-v="hybrid" aria-pressed="false">Hybrid (RRF)</button>
+      </div>
+      <button class="toggle" id="rerank" aria-pressed="false">Re-rank: off</button>
+    </div>
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">Metadata filters:</span>
+      <button class="toggle" id="current" aria-pressed="false">status = current: off</button>
+      <button class="toggle" id="acl" aria-pressed="false">caller may read (l1_analyst): off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 300" role="img" aria-label="Ranked lists from keyword search, vector search, their fusion and the re-ranker, with the correct document highlighted"></svg></div>
+    <div class="stats" id="stats"></div>
+    <div class="controls">
+      <div class="seg" id="tab">
+        <button data-v="meta" aria-pressed="true">Chunk metadata</button>
+        <button data-v="lc" aria-pressed="false">LangChain</button>
+        <button data-v="li" aria-pressed="false">LlamaIndex</button>
+      </div>
+    </div>
+    <pre class="pane" id="pane" aria-label="Metadata or code"></pre>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Metadata to design in from day one</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Example</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td><code>doc_id</code>, <code>section</code></td><td><code>POL-SEC-012</code>, <code>§3 Contractors</code></td><td>Citations, de-duplication, re-indexing one document</td></tr>
+        <tr><td><code>doc_type</code></td><td><code>kb</code>, <code>policy</code>, <code>contract</code>, <code>eng_spec</code></td><td>Routing a question to the right index or filter</td></tr>
+        <tr><td><code>status</code>, <code>effective_from</code>, <code>superseded_by</code></td><td><code>current</code>, <code>2026-04-01</code></td><td>Never answering from a superseded version</td></tr>
+        <tr><td><code>region</code></td><td><code>global</code>, <code>EU</code>, <code>US</code>, <code>APAC</code></td><td>Regional rules, data residency</td></tr>
+        <tr><td><code>allowed_roles</code> / <code>allowed_groups</code></td><td><code>["legal", "finance"]</code></td><td>Access control at retrieval time (Module 5)</td></tr>
+        <tr><td><code>source_url</code>, <code>last_modified</code></td><td>the page in the source system</td><td>Links in answers, incremental sync (Topic 8)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Which method catches which query</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Strong at</th><th>Weak at</th></tr></thead>
+      <tbody>
+        <tr><td><b>BM25 (keyword)</b></td><td>Exact IDs, error codes, product names, rare terms</td><td>Synonyms, paraphrases, other languages, spelling variants (“wifi” vs “Wi-Fi”)</td></tr>
+        <tr><td><b>Vector</b></td><td>Meaning, paraphrases, multilingual questions</td><td>Codes and IDs that carry little meaning (“PAY-17”), negation, exact numbers</td></tr>
+        <tr><td><b>Hybrid (RRF)</b></td><td>Robust across both: a document ranked well by either list rises</td><td>Cannot invent a document neither list found; two weak signals stay weak</td></tr>
+        <tr><td><b>Re-ranker (cross-encoder)</b></td><td>Reading query and passage together to reorder the top 20–50</td><td>Cost and latency per candidate; cannot see dates, versions or permissions</td></tr>
+        <tr><td><b>Metadata filter</b></td><td>Hard rules: version, region, document type, access</td><td>Only as good as the metadata you captured at ingestion</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> run hybrid retrieval by default, re-rank a short candidate list, and express every
+    hard rule (version, region, permission) as a metadata filter rather than hoping relevance will get it right. Relevance ranking
+    answers “which text matches?”; only metadata answers “which text is allowed and in force?”.</div>
+  <div class="callout warn"><b>Common trap:</b> filtering by permission <em>after</em> generation, or in the prompt (“only use documents
+    the user may see”). The model has already read the contract by then. Apply access filters in the retrieval query, so restricted
+    chunks never reach the prompt.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="04-chunking-strategies.html"><small>← Previous</small>Chunking strategies</a>
+    <a class="next" href="06-retrieval-quality-evaluation.html"><small>Next →</small>Retrieval quality evaluation</a>
+  </div>
+</div>
+
+<script>
+// Synthetic corpus and pre-computed, illustrative scores: BM25 scores, cosine similarities and cross-encoder scores per query.
+const DOCS = {
+  D1: ['KB-0790', 'ERP payment run or month-end job fails', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D2: ['KB-0318', 'Supplier invoice does not match the purchase order', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D3: ['KB-0715', 'Office Wi-Fi drops every few minutes', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D4: ['KB-0042', 'VPN client rejects credentials after a password change', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D5: ['KB-0213', 'Print jobs stuck in a shared printer queue', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D6: ['KB-0521', 'Outgoing email stuck in the outbox', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D7: ['POL-SEC-012 v3', 'Remote access policy (in force from 2026-04-01)', { doc_type: 'policy', region: 'global', status: 'current', effective_from: '2026-04-01', allowed_roles: ['*'] }],
+  D8: ['POL-SEC-012 v2', 'Remote access policy (superseded 2026-04-01)', { doc_type: 'policy', region: 'global', status: 'superseded', superseded_by: 'POL-SEC-012 v3', allowed_roles: ['*'] }],
+  D9: ['KB-0608', 'MFA push notifications not arriving', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D10: ['ENG-SPEC-0417', 'Wi-Fi controller standard for the Singapore office', { doc_type: 'eng_spec', region: 'APAC', status: 'current', allowed_roles: ['*'] }],
+  D11: ['KB-0450', 'Laptop asks for the disk-encryption recovery key', { doc_type: 'kb', region: 'global', status: 'current', allowed_roles: ['*'] }],
+  D12: ['CTR-2026-118', 'Network support contract: payment terms and SLAs', { doc_type: 'contract', region: 'global', status: 'current', allowed_roles: ['legal', 'finance'] }]
+};
+const DATA = {
+  Q1: { gold: 'D1', why: 'an exact error code',
+        bm25: [['D1', 7.9], ['D2', 2.1], ['D12', 1.4], ['D6', 0.6]],
+        vector: [['D12', .52], ['D2', .50], ['D6', .44], ['D1', .43], ['D11', .38], ['D5', .35], ['D4', .33], ['D9', .31]],
+        rerank: { D1: .91, D2: .22, D12: .15, D6: .05, D11: .03, D5: .02, D4: .02, D9: .02 } },
+  Q2: { gold: 'D3', why: 'a paraphrase with a spelling variant',
+        bm25: [['D10', 5.6], ['D7', 2.0], ['D12', 1.8], ['D3', 1.7], ['D5', 0.9]],
+        vector: [['D3', .81], ['D10', .74], ['D4', .52], ['D9', .41], ['D7', .38], ['D12', .36], ['D5', .30], ['D6', .28]],
+        rerank: { D3: .88, D10: .41, D4: .09, D7: .05, D12: .04, D9: .03, D5: .03, D6: .02 } },
+  Q3: { gold: 'D7', why: 'a policy with a superseded version',
+        bm25: [['D8', 9.4], ['D7', 8.1], ['D11', 2.2], ['D4', 1.1], ['D12', 0.8]],
+        vector: [['D8', .86], ['D7', .84], ['D4', .55], ['D11', .49], ['D9', .40], ['D12', .33], ['D5', .25], ['D6', .22]],
+        rerank: { D8: .79, D7: .77, D4: .21, D11: .12, D9: .06, D12: .05, D5: .02, D6: .02 } },
+  rrfK: 60, show: 6, topN: 3
+};
+const S = { q: 'Q1', mode: 'vector', rerank: false, current: false, acl: false, tab: 'meta' };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function allowed(id) {
+  const m = DOCS[id][2];
+  return !(S.current && m.status !== 'current') && !(S.acl && !m.allowed_roles.includes('*') && !m.allowed_roles.includes('l1_analyst'));
+}
+function lists() {
+  const Q = DATA[S.q];
+  const bm25 = Q.bm25.filter(([id]) => allowed(id)), vector = Q.vector.filter(([id]) => allowed(id));
+  const fused = {};
+  [bm25, vector].forEach(list => list.forEach(([id], r) => { fused[id] = (fused[id] || 0) + 1 / (DATA.rrfK + r + 1); }));
+  const hybrid = Object.entries(fused).sort((a, b) => b[1] - a[1]);
+  const base = S.mode === 'bm25' ? bm25 : S.mode === 'vector' ? vector : hybrid;
+  const reranked = [...base].map(([id]) => [id, Q.rerank[id] ?? 0]).sort((a, b) => b[1] - a[1]);
+  const final = S.rerank ? reranked : base;
+  const excluded = Object.keys(DOCS).filter(id => !allowed(id) && (Q.bm25.some(x => x[0] === id) || Q.vector.some(x => x[0] === id)));
+  return { bm25, vector, hybrid, reranked, final, excluded, gold: Q.gold };
+}
+
+const COLS = [['bm25', 'Keyword (BM25)', 14], ['vector', 'Vector (cosine)', 236], ['hybrid', 'Fused (RRF, k = 60)', 458], ['rerank', 'Re-ranked', 680]];
+const RY = i => 52 + i * 38;
+function render() {
+  const L = lists(), used = { bm25: S.mode === 'bm25', vector: S.mode === 'vector', hybrid: S.mode === 'hybrid', rerank: S.rerank };
+  if (S.mode === 'hybrid') { used.bm25 = true; used.vector = true; }
+  svg.innerHTML = '';
+  const data = { bm25: L.bm25, vector: L.vector, hybrid: L.hybrid, rerank: S.rerank ? L.reranked : [] };
+  const pos = {};
+  COLS.forEach(([key, title, x]) => {
+    const on = used[key];
+    el('text', { x: x + 103, y: 26, 'text-anchor': 'middle', class: 'hdr', fill: on ? 'var(--text)' : 'var(--muted)', text: title }, svg);
+    if (key === 'rerank' && !S.rerank) { el('text', { x: x + 103, y: 140, 'text-anchor': 'middle', class: 'small', fill: 'var(--muted)', text: 'Re-rank is off' }, svg); return; }
+    if (key === 'hybrid' && S.mode !== 'hybrid') { el('text', { x: x + 103, y: 140, 'text-anchor': 'middle', class: 'small', fill: 'var(--muted)', text: 'Hybrid mode is off' }, svg); return; }
+    pos[key] = {};
+    data[key].slice(0, DATA.show).forEach(([id, sc], i) => {
+      const y = RY(i), gold = id === L.gold, final = (key === (S.rerank ? 'rerank' : S.mode)) && i < DATA.topN;
+      pos[key][id] = y;
+      const g = el('g', { opacity: on ? 1 : 0.35 }, svg);
+      el('rect', { x, y: y - 14, width: 206, height: 28, rx: 6, fill: gold ? 'var(--ok-soft)' : 'var(--surface)', stroke: final ? 'var(--accent)' : gold ? 'var(--ok)' : 'var(--border)', 'stroke-width': final ? 2.5 : 1 }, g);
+      el('text', { x: x + 8, y: y + 4, class: 'lab', fill: gold ? 'var(--ok)' : 'var(--text)', style: gold ? 'font-weight:700' : '', text: `${i + 1}. ${DOCS[id][0]}` }, g);
+      el('text', { x: x + 198, y: y + 4, 'text-anchor': 'end', class: 'lab', fill: 'var(--muted)', text: key === 'hybrid' ? sc.toFixed(4) : key === 'bm25' ? sc.toFixed(1) : sc.toFixed(2) }, g);
+    });
+  });
+  const link = (from, to, fx, tx) => { if (!pos[from] || !pos[to]) return; Object.keys(pos[to]).forEach(id => { if (pos[from][id] !== undefined)
+    el('line', { x1: fx, y1: pos[from][id], x2: tx, y2: pos[to][id], stroke: id === L.gold ? 'var(--ok)' : 'var(--border)', 'stroke-width': id === L.gold ? 2 : 1 }, svg); }); };
+  if (S.mode === 'hybrid') { link('bm25', 'hybrid', 220, 458); link('vector', 'hybrid', 442, 458); }
+  if (S.rerank) link(S.mode, 'rerank', S.mode === 'bm25' ? 220 : S.mode === 'vector' ? 442 : 664, 680);
+  if (L.excluded.length) el('text', { x: 14, y: 292, class: 'lab', fill: 'var(--warn)', text: `Filtered out before ranking: ${L.excluded.map(id => DOCS[id][0]).join(', ')}` }, svg);
+  renderPanels(L);
+  return L;
+}
+
+function renderPanels(L) {
+  const rank = L.final.findIndex(([id]) => id === L.gold) + 1, top = L.final.slice(0, DATA.topN).map(([id]) => id);
+  const answerFrom = top[0] ? DOCS[top[0]][0] : '—';
+  document.getElementById('stats').innerHTML =
+    `<div class="stat"><b style="color:${rank && rank <= DATA.topN ? 'var(--ok)' : 'var(--bad)'}">${rank || '—'}</b><span>rank of ${DOCS[L.gold][0]} (the right document)</span></div>` +
+    `<div class="stat"><b>${rank && rank <= DATA.topN ? 'yes' : 'no'}</b><span>in the top ${DATA.topN} sent to the model</span></div>` +
+    `<div class="stat"><b style="color:${top[0] === L.gold ? 'var(--ok)' : 'var(--warn)'}">${answerFrom}</b><span>top result</span></div>` +
+    `<div class="stat"><b>${L.excluded.length}</b><span>filtered out by metadata</span></div>`;
+  const pane = document.getElementById('pane');
+  if (S.tab === 'meta') {
+    const ids = [...new Set([L.gold, ...top])];
+    pane.innerHTML = '<span class="cmt"># metadata stored with each chunk at ingestion (illustrative)</span>\n' +
+      jsonHtml(ids.map(id => Object.assign({ doc_id: DOCS[id][0], title: DOCS[id][1] }, DOCS[id][2])), ['status', 'allowed_roles']);
+  } else if (S.tab === 'lc') {
+    pane.textContent = 'from langchain_community.retrievers import BM25Retriever          # needs rank_bm25\n' +
+      'from langchain_classic.retrievers import EnsembleRetriever, ContextualCompressionRetriever\n' +
+      'from langchain_classic.retrievers.document_compressors import CrossEncoderReranker\n' +
+      'from langchain_community.cross_encoders import HuggingFaceCrossEncoder\n\n' +
+      `filters = {${[S.current ? '"status": "current"' : '', S.acl ? '"allowed_roles": {"$in": ["*", "l1_analyst"]}' : ''].filter(Boolean).join(', ')}}   # syntax depends on the vector store\n` +
+      'bm25 = BM25Retriever.from_documents(allowed_chunks, k=8)       # build per filter, or filter the chunk set first\n' +
+      'dense = vector_store.as_retriever(search_kwargs={"k": 8, "filter": filters})\n' +
+      'hybrid = EnsembleRetriever(retrievers=[bm25, dense], weights=[0.5, 0.5])   # weighted RRF, c = 60\n' +
+      (S.rerank ? 'reranker = CrossEncoderReranker(model=HuggingFaceCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2"), top_n=3)\n' +
+        'retriever = ContextualCompressionRetriever(base_compressor=reranker, base_retriever=hybrid)\n' : 'retriever = hybrid\n') +
+      'docs = retriever.invoke(question)';
+  } else {
+    pane.textContent = 'from llama_index.core.retrievers import QueryFusionRetriever\n' +
+      'from llama_index.core.postprocessor import SentenceTransformerRerank\n' +
+      'from llama_index.core.vector_stores import MetadataFilters, MetadataFilter\n' +
+      'from llama_index.retrievers.bm25 import BM25Retriever                 # llama-index-retrievers-bm25\n\n' +
+      `filters = MetadataFilters(filters=[${[S.current ? 'MetadataFilter(key="status", value="current")' : '', S.acl ? 'MetadataFilter(key="allowed_roles", value=["*", "l1_analyst"], operator="any")' : ''].filter(Boolean).join(', ')}])\n` +
+      'dense = index.as_retriever(similarity_top_k=8, filters=filters)\n' +
+      'bm25 = BM25Retriever.from_defaults(nodes=allowed_nodes, similarity_top_k=8)\n' +
+      'hybrid = QueryFusionRetriever([dense, bm25], mode="reciprocal_rerank", similarity_top_k=8, num_queries=1)\n' +
+      'nodes = hybrid.retrieve(question)\n' +
+      (S.rerank ? 'nodes = SentenceTransformerRerank(model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=3).postprocess_nodes(nodes, query_str=question)' : '');
+  }
+}
+
+function report() {
+  const L = render(), rank = L.final.findIndex(([id]) => id === L.gold) + 1;
+  const how = `${{ bm25: 'BM25', vector: 'Vector', hybrid: 'Hybrid' }[S.mode]}${S.rerank ? ' + re-rank' : ''}${S.current ? ' · current only' : ''}${S.acl ? ' · ACL' : ''}`;
+  logLine(logEl, `${S.q} (${DATA[S.q].why}) · ${how}: ${DOCS[L.gold][0]} at rank ${rank || '—'}${rank === 1 ? ' ✓' : rank && rank <= 3 ? ' (in the top 3)' : ' ✗'}`, rank !== 1);
+}
+bindSeg('query', v => { S.q = v; report(); });
+bindSeg('mode', v => { S.mode = v; report(); });
+bindSeg('tab', v => { S.tab = v; render(); });
+bindToggle('rerank', on => { S.rerank = on; document.getElementById('rerank').textContent = 'Re-rank: ' + (on ? 'on' : 'off'); report(); });
+bindToggle('current', on => { S.current = on; document.getElementById('current').textContent = 'status = current: ' + (on ? 'on' : 'off'); report(); });
+bindToggle('acl', on => { S.acl = on; document.getElementById('acl').textContent = 'caller may read (l1_analyst): ' + (on ? 'on' : 'off'); report(); });
+render();
+logLine(logEl, 'Illustrative scores. Run each query in each mode; then add re-ranking and the filters.');
+
+renderQuiz('quiz', [
+  { q: 'Q1 asks “What does PAY-17 mean?”. Why does vector search rank KB-0790 only 4th while BM25 ranks it 1st?',
+    options: ['The embedding model was trained badly.',
+      '“PAY-17” is a code that carries little meaning for an embedding, so the vector lands near generic payment documents; BM25 matches the rare exact token and scores it highly.',
+      'BM25 understands meaning better than embeddings.',
+      'Vector search ignores short queries.'],
+    answer: 1,
+    explain: 'Exact identifiers (error codes, ticket IDs, part numbers) are BM25’s strength and a classic vector weakness. That is the main reason enterprise RAG runs hybrid retrieval.' },
+  { q: 'In hybrid mode, how does reciprocal rank fusion (k = 60) combine the two lists?',
+    options: ['It averages the raw BM25 scores and cosine similarities.',
+      'It keeps only documents that appear in both lists.',
+      'It always prefers the vector list.',
+      'Each document scores the sum of 1 / (60 + rank) over the lists it appears in, so ranks, not incomparable raw scores, decide; a document ranked well by either list rises.'],
+    answer: 3,
+    explain: 'BM25 scores and cosine similarities live on different scales, so RRF uses ranks only. On Q2, KB-0715 is 4th in BM25 and 1st in vector: 1/64 + 1/61 lifts it into the top 3.' },
+  { q: 'On Q3, even hybrid + re-ranking puts <code>POL-SEC-012 v2</code> first, though v3 replaced it. What fixes this?',
+    options: ['A metadata filter <code>status = current</code> captured at ingestion: relevance cannot tell versions apart, because both versions genuinely match the question.',
+      'A better embedding model.',
+      'A larger k.',
+      'Asking the model to prefer newer documents.'],
+    answer: 0,
+    explain: 'Switch on the filter and v3 becomes rank 1 in every mode. Version, region and permission are hard rules: encode them as metadata and filter, do not leave them to ranking or the prompt.' },
+  { q: 'A teammate proposes: “Retrieve everything, and tell the model in the system prompt to ignore documents the user may not see.” What is wrong with that?',
+    options: ['Nothing; system prompts are a security boundary.',
+      'It only fails for Claude.',
+      'The restricted contract text has already been placed in the model’s context, where a prompt cannot reliably keep it out of the answer. Filter by permission in the retrieval query so it never arrives.',
+      'It makes retrieval slower but is otherwise fine.'],
+    answer: 2,
+    explain: 'With the ACL filter on, CTR-2026-118 disappears from every list before ranking. Treating the prompt as an access-control layer is a common, serious mistake (Module 5).' },
+  { q: 'What does a cross-encoder re-ranker do that the first-stage retrievers do not, and what does it cost?',
+    options: ['It embeds the whole corpus again for every query.',
+      'It reads each query–passage pair together and scores their relevance more precisely, at a model call per candidate, so you apply it only to a short list (say the top 20–50).',
+      'It filters documents by date.',
+      'It is free, so apply it to every chunk.'],
+    answer: 1,
+    explain: 'Re-ranking fixes Q1 in vector mode (KB-0790 jumps from 4th to 1st) because it reads “PAY-17” in context. It cannot fix Q3: both versions are relevant text, which is a metadata problem.' }
+]);
+</script>
+</body>
+</html>

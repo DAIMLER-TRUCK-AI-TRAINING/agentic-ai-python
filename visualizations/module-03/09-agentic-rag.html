@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic RAG</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 12px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #answer { font-size: 15px; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>9 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 9</div>
+  <h1>Let the agent decide when, where and how often to search</h1>
+  <p class="lede">A classic RAG chain retrieves from one index for every message, whether or not it helps. Agentic RAG wraps each
+    retriever as a tool, so the model chooses: no search for “thanks”, one search for a how-to, several hops across indexes for a
+    question that joins an incident to a contract, and a logged knowledge gap when nothing fits. Run each question through both
+    architectures and compare the calls, the cost and the answer.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="arch">
+        <button data-v="chain" aria-pressed="false">Always retrieve (chain)</button>
+        <button data-v="agent" aria-pressed="true">Agent with retriever tools</button>
+      </div>
+      <div class="seg" id="prov">
+        <button data-v="openai" aria-pressed="true">OpenAI</button>
+        <button data-v="claude" aria-pressed="false">Claude</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg seg-wrap" id="q">
+        <button data-v="Q1" aria-pressed="false">“Thanks, that fixed it!”</button>
+        <button data-v="Q2" aria-pressed="false">“What does KB-0042 say…?”</button>
+        <button data-v="Q3" aria-pressed="true">“Is INC-104512 within the contract’s 4-hour restore?”</button>
+        <button data-v="Q4" aria-pressed="false">“Guest Wi-Fi in Singapore?”</button>
+      </div>
+      <button class="primary" id="run">Run ▶</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 300" role="img" aria-label="Sequence of calls between the user, the model and the retriever tools for the selected question"></svg></div>
+    <div class="detail" id="detail"></div>
+    <div class="stats" id="stats"></div>
+    <div class="controls">
+      <div class="seg" id="tab">
+        <button data-v="trace" aria-pressed="true">Trace</button>
+        <button data-v="lc" aria-pressed="false">LangChain tools</button>
+        <button data-v="li" aria-pressed="false">LlamaIndex tools</button>
+      </div>
+    </div>
+    <pre class="pane" id="pane" aria-label="Trace or tool definitions"></pre>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Chain or agent?</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>Always-retrieve chain</th><th>Agent with retriever tools</th></tr></thead>
+      <tbody>
+        <tr><td>When it searches</td><td>Every message, one fixed index</td><td>When the model decides a search will help, in whichever index fits</td></tr>
+        <tr><td>Multi-hop questions</td><td>Cannot: one query, one index, one pass</td><td>Chains calls: look up the incident, then search the contracts with what it learnt</td></tr>
+        <tr><td>Query quality</td><td>The user’s words, as typed</td><td>The model rewrites the query for each index (IDs, keywords, synonyms)</td></tr>
+        <tr><td>Cost and latency</td><td>Predictable: one retrieval, one model call</td><td>Variable: one to several model calls; cap them</td></tr>
+        <tr><td>Failure modes</td><td>Irrelevant context forced into every prompt</td><td>Skipping a search it needed; looping; choosing the wrong tool</td></tr>
+        <tr><td>Knowledge management</td><td>Silent when nothing fits</td><td>Can call a tool to record the gap for the KB owners</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> wrap each index as its own tool with a precise description of what it contains,
+    return chunk IDs and scores so the model (and your logs) can judge relevance, cap model and tool calls per request, and test tool
+    choice with labelled questions, as you test retrieval. Module 4 turns this loop into an explicit LangGraph workflow.</div>
+  <div class="callout warn"><b>Common trap:</b> assuming the agent will always search. Models answer from their own knowledge when a
+    question looks easy. Say in the system prompt that internal facts must come from a tool, check in your evals that the right tool was
+    called, and refuse to accept an answer with no citations for a question that needs one.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="08-enterprise-connectors-use-cases.html"><small>← Previous</small>Enterprise connectors &amp; use cases</a>
+    <a class="next" href="index.html"><small>Done →</small>Back to Module 3 overview</a>
+  </div>
+</div>
+
+<script>
+// Scripted, illustrative traces in the running scenario. Token counts and timings are representative; tool-call shapes follow
+// the OpenAI Responses API (function_call) and the Claude Messages API (tool_use).
+const LANES = { User: 75, Model: 225, search_kb: 380, search_policies: 530, lookup_incident: 680, log_knowledge_gap: 830 };
+const DATA = {
+  Q1: { text: 'Thanks, that fixed it!',
+    chain: { steps: [['User', 'Retriever', 'search_kb(top 3)'], ['Retriever', 'Model', 'KB-0042 .21 · KB-0715 .19 · KB-0521 .18'], ['Model', 'User', 'answer']],
+      answer: 'Glad it’s working! If error 809 comes back, clear the saved VPN password and reconnect (KB-0042).', verdict: ['warn', 'Fine, but paid for three irrelevant chunks'], models: 1, tools: 1, tokens: 1480, secs: 1.9 },
+    agent: { steps: [['User', 'Model', 'message'], ['Model', 'User', 'answer, no tool call']],
+      answer: 'Glad that worked. I’ll leave the ticket for the analyst to close.', verdict: ['ok', 'Correct: no search needed'], models: 1, tools: 0, tokens: 420, secs: 0.9 } },
+  Q2: { text: 'What does KB-0042 say to do after a password change?',
+    chain: { steps: [['User', 'Retriever', 'search_kb(top 3)'], ['Retriever', 'Model', 'KB-0042 §2 .91 · §3 .86 · KB-0107 .58'], ['Model', 'User', 'answer']],
+      answer: 'Clear the saved VPN password and reconnect; escalate to Network Ops L2 if it still fails (KB-0042 §2–3).', verdict: ['ok', 'Correct'], models: 1, tools: 1, tokens: 1520, secs: 1.8 },
+    agent: { steps: [['User', 'Model', 'message'], ['Model', 'search_kb', 'search_kb("KB-0042 password change")', { query: 'KB-0042 password change' }], ['search_kb', 'Model', 'KB-0042 §2 .93 · §3 .88'], ['Model', 'User', 'answer']],
+      answer: 'Clear the saved VPN password and reconnect; escalate to Network Ops L2 if it still fails (KB-0042 §2–3).', verdict: ['ok', 'Correct, one extra model call'], models: 2, tools: 1, tokens: 2150, secs: 2.6 } },
+  Q3: { text: 'Is the outage in INC-104512 covered by the 4-hour restore commitment in our network support contract?',
+    chain: { steps: [['User', 'Retriever', 'search_kb(top 3)'], ['Retriever', 'Model', 'KB-0042 §2 .62 · KB-0715 .41 · KB-0042 §3 .40'], ['Model', 'User', 'answer']],
+      answer: 'The knowledge base does not mention a 4-hour restore commitment for INC-104512. KB-0042 suggests clearing saved VPN credentials.', verdict: ['bad', 'Cannot answer: one index, no incident or contract data'], models: 1, tools: 1, tokens: 1560, secs: 1.9 },
+    agent: { steps: [['User', 'Model', 'message'], ['Model', 'lookup_incident', 'lookup_incident("INC-104512")', { incident_id: 'INC-104512' }], ['lookup_incident', 'Model', 'P2 · network · opened 07:40 · open 5 h 20 min'],
+        ['Model', 'search_policies', 'search_policies("network support contract restore time P2")', { query: 'network support contract restore time P2' }], ['search_policies', 'Model', 'CTR-2026-118 §4 .89 (P1 4 h · P2 8 h)'], ['Model', 'User', 'answer']],
+      answer: 'No: the 4-hour restore in CTR-2026-118 §4 applies to P1. INC-104512 is P2, so the commitment is 8 hours; it has been open 5 h 20 min, inside that window.', verdict: ['ok', 'Correct: two hops across two sources'], models: 3, tools: 2, tokens: 4300, secs: 4.1 } },
+  Q4: { text: 'How do I connect my laptop to the new guest Wi-Fi at the Singapore office?',
+    chain: { steps: [['User', 'Retriever', 'search_kb(top 3)'], ['Retriever', 'Model', 'KB-0715 .38 · KB-0042 .22 · KB-0608 .17'], ['Model', 'User', 'answer']],
+      answer: 'Forget the network and reconnect; if Wi-Fi drops every few minutes, Network Ops is aware of a firmware issue (KB-0715).', verdict: ['bad', 'Wrong: answers from a loosely related article'], models: 1, tools: 1, tokens: 1500, secs: 1.9 },
+    agent: { steps: [['User', 'Model', 'message'], ['Model', 'search_kb', 'search_kb("guest Wi-Fi Singapore connect")', { query: 'guest Wi-Fi Singapore connect' }], ['search_kb', 'Model', 'best KB-0715 .38 (below the 0.5 bar)'],
+        ['Model', 'log_knowledge_gap', 'log_knowledge_gap(topic, team)', { topic: 'Guest Wi-Fi onboarding at APAC-SIN-01', owner_team: 'Network Ops' }], ['log_knowledge_gap', 'Model', 'KG-0031 · asked 6 times in 7 days'], ['Model', 'User', 'answer']],
+      answer: 'There is no article on guest Wi-Fi in Singapore yet. I’ve logged it for Network Ops (KG-0031); meanwhile the Service Desk can give you the guest code.', verdict: ['ok', 'Honest, and the gap reaches the KB owners'], models: 3, tools: 2, tokens: 3900, secs: 3.8 } }
+};
+const S = { arch: 'agent', prov: 'openai', q: 'Q3', step: -1, tab: 'trace', epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const T = () => DATA[S.q][S.arch], RY = i => 74 + i * 36;
+const X = name => S.arch === 'chain' ? { User: 75, Retriever: 300, Model: 560 }[name] : LANES[name];
+
+function render() {
+  svg.innerHTML = '';
+  const t = T(), lanes = S.arch === 'chain' ? ['User', 'Retriever', 'Model'] : ['User', 'Model', 'search_kb', 'search_policies', 'lookup_incident', 'log_knowledge_gap'];
+  lanes.forEach(name => {
+    const x = X(name), used = t.steps.some(s => s[0] === name || s[1] === name);
+    const c = name === 'User' ? 'var(--p0)' : name === 'Model' ? 'var(--p3)' : 'var(--p1)';
+    el('rect', { x: x - 66, y: 12, width: 132, height: 34, rx: 8, fill: c, 'fill-opacity': used ? 0.18 : 0.05, stroke: c, 'stroke-width': used ? 1.5 : 1, opacity: used ? 1 : 0.5 }, svg);
+    el('text', { x, y: 33, 'text-anchor': 'middle', class: 'hdr', fill: used ? 'var(--text)' : 'var(--muted)', text: name === 'Retriever' ? 'Retriever (KB only)' : name === 'Model' ? (S.arch === 'chain' ? 'Model' : 'Model (agent loop)') : name }, svg);
+    el('line', { x1: x, y1: 46, x2: x, y2: 290, stroke: 'var(--border)', 'stroke-dasharray': '4 4' }, svg);
+  });
+  t.steps.forEach(([from, to, label], i) => {
+    if (i > S.step) return;
+    const x1 = X(from), x2 = X(to), y = RY(i), dir = x2 > x1 ? 1 : -1, cur = i === S.step, c = cur ? 'var(--accent)' : 'var(--muted)';
+    el('line', { x1, y1: y, x2: x2 - dir * 8, y2: y, stroke: c, 'stroke-width': cur ? 2.5 : 1.5 }, svg);
+    el('path', { d: `M${x2} ${y} l${-dir * 9} -5 v10 z`, fill: c }, svg);
+    const lx = Math.min(Math.max((x1 + x2) / 2, 150), 750);
+    el('text', { x: lx, y: y - 7, 'text-anchor': 'middle', class: 'lab', fill: cur ? 'var(--text)' : 'var(--muted)', style: cur ? 'font-weight:700' : '', text: `${i + 1}. ${label}` }, svg);
+  });
+  if (S.step < 0) el('text', { x: 450, y: 170, 'text-anchor': 'middle', class: 'small', fill: 'var(--muted)', text: 'Press Run ▶' }, svg);
+  renderPanels();
+}
+
+function call(args, name) {
+  return S.prov === 'openai'
+    ? { type: 'function_call', call_id: 'call_7Hq2…', name, arguments: JSON.stringify(args) }
+    : { type: 'tool_use', id: 'toolu_01Kp…', name, input: args };
+}
+function renderPanels() {
+  const t = T(), done = S.step >= t.steps.length - 1, [cls, verdict] = t.verdict;
+  document.getElementById('detail').innerHTML = `<h3>${esc(DATA[S.q].text)}</h3>` +
+    (done ? `<p id="answer">${esc(t.answer)}</p><p class="${cls}-t">${verdict}</p>` : '<p>Run the question to see the answer.</p>');
+  document.getElementById('stats').innerHTML = done ? [[t.models, 'model calls'], [t.tools, 'retrieval / tool calls'], [t.tokens.toLocaleString('en-GB'), 'input tokens'], [t.secs + ' s', 'latency']]
+    .map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('') : '';
+  const pane = document.getElementById('pane');
+  if (S.tab === 'trace') {
+    const lines = t.steps.slice(0, S.step + 1).map(([from, to, label, args], i) => args
+      ? `<span class="cmt"># ${i + 1}. the model asks for a tool (${S.prov === 'openai' ? 'Responses API' : 'Messages API'} shape)</span>\n${jsonHtml(call(args, to), ['name', 'arguments', 'input'])}`
+      : `<span class="cmt"># ${i + 1}. ${esc(from)} → ${esc(to)}:</span> ${esc(label)}`);
+    pane.innerHTML = lines.join('\n') || '<span class="cmt"># nothing yet</span>';
+  } else if (S.tab === 'lc') {
+    pane.textContent = 'import json\nfrom langchain.tools import tool\nfrom langchain.agents import create_agent\nfrom langchain.agents.middleware import ModelCallLimitMiddleware\n\n' +
+      '@tool\ndef search_kb(query: str) -> str:\n    """Search the IT knowledge base (how-to and troubleshooting articles). Returns up to 4 passages with KB IDs and scores."""\n' +
+      '    hits = kb_store.similarity_search_with_score(query, k=4)\n    return json.dumps([{"doc_id": d.metadata["doc_id"], "text": d.page_content, "score": round(s, 2)} for d, s in hits])\n\n' +
+      '@tool\ndef search_policies(query: str) -> str:\n    """Search policies (POL-…) and contracts (CTR-…) currently in force. Returns clauses with IDs."""\n    …\n\n' +
+      '@tool\ndef log_knowledge_gap(topic: str, owner_team: str) -> str:\n    """Record a question the knowledge base cannot answer, for the owning team."""\n    …\n\n' +
+      'agent = create_agent(model, tools=[search_kb, search_policies, lookup_incident, log_knowledge_gap],\n                     system_prompt=SYSTEM,   # "internal facts must come from a tool; cite IDs"\n                     middleware=[ModelCallLimitMiddleware(run_limit=6)])';
+  } else {
+    pane.textContent = 'from llama_index.core.tools import FunctionTool, QueryEngineTool, RetrieverTool\nfrom llama_index.core.agent.workflow import FunctionAgent\n\n' +
+      'kb_tool = RetrieverTool.from_defaults(\n    retriever=kb_index.as_retriever(similarity_top_k=4),\n    name="search_kb",\n    description="Search the IT knowledge base (how-to and troubleshooting articles).",\n)\n' +
+      'policy_tool = QueryEngineTool.from_defaults(\n    query_engine=policy_index.as_query_engine(similarity_top_k=6),\n    name="search_policies",\n    description="Search policies (POL-…) and contracts (CTR-…) currently in force.",\n)\n' +
+      'agent = FunctionAgent(\n    tools=[kb_tool, policy_tool, FunctionTool.from_defaults(lookup_incident), FunctionTool.from_defaults(log_knowledge_gap)],\n    llm=Settings.llm,                # OpenAI(...) or Anthropic(...)\n    system_prompt=SYSTEM,\n)\nresponse = await agent.run(user_msg=question)';
+  }
+}
+
+async function run() {
+  const epoch = ++S.epoch, t = T(); S.step = -1; render();
+  for (let i = 0; i < t.steps.length; i++) {
+    const [from, to] = t.steps[i], env = el('circle', { r: 7, fill: 'var(--accent)' }, svg);
+    await tween(env, X(from), RY(i), X(to), RY(i), 360);
+    env.remove();
+    if (epoch !== S.epoch) return;
+    S.step = i; render();
+  }
+  logLine(logEl, `${S.q} · ${S.arch === 'chain' ? 'chain' : 'agent'}: ${t.models} model, ${t.tools} tool calls, ${t.tokens.toLocaleString('en-GB')} tokens, ${t.secs} s → ${t.verdict[1]}`, t.verdict[0] !== 'ok');
+}
+function reset() { S.epoch++; S.step = -1; render(); }
+bindSeg('arch', v => { S.arch = v; reset(); logLine(logEl, v === 'chain' ? 'Always-retrieve chain' : 'Agent with retriever tools'); });
+bindSeg('q', v => { S.q = v; reset(); });
+bindSeg('prov', v => { S.prov = v; renderPanels(); logLine(logEl, `Tool-call shape: ${v === 'openai' ? 'OpenAI function_call' : 'Claude tool_use'}`); });
+bindSeg('tab', v => { S.tab = v; renderPanels(); });
+document.getElementById('run').onclick = run;
+render();
+logLine(logEl, 'Scripted, illustrative traces. Run each question under both architectures.');
+
+renderQuiz('quiz', [
+  { q: 'What is the core change from a RAG chain to agentic RAG?',
+    options: ['The agent uses a bigger vector database.',
+      'Agentic RAG removes the need for embeddings.',
+      'The retriever becomes a tool: the model decides whether to search, which index to search and with what query, possibly several times, instead of the code retrieving once for every message.',
+      'The chain cannot cite sources; the agent can.'],
+    answer: 2,
+    explain: 'Same retrievers, different control: in the chain your code calls retrieval unconditionally; in the agent, retrieval is a tool call the model requests, exactly like the Module 2 tool loop.' },
+  { q: 'Why can the chain not answer Q3 (INC-104512 vs the contract’s 4-hour restore)?',
+    options: ['It searches one index (the KB) once with the user’s words. The answer needs the incident’s priority from one system and the contract clause from another, and the second query depends on the first result.',
+      'Its model is too small.',
+      'The contract is not in any index.',
+      'Chains cannot read incident IDs.'],
+    answer: 0,
+    explain: 'Multi-hop questions are where agents earn their cost: lookup_incident returns P2, which lets the model search the contracts for the P2 restore time, not the P1 one the user assumed.' },
+  { q: 'For “Thanks, that fixed it!”, what does the chain cost that the agent does not?',
+    options: ['Nothing; both behave the same.',
+      'An extra tool call to log a knowledge gap.',
+      'A second model call.',
+      'A retrieval and three irrelevant chunks in the prompt (about 1,480 input tokens against 420), because the chain retrieves for every message.'],
+    answer: 3,
+    explain: 'Small talk, confirmations and follow-ups do not need retrieval. At thousands of messages a day, forced retrieval is a real cost and puts irrelevant text in front of the model.' },
+  { q: 'For the guest Wi-Fi question, the best match scores 0.38, below the 0.5 relevance bar. What should a well-built agent do?',
+    options: ['Answer from KB-0715 anyway; something is better than nothing.',
+      'Say there is no article, record the gap with <code>log_knowledge_gap</code> for Network Ops, and offer a safe next step. The chain instead answers from a loosely related article.',
+      'Keep searching until it finds a score above 0.5.',
+      'Answer from the model’s general knowledge without saying so.'],
+    answer: 1,
+    explain: 'Returning scores with results lets the model and your logs see weak matches. Logging gaps turns unanswered questions into KB work: agentic RAG as knowledge management.' },
+  { q: 'A teammate assumes: “Once retrieval is a tool, the agent will always search before answering.” What is the accurate view?',
+    options: ['Correct: tool use is mandatory.',
+      'Not guaranteed: models answer from their own knowledge when a question looks easy. State in the system prompt that internal facts must come from tools, cap the calls, and check in evals that the expected tool was called.',
+      'Correct, but only on Claude.',
+      'Agents never search unless forced with tool_choice.'],
+    answer: 1,
+    explain: 'Tool choice is a behaviour to test, like retrieval quality. Labelled questions with an expected tool (or none, as in Q1) make it measurable.' }
+]);
+</script>
+</body>
+</html>

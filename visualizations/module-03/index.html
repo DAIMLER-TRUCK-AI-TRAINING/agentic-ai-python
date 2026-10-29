@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic AI Module 3 Visualizations</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .topics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 24px; }
+  .topic { display: block; text-decoration: none; color: var(--text); transition: border-color .15s, transform .15s; }
+  .topic:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .topic .num { font-family: var(--mono); color: var(--accent); font-size: 13px; font-weight: 600; }
+  .topic h3 { margin: 6px 0; }
+  .topic p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+  .topic .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  ol.hands { margin: 0; padding-left: 20px; }
+  ol.hands li + li { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span>Agentic AI Systems Engineering</span>
+    <div class="nav"><a href="../module-02/index.html">← Module 2</a><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Module 3 · Phase 2 · 8 hours</div>
+  <h1>Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</h1>
+  <p class="lede">Interactive visualizations for each Module 3 topic. Each page has a hands-on simulation you can
+    play with, followed by a 5-question self-quiz with explanations. All data is illustrative; nothing calls a live model.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0"><b style="color:var(--text)">Objective:</b>
+    Build production RAG pipelines with LangChain and LlamaIndex, including enterprise data-source connectors. Apply a fine-tuning decision framework to choose between fine-tuning, RAG, prompt engineering, and hybrid approaches.</p>
+
+  <div class="topics">
+    <a class="card topic" href="01-rag-fundamentals.html">
+      <div class="num">01</div><h3>RAG fundamentals</h3>
+      <p>Answer one Service Desk question four ways (model only, prompt stuffing, a fine-tuned model and RAG), revise the KB article it depends on, grow the corpus a hundredfold, and see which approach stays current and affordable.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="02-fine-tuning-decision-framework.html">
+      <div class="num">02</div><h3>Fine-tuning overview &amp; decision framework</h3>
+      <p>Fill in the fine-tuning decision canvas for the four workshop scenarios, watch prompt engineering, RAG, fine-tuning and hybrid compete on your inputs, then size a LoRA adapter against full fine-tuning.</p>
+      <div class="tags"><span class="pill">builder</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="03-vector-databases.html">
+      <div class="num">03</div><h3>Vector databases</h3>
+      <p>Search one embedding map with a flat, IVF and HNSW index to trade recall against work, then switch between FAISS, Chroma and Pinecone to compare where each runs, how it filters on metadata and what you operate.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="04-chunking-strategies.html">
+      <div class="num">04</div><h3>Chunking strategies</h3>
+      <p>Split a remote-access policy with fixed, semantic and hierarchical chunking, tune size, overlap and the breakpoint threshold, and find the settings that cut an exception away from its rule.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="05-metadata-hybrid-retrieval.html">
+      <div class="num">05</div><h3>Metadata design &amp; hybrid retrieval</h3>
+      <p>Run an error code, a paraphrase and a versioned-policy query through keyword, vector and fused retrieval, add metadata filters and a re-ranker, and see which query each method loses.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="06-retrieval-quality-evaluation.html">
+      <div class="num">06</div><h3>Retrieval quality evaluation</h3>
+      <p>Slide k from 1 to 10 over six labelled test queries and watch precision, recall, MRR, answer relevance and the context bill move against each other, with and without re-ranking.</p>
+      <div class="tags"><span class="pill">slider</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="07-langchain-vs-llamaindex.html">
+      <div class="num">07</div><h3>RAG frameworks: LangChain vs LlamaIndex</h3>
+      <p>Toggle one pipeline between LangChain and LlamaIndex stage by stage, compare the classes, code and defaults, then align the settings and watch the “framework difference” in the answers disappear.</p>
+      <div class="tags"><span class="pill">toggle</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="08-enterprise-connectors-use-cases.html">
+      <div class="num">08</div><h3>Enterprise connectors &amp; use cases</h3>
+      <p>Explore SharePoint, Confluence, Jira and Unstructured as sources, inspect what a loaded document and its permissions look like, and wire them to four use cases built from one shared pattern, with an offline fallback.</p>
+      <div class="tags"><span class="pill">explorer</span><span class="pill">5-question quiz</span></div>
+    </a>
+    <a class="card topic" href="09-agentic-rag.html">
+      <div class="num">09</div><h3>Agentic RAG</h3>
+      <p>Send four questions through an always-retrieve chain and through an agent that calls retrievers as tools, then compare the calls, tokens and answers, including a multi-hop question and a knowledge gap.</p>
+      <div class="tags"><span class="pill">simulation</span><span class="pill">5-question quiz</span></div>
+    </a>
+  </div>
+
+  <h2>Hands-on for this module</h2>
+  <div class="card">
+    <ol class="hands">
+      <li>Build end-to-end RAG pipeline with LangChain: ingest → chunk → embed → retrieve → answer on support-doc corpus <span class="pill">45 min</span></li>
+      <li>Rebuild the same pipeline with LlamaIndex: compare developer experience and output quality <span class="pill">30 min</span></li>
+      <li>Chunking strategy comparison: fixed vs semantic on same document set <span class="pill">30 min</span></li>
+      <li>Retrieval quality evaluation: measure precision and answer relevance on test queries <span class="pill">30 min</span></li>
+      <li>Enterprise connector lab: connect the RAG pipeline to a sample SharePoint/Confluence space via LlamaIndex Hub <span class="pill">45 min</span></li>
+      <li>Enterprise use-case walkthrough: build a policy-search assistant and a customer-support RAG assistant from a shared pattern <span class="pill">45 min</span></li>
+      <li>Agentic RAG exercise: wrap the retriever as a tool for an agent to call selectively <span class="pill">25 min</span></li>
+      <li>Fine-tuning decision workshop: the decision framework applied to 4 scenarios (from the delivery schedule) <span class="pill">30 min</span></li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

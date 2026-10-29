@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vector Databases</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>3 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 3</div>
+  <h1>Exact, fast or cheap: pick two, then pick where it runs</h1>
+  <p class="lede">A vector index answers one question: which stored vectors are nearest to this query vector? A flat index checks every
+    vector and is always right; IVF and HNSW check a fraction and are usually right. Search the map with each index and turn the knobs
+    until recall drops. Then switch between FAISS, Chroma and Pinecone, add a <code>region = EU</code> filter, and see how each one handles it.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="query">
+        <button data-v="Q1" aria-pressed="true">“VPN rejects my new password”</button>
+        <button data-v="Q2" aria-pressed="false">“MFA prompts not arriving”</button>
+        <button data-v="Q3" aria-pressed="false">“Invoice total ≠ PO”</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="idx">
+        <button data-v="flat" aria-pressed="true">Flat (exact)</button>
+        <button data-v="ivf" aria-pressed="false">IVF</button>
+        <button data-v="hnsw" aria-pressed="false">HNSW</button>
+      </div>
+      <label class="range" id="knobL"><span id="knobN">nprobe</span> <input type="range" id="knob" min="1" max="3" step="1" value="1" aria-label="Index parameter"> <b id="knobV">1</b></label>
+    </div>
+    <div class="controls">
+      <div class="seg" id="store">
+        <button data-v="faiss" aria-pressed="true">FAISS</button>
+        <button data-v="chroma" aria-pressed="false">Chroma</button>
+        <button data-v="pinecone" aria-pressed="false">Pinecone</button>
+      </div>
+      <button class="toggle" id="filter" aria-pressed="false">Filter region = EU: off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 330" role="img" aria-label="Two-dimensional map of knowledge-base chunks, the query, the vectors the index compared and the top five results"></svg></div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>query</span><span><i style="background:var(--p1)"></i>compared</span>
+      <span><i style="background:var(--ok)"></i>returned, true top 5</span><span><i style="background:var(--bad)"></i>true top 5, missed</span>
+      <span><i style="background:var(--p5)"></i>never looked at</span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="detail" id="detail"></div>
+    <pre class="pane" id="pane" aria-label="Code for the selected store and index" style="margin-top:10px"></pre>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Three stores, three operating models</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Aspect</th><th>FAISS</th><th>Chroma</th><th>Pinecone</th></tr></thead>
+      <tbody>
+        <tr><td>What it is</td><td>A similarity-search <em>library</em> (C++ with Python bindings)</td><td>An open-source vector <em>database</em></td><td>A managed vector database service</td></tr>
+        <tr><td>Runs</td><td>Inside your process</td><td>Embedded in your process, or as a server you run</td><td>In the vendor’s cloud, in the region you choose</td></tr>
+        <tr><td>Index types</td><td>Many, chosen by you: Flat, IVF, HNSW, PQ and combinations; GPU builds</td><td>HNSW, managed for you</td><td>Managed for you</td></tr>
+        <tr><td>Stores text and metadata</td><td>No: vectors and row IDs; you keep the rest (the LangChain wrapper adds a docstore)</td><td>Yes: documents, metadata and vectors</td><td>Yes: metadata with each vector</td></tr>
+        <tr><td>Metadata filter</td><td>Through the wrapper: fetch <code>fetch_k</code> candidates, then filter</td><td><code>where=</code> inside the query</td><td><code>filter=</code> inside the query; namespaces to partition</td></tr>
+        <tr><td>Persistence and updates</td><td>Save and load index files; you handle concurrency</td><td>On disk (persistent client) or the server</td><td>Fully managed, with upserts and deletes by ID</td></tr>
+        <tr><td>Data residency</td><td>Wherever your process runs</td><td>Wherever you host it</td><td>The cloud region of the index</td></tr>
+        <tr><td>Choose it for</td><td>Labs, batch jobs, maximum control and speed</td><td>A simple self-hosted store with filters</td><td>No operations burden at scale, if the data may leave your network</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Index types</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Index</th><th>How it searches</th><th>Knob</th><th>Trade-off</th></tr></thead>
+      <tbody>
+        <tr><td><b>Flat</b></td><td>Compares the query with every vector</td><td>none</td><td>Exact; cost grows linearly. Fine up to hundreds of thousands of vectors.</td></tr>
+        <tr><td><b>IVF</b></td><td>Clusters vectors into cells (k-means), then scans only the cells nearest the query</td><td><code>nlist</code> cells, <code>nprobe</code> cells searched</td><td>Needs a training step; misses neighbours that sit just across a cell border.</td></tr>
+        <tr><td><b>HNSW</b></td><td>Walks a layered graph: sparse upper layers route between regions, the bottom layer links near neighbours</td><td><code>M</code> links per node, <code>efSearch</code> beam width</td><td>Fast and high recall; more memory for the links; deletes are awkward.</td></tr>
+        <tr><td><b>PQ</b></td><td>Compresses each vector into short codes and compares the codes</td><td>code size</td><td>Many times less memory; approximate distances. Often combined as IVF-PQ.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> measure recall@k against a flat index on your own queries before you tune
+    anything. At 36 vectors every index is fast; the knobs matter at millions, and the price of a wrong knob is silent: the right chunk
+    is never retrieved, and the answer looks fine.</div>
+  <div class="callout warn"><b>Common trap:</b> treating the vector store as harmless because it “only holds numbers”. Stores keep the
+    chunk text and metadata next to the vectors, and embeddings themselves can leak content. Classify the store like the source
+    documents: access control, encryption and data residency apply (Module 5).</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="02-fine-tuning-decision-framework.html"><small>← Previous</small>Fine-tuning overview &amp; decision framework</a>
+    <a class="next" href="04-chunking-strategies.html"><small>Next →</small>Chunking strategies</a>
+  </div>
+</div>
+
+<script>
+// A toy 2-D map: 36 knowledge-base chunks in 6 topic clusters. Real embeddings have hundreds or thousands of dimensions;
+// the search algorithms below are real (flat scan, IVF cells, a two-layer HNSW-style graph) but run on toy distances.
+const TOPICS = [['network', 'KB-0042', 'KB-0715'], ['access', 'KB-0107', 'KB-0608'], ['endpoint', 'KB-0213', 'KB-0450'],
+  ['email', 'KB-0521', 'KB-0521'], ['finance', 'KB-0318', 'KB-0790'], ['security', 'KB-0733', 'POL-SEC-012']];
+const DATA = {
+  // [x, y, cluster, region]; regions E = EU, U = US, A = APAC
+  points: [[154,135,0,'A'],[201,103,0,'U'],[204,110,0,'A'],[111,100,0,'A'],[157,62,0,'A'],[125,113,0,'E'],[317,47,1,'U'],[264,78,1,'E'],[264,42,1,'E'],
+    [326,60,1,'U'],[285,99,1,'U'],[330,107,1,'U'],[498,109,2,'E'],[497,94,2,'U'],[437,118,2,'E'],[462,91,2,'A'],[485,92,2,'A'],[479,82,2,'A'],
+    [150,223,3,'U'],[110,276,3,'U'],[149,238,3,'A'],[130,261,3,'U'],[104,253,3,'U'],[100,196,3,'U'],[268,246,4,'E'],[252,258,4,'A'],[305,287,4,'U'],
+    [297,208,4,'A'],[346,264,4,'A'],[322,239,4,'A'],[528,236,5,'U'],[498,237,5,'A'],[445,213,5,'U'],[488,242,5,'U'],[444,263,5,'U'],[433,230,5,'A']],
+  queries: { Q1: [228, 82], Q2: [300, 92], Q3: [292, 222] },
+  k: 5, fetchK: 20
+};
+const P = DATA.points.map(([x, y, ci, r], id) => {
+  const [topic, a, b] = TOPICS[ci], j = id % 6;
+  return { id, x, y, ci, region: { E: 'EU', U: 'US', A: 'APAC' }[r], label: `${j < 3 ? a : b} #${(j % 3) + 1 + (a === b && j >= 3 ? 3 : 0)}`, topic };
+});
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const CENT = TOPICS.map((_, ci) => { const m = P.filter(p => p.ci === ci); return { x: m.reduce((s, p) => s + p.x, 0) / 6, y: m.reduce((s, p) => s + p.y, 0) / 6 }; });
+P.forEach(p => { p.cell = CENT.map((c, i) => [dist(p, c), i]).sort((a, b) => a[0] - b[0])[0][1]; });
+const HUB = CENT.map((c, i) => P.filter(p => p.ci === i).map(p => [dist(p, c), p.id]).sort((a, b) => a[0] - b[0])[0][1]);
+function graph(M) {   // bottom layer: each node linked to its M nearest neighbours, both directions
+  const adj = P.map(() => new Set());
+  P.forEach(p => P.filter(o => o !== p).map(o => [dist(p, o), o.id]).sort((a, b) => a[0] - b[0]).slice(0, M).forEach(([, j]) => { adj[p.id].add(j); adj[j].add(p.id); }));
+  return adj;
+}
+
+const S = { q: 'Q1', idx: 'flat', knob: { ivf: 1, hnsw: 2 }, store: 'faiss', filter: false };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function search() {
+  const q = { x: DATA.queries[S.q][0], y: DATA.queries[S.q][1] }, k = DATA.k;
+  const allowed = p => !S.filter || p.region === 'EU';
+  const byDist = list => list.map(p => [dist(p, q), p.id]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  const inFilter = S.filter && S.store !== 'faiss';
+  const truth = byDist(P.filter(allowed)).slice(0, k);
+  let compared = [], result = [], path = [], extra = 0, cells = [];
+  if (S.idx === 'flat') {
+    const pool = inFilter ? P.filter(allowed) : P;
+    compared = pool.map(p => p.id);
+    result = byDist(pool);
+    if (S.filter && S.store === 'faiss') result = result.slice(0, DATA.fetchK).filter(i => allowed(P[i]));   // post-filter
+    result = result.slice(0, k);
+  } else if (S.idx === 'ivf') {
+    cells = CENT.map((c, i) => [dist(q, c), i]).sort((a, b) => a[0] - b[0]).slice(0, S.knob.ivf).map(x => x[1]);
+    const pool = P.filter(p => cells.includes(p.cell));
+    compared = pool.map(p => p.id); extra = CENT.length; result = byDist(pool).slice(0, k);
+  } else {
+    const adj = graph(S.knob.hnsw); let cur = HUB[5]; path = [cur]; extra = 1;
+    for (;;) { let next = cur; for (const h of HUB) { if (h === cur) continue; extra++; if (dist(P[h], q) < dist(P[next], q)) next = h; } if (next === cur) break; cur = next; path.push(cur); }
+    const seen = new Set([cur]), W = [[dist(P[cur], q), cur]], C = [[dist(P[cur], q), cur]], ef = k;
+    while (C.length) {
+      C.sort((a, b) => a[0] - b[0]); const [dc, c] = C.shift(); W.sort((a, b) => a[0] - b[0]);
+      if (dc > W[W.length - 1][0] && W.length >= ef) break;
+      for (const n of adj[c]) { if (seen.has(n)) continue; seen.add(n); const dn = dist(P[n], q);
+        if (W.length < ef || dn < W[W.length - 1][0]) { C.push([dn, n]); W.push([dn, n]); W.sort((a, b) => a[0] - b[0]); if (W.length > ef) W.pop(); } }
+    }
+    compared = [...seen]; result = W.map(x => x[1]).slice(0, k);
+  }
+  const hits = result.filter(i => truth.includes(i)).length;
+  // HNSW: the bottom-layer start node is a hub whose distance the routing layer already computed.
+  return { q, truth, compared, result, path, cells, comparisons: compared.length + extra - (S.idx === 'hnsw' ? 1 : 0), hits };
+}
+
+function render() {
+  const r = search();
+  svg.innerHTML = '';
+  if (S.idx === 'ivf') CENT.forEach((c, i) => {
+    const on = r.cells.includes(i);
+    el('circle', { cx: c.x, cy: c.y, r: 62, fill: on ? 'var(--p1)' : 'var(--p5)', 'fill-opacity': on ? 0.10 : 0.05, stroke: on ? 'var(--p1)' : 'var(--border)', 'stroke-dasharray': '4 3' }, svg);
+    el('text', { x: c.x, y: c.y - 66, 'text-anchor': 'middle', class: 'lab', fill: 'var(--muted)', text: `cell ${i + 1}` }, svg);
+  });
+  if (S.idx === 'hnsw') {
+    const adj = graph(S.knob.hnsw);
+    adj.forEach((set, i) => set.forEach(j => { if (j > i) el('line', { x1: P[i].x, y1: P[i].y, x2: P[j].x, y2: P[j].y, stroke: 'var(--border)', 'stroke-width': 1 }, svg); }));
+    for (let i = 1; i < r.path.length; i++) el('line', { x1: P[r.path[i - 1]].x, y1: P[r.path[i - 1]].y, x2: P[r.path[i]].x, y2: P[r.path[i]].y, stroke: 'var(--p3)', 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, svg);
+  }
+  P.forEach(p => {
+    const inRes = r.result.includes(p.id), inTruth = r.truth.includes(p.id), cmp = r.compared.includes(p.id), off = S.filter && p.region !== 'EU';
+    const c = inRes && inTruth ? 'var(--ok)' : inTruth ? 'var(--bad)' : inRes ? 'var(--warn)' : cmp ? 'var(--p1)' : 'var(--p5)';
+    el('circle', { cx: p.x, cy: p.y, r: inRes || inTruth ? 7 : 5, fill: c, 'fill-opacity': off ? 0.25 : cmp || inTruth ? 0.9 : 0.35, stroke: HUB.includes(p.id) && S.idx === 'hnsw' ? 'var(--p3)' : 'none', 'stroke-width': 2 }, svg);
+  });
+  TOPICS.forEach(([t], i) => el('text', { x: CENT[i].x, y: CENT[i].y + (i < 3 ? -42 : 52), 'text-anchor': 'middle', class: 'small', fill: 'var(--muted)', text: t }, svg));
+  el('path', { d: `M${r.q.x} ${r.q.y - 10} l3 7 h7 l-6 5 2 8 -6 -5 -6 5 2 -8 -6 -5 h7 z`, fill: 'var(--accent)' }, svg);
+  // Results list
+  el('text', { x: 610, y: 26, class: 'hdr', text: `Top ${DATA.k} returned${S.filter ? ' (region = EU)' : ''}` }, svg);
+  for (let i = 0; i < DATA.k; i++) {
+    const id = r.result[i], y = 50 + i * 34;
+    if (id === undefined) { el('text', { x: 610, y: y + 16, class: 'small', fill: 'var(--bad)', text: `${i + 1}. — nothing left after the filter` }, svg); continue; }
+    const ok = r.truth.includes(id);
+    el('rect', { x: 604, y, width: 286, height: 26, rx: 6, fill: ok ? 'var(--ok-soft)' : 'var(--warn-soft)', stroke: ok ? 'var(--ok)' : 'var(--warn)' }, svg);
+    el('text', { x: 614, y: y + 17, class: 'lab', text: `${i + 1}. ${P[id].label} · ${P[id].region} · d=${dist(P[id], r.q).toFixed(0)}` }, svg);
+  }
+  const missed = r.truth.filter(i => !r.result.includes(i));
+  el('text', { x: 610, y: 240, class: 'small', fill: missed.length ? 'var(--bad)' : 'var(--ok)', text: missed.length ? `Missed from the true top 5: ${missed.map(i => P[i].label).join(', ')}` : 'All of the true top 5 found' }, svg);
+  renderPanels(r);
+  return r;
+}
+
+const STORE = {
+  faiss: { name: 'FAISS', runs: 'A library inside your Python process. Vectors and row IDs only; you keep text and metadata alongside (the LangChain wrapper adds an in-memory docstore).', filter: `Through the LangChain wrapper, a filter is applied <b>after</b> search: it fetches <code>fetch_k=${DATA.fetchK}</code> nearest candidates and keeps the matches, so a rare filter value can return fewer than k.` },
+  chroma: { name: 'Chroma', runs: 'An open-source database, embedded (<code>PersistentClient</code>) or as a server (<code>HttpClient</code>). Stores documents, metadata and vectors in collections, with an HNSW index.', filter: 'The <code>where=</code> clause is part of the query, so you get the k nearest <em>matching</em> chunks.' },
+  pinecone: { name: 'Pinecone', runs: 'A managed service: you pick the cloud and region when you create the index; there are no servers to run. Data leaves your network.', filter: '<code>filter=</code> is part of the query; <b>namespaces</b> partition one index (for example one per region or tenant) so a query only ever sees its own partition.' }
+};
+function code() {
+  const idxLine = { flat: 'index = faiss.IndexFlatIP(d)                    # exact; normalise vectors for cosine',
+    ivf: `index = faiss.IndexIVFFlat(faiss.IndexFlatIP(d), d, 100, faiss.METRIC_INNER_PRODUCT)\nindex.train(X)                                  # k-means into 100 cells\nindex.nprobe = ${S.knob.ivf}`,
+    hnsw: `index = faiss.IndexHNSWFlat(d, ${S.knob.hnsw}, faiss.METRIC_INNER_PRODUCT)   # M = ${S.knob.hnsw} links per node\nindex.hnsw.efSearch = 64` }[S.idx];
+  if (S.store === 'faiss') return `import faiss\n\nd = 1536                                        # e.g. text-embedding-3-small\n${idxLine}\nindex.add(X)                                    # float32 matrix, one row per chunk\nD, I = index.search(q, 5)                       # scores and row numbers\n\n` +
+    `# The LangChain wrapper keeps text and metadata and can post-filter:\nhits = vector_store.similarity_search(question, k=5${S.filter ? `, filter={"region": "EU"}, fetch_k=${DATA.fetchK}` : ''})`;
+  if (S.store === 'chroma') return `import chromadb\n\nclient = chromadb.PersistentClient(path="./chroma_db")   # or chromadb.HttpClient(host=…, port=8000)\nkb = client.get_or_create_collection("kb_chunks")\nkb.add(ids=ids, documents=texts, embeddings=vectors, metadatas=metas)\n\nres = kb.query(query_embeddings=[q], n_results=5${S.filter ? ', where={"region": "EU"}' : ''})`;
+  return `from pinecone import Pinecone, ServerlessSpec\n\npc = Pinecone()                                 # reads PINECONE_API_KEY\npc.create_index("kb-chunks", dimension=1536, metric="cosine",\n                spec=ServerlessSpec(cloud="aws", region="eu-west-1"))\nindex = pc.Index("kb-chunks")\nindex.upsert(vectors=rows, namespace="eu")\n\nres = index.query(vector=q, top_k=5, include_metadata=True, namespace="eu"${S.filter ? ',\n                  filter={"region": {"$eq": "EU"}}' : ''})`;
+}
+
+function renderPanels(r) {
+  const s = STORE[S.store];
+  document.getElementById('stats').innerHTML =
+    `<div class="stat"><b>${r.comparisons}</b><span>distance computations (flat: ${S.filter && S.store !== 'faiss' ? P.filter(p => p.region === 'EU').length : P.length})</span></div>` +
+    `<div class="stat"><b style="color:${r.hits === DATA.k ? 'var(--ok)' : 'var(--bad)'}">${r.hits} / ${DATA.k}</b><span>recall@5 vs exact</span></div>` +
+    `<div class="stat"><b>${r.result.length}</b><span>results returned (k = 5)</span></div>`;
+  document.getElementById('detail').innerHTML = `<h3>${s.name}</h3><p>${s.runs}</p><p><b>Metadata filter:</b> ${s.filter}</p>` +
+    (S.idx !== 'flat' && S.store !== 'faiss' ? `<p><b>Note:</b> ${s.name} manages its own index; the IVF and HNSW views show the algorithms, and FAISS is where you choose them yourself.</p>` : '');
+  document.getElementById('pane').textContent = code();
+}
+
+function syncKnob() {
+  const knob = document.getElementById('knob'), L = document.getElementById('knobL');
+  L.style.visibility = S.idx === 'flat' ? 'hidden' : 'visible';
+  if (S.idx === 'ivf') { knob.min = 1; knob.max = 3; knob.value = S.knob.ivf; document.getElementById('knobN').textContent = 'nprobe (cells searched)'; }
+  if (S.idx === 'hnsw') { knob.min = 2; knob.max = 4; knob.value = S.knob.hnsw; document.getElementById('knobN').textContent = 'M (links per node)'; }
+  document.getElementById('knobV').textContent = S.idx === 'hnsw' ? S.knob.hnsw : S.knob.ivf;
+  const f = document.getElementById('filter'); f.disabled = S.idx !== 'flat';
+  if (f.disabled && S.filter) { S.filter = false; f.setAttribute('aria-pressed', 'false'); f.textContent = 'Filter region = EU: off'; }
+  f.title = f.disabled ? 'The filter demo runs on the flat index' : '';
+}
+function report() {
+  const r = render();
+  const how = S.idx === 'flat' ? 'flat scan' : S.idx === 'ivf' ? `IVF, nprobe ${S.knob.ivf}` : `HNSW, M ${S.knob.hnsw}`;
+  logLine(logEl, `${S.q} · ${how} · ${STORE[S.store].name}${S.filter ? ' · region = EU' : ''}: ${r.comparisons} computations, recall ${r.hits}/5, ${r.result.length} returned`, r.hits < DATA.k || r.result.length < DATA.k);
+}
+bindSeg('query', v => { S.q = v; report(); });
+bindSeg('idx', v => { S.idx = v; syncKnob(); report(); });
+bindSeg('store', v => { S.store = v; report(); });
+document.getElementById('knob').addEventListener('input', e => { S.knob[S.idx] = +e.target.value; syncKnob(); report(); });
+bindToggle('filter', on => { S.filter = on; document.getElementById('filter').textContent = 'Filter region = EU: ' + (on ? 'on' : 'off'); report(); });
+syncKnob(); render();
+logLine(logEl, 'Toy 2-D map with real search algorithms. Try IVF with nprobe 1 on Q1, then HNSW with M 2.');
+
+renderQuiz('quiz', [
+  { q: 'What does a flat index give you that IVF and HNSW do not?',
+    options: ['Exact results: it compares the query with every vector, so recall against itself is always 100%, at a cost that grows linearly with the corpus.',
+      'Smaller memory use.',
+      'Built-in metadata filtering.',
+      'Automatic re-ranking.'],
+    answer: 0,
+    explain: 'Flat is the ground truth you measure approximate indexes against. It is a sound default until the corpus or the latency budget makes a full scan too slow.' },
+  { q: 'On Q1 (“VPN rejects my new password”), IVF with <code>nprobe = 1</code> finds only 3 of the true top 5. Why?',
+    options: ['IVF ignores the two closest vectors on purpose.',
+      'The vectors were not normalised.',
+      'IVF only works on finance documents.',
+      'The query sits between the network and access clusters; IVF scans only the nearest cell, so true neighbours just across the border are never compared. Raising nprobe to 2 finds all 5.'],
+    answer: 3,
+    explain: 'Boundary queries are where IVF loses recall. nprobe trades work for recall: with 2 cells it compares 18 vectors instead of 12 and recovers the missing neighbours. Measure it on real queries.' },
+  { q: 'With FAISS (through the LangChain wrapper) and the filter <code>region = EU</code>, Q1 returns only 4 results for k = 5. What is going on, and what would you change?',
+    options: ['FAISS has a bug.',
+      'The wrapper post-filters: it fetches the 20 nearest chunks and keeps the EU ones, and only 4 of those 20 are EU. Raise <code>fetch_k</code>, keep a separate index per region, or use a store that filters inside the search (Chroma, Pinecone).',
+      'There are only 4 EU chunks in the corpus.',
+      'k is ignored when a filter is set.'],
+    answer: 1,
+    explain: 'Switch to Chroma or Pinecone with the same filter and you get 5 EU results, because the filter is part of the search. With rare filter values, post-filtering silently returns fewer chunks.' },
+  { q: 'A colleague says: “The vector store only holds numbers, so it does not need the access controls of the source documents.” What is the accurate reply?',
+    options: ['Correct; embeddings cannot be read.',
+      'Correct, unless you use Pinecone.',
+      'Wrong: stores keep chunk text and metadata beside the vectors, and embeddings can leak content. Apply the source documents’ access control, encryption and residency rules to the store.',
+      'Only the metadata is sensitive, never the text.'],
+    answer: 2,
+    explain: 'Chroma and Pinecone store your documents and metadata; even FAISS deployments keep the text next door. With a managed service, the index’s region decides where that data lives.' },
+  { q: 'For HNSW on Q1, raising M from 2 to 4 changes the result how?',
+    options: ['Recall rises from 3/5 to 5/5, and distance computations rise from 16 to 22: more links per node give the walk more routes to the true neighbours, at the cost of memory.',
+      'Nothing changes; M only affects build time.',
+      'Recall falls, because the graph is denser.',
+      'It turns HNSW into a flat index.'],
+    answer: 0,
+    explain: 'M is the memory-for-recall knob of HNSW (efSearch is the speed-for-recall knob at query time). With M = 2 the walk cannot reach the access-cluster neighbours of a boundary query.' }
+]);
+</script>
+</body>
+</html>

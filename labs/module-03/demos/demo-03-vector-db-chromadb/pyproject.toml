@@ -1,0 +1,11 @@
+[project]
+name = "vector-db-chromadb"
+version = "0.1.0"
+description = "Persistent vector DB + RAG with ChromaDB (Module 6 demo)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb>=0.5.0",
+    "openai>=2.2.0",
+    "python-dotenv>=1.0.0",
+]

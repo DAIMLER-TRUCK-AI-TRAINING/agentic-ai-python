@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fine-Tuning Decision Framework</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  .row-ctl .seg button { font-size: 13px; padding: 6px 10px; }
+  #reasons { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
+  #reasons b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>2 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 2</div>
+  <h1>Fine-tuning changes behaviour, not knowledge</h1>
+  <p class="lede">Fine-tuning, RAG, prompt engineering and hybrids solve different problems. The framework decides on four
+    questions the outline names (data availability, latency, cost and update frequency) plus two that settle most debates: <em>what
+    must change</em>, and <em>must the answer cite a source</em>? Load each workshop scenario, read the canvas, then change one input at
+    a time and watch the recommendation flip. Below the canvas, size a LoRA adapter against full fine-tuning.</p>
+
+  <div class="card">
+    <div class="controls">
+      <span class="small" style="color:var(--muted)">Workshop scenario:</span>
+      <div class="seg seg-wrap" id="scn">
+        <button data-v="S1" aria-pressed="true">S1 · IT KB answers</button>
+        <button data-v="S2" aria-pressed="false">S2 · Ticket classifier</button>
+        <button data-v="S3" aria-pressed="false">S3 · Reply drafting</button>
+        <button data-v="S4" aria-pressed="false">S4 · Engineering docs</button>
+      </div>
+    </div>
+    <p class="small" id="brief" style="color:var(--muted);margin:4px 0 8px"></p>
+    <div id="canvas"></div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 230" role="img" aria-label="Scores for prompt engineering, RAG, fine-tuning and hybrid on the current canvas"></svg></div>
+    <ul id="reasons"></ul>
+    <div class="pane-title">Decision record (the canvas, as you would file it)</div>
+    <pre class="pane" id="pane" aria-label="Decision record"></pre>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>What fine-tuning actually trains</h2>
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="method">
+        <button data-v="full" aria-pressed="false">Full fine-tuning</button>
+        <button data-v="lora" aria-pressed="true">LoRA / PEFT</button>
+        <button data-v="inst" aria-pressed="false">Instruction tuning</button>
+      </div>
+      <label class="range">LoRA rank r <input type="range" id="rank" min="0" max="4" step="1" value="2" aria-label="LoRA rank"> <b id="rankV">16</b></label>
+    </div>
+    <div class="stage"><svg id="svg2" viewBox="0 0 900 220" role="img" aria-label="Which weights are trained by the selected fine-tuning method"></svg></div>
+    <div class="stats" id="stats2"></div>
+    <pre class="pane" id="pane2" aria-label="Training data or method notes" style="margin-top:10px"></pre>
+  </div>
+
+  <h2>The framework, criterion by criterion</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Criterion</th><th>Points towards</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>What must change</td><td>Knowledge → RAG · behaviour → fine-tuning or prompting · both → hybrid</td><td>Weights learn patterns well and facts poorly; facts in weights cannot be cited, updated or permissioned</td></tr>
+        <tr><td>Labelled examples</td><td>None → prompt engineering (and start collecting) · 1,000+ → fine-tuning becomes viable</td><td>Fine-tuning learns from examples; without them there is nothing to train on (the gate on this page)</td></tr>
+        <tr><td>Update frequency</td><td>Weekly or faster → RAG</td><td>Re-indexing one article takes minutes; a training run takes hours and an evaluation cycle</td></tr>
+        <tr><td>Latency budget</td><td>Under 500 ms → a small fine-tuned model</td><td>A tuned small model needs no retrieval hop and no long few-shot prompt</td></tr>
+        <tr><td>Volume (cost)</td><td>Very high → fine-tuning; very low → avoid it</td><td>Shorter prompts save tokens on every call; training cost is only repaid at volume</td></tr>
+        <tr><td>Citations and audit</td><td>Required → RAG or hybrid</td><td>Only retrieved passages carry a source ID you can show and check</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Fine-tuning methods (overview)</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>What it updates</th><th>Cost and artefact</th><th>Use it when</th></tr></thead>
+      <tbody>
+        <tr><td><b>Full fine-tuning</b></td><td>Every weight</td><td>Most GPU memory; a full copy of the model per variant</td><td>You own the model, have lots of data and need the deepest change</td></tr>
+        <tr><td><b>LoRA / PEFT</b></td><td>Small low-rank adapter matrices beside frozen weights (PEFT is the family; LoRA the most common member)</td><td>A fraction of a per cent of the parameters; adapters of megabytes you can swap per task</td><td>The default way to fine-tune open-weight models</td></tr>
+        <tr><td><b>Instruction tuning</b></td><td>Either of the above: it names the <em>data</em> (instruction → response pairs), not the method</td><td>Depends on the method underneath</td><td>You want a model to follow a task format reliably</td></tr>
+        <tr><td><b>Hosted fine-tuning</b></td><td>Whatever the provider exposes for the models it allows</td><td>Upload a JSONL file, get a new model ID; availability varies by provider and model</td><td>You use a closed model and the provider offers tuning for it</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> work up the ladder and stop at the first rung that clears your evaluation bar:
+    prompt engineering, then RAG, then fine-tuning, then a hybrid. Each rung adds data work, infrastructure and an evaluation cycle, so
+    you need the eval set (Topic 6) before you can tell whether the next rung paid off.</div>
+  <div class="callout warn"><b>Common trap:</b> fine-tuning to teach facts. The model learns that KB answers <em>look</em> a certain
+    way and will produce that look for questions it has no facts for, with no source to check, frozen on training day and visible to
+    every user. Put facts in retrieval; fine-tune for format, tone, vocabulary and narrow tasks.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="01-rag-fundamentals.html"><small>← Previous</small>RAG fundamentals</a>
+    <a class="next" href="03-vector-databases.html"><small>Next →</small>Vector databases</a>
+  </div>
+</div>
+
+<script>
+// The four workshop scenarios and a transparent, illustrative scoring scheme. The points encode the framework
+// table below; they are a teaching device for discussion, not a calibrated model.
+const DATA = {
+  inputs: [
+    ['change', 'What must change?', [['knowledge', 'Knowledge (facts)'], ['behaviour', 'Behaviour (format, task)'], ['both', 'Both']]],
+    ['examples', 'Labelled examples', [['none', 'None'], ['100', '~100'], ['1k', '~1,000'], ['10k', '10,000+']]],
+    ['freq', 'Knowledge changes', [['weekly', 'Weekly or faster'], ['monthly', 'Monthly'], ['rarely', 'Rarely']]],
+    ['latency', 'Latency budget', [['fast', '< 500 ms'], ['normal', '~2 s'], ['relaxed', '> 5 s']]],
+    ['volume', 'Volume', [['low', '100 / day'], ['mid', '10,000 / day'], ['high', '500,000 / day']]],
+    ['cite', 'Must cite sources?', [['yes', 'Yes'], ['no', 'No']]]
+  ],
+  rules: {
+    change: { knowledge: { rag: 3, ft: -2, hyb: 1 }, behaviour: { ft: 2, pe: 1, rag: -2 }, both: { hyb: 4, rag: 1, ft: 1, pe: -1 } },
+    examples: { none: {}, '100': { pe: 1, ft: -2, hyb: -1 }, '1k': { ft: 1, hyb: 1 }, '10k': { ft: 2, hyb: 2 } },
+    freq: { weekly: { rag: 2, hyb: 1, ft: -2 }, monthly: { rag: 1 }, rarely: { ft: 1 } },
+    latency: { fast: { ft: 2, rag: -1, hyb: -1, pe: -1 }, normal: {}, relaxed: { rag: 1, hyb: 1 } },
+    volume: { low: { ft: -2, hyb: -1 }, mid: {}, high: { ft: 2, pe: -1 } },
+    cite: { yes: { rag: 2, hyb: 2, ft: -2, pe: -1 }, no: {} }
+  },
+  base: { pe: 3, rag: 2, ft: 1, hyb: 0 },
+  names: { pe: 'Prompt engineering', rag: 'RAG', ft: 'Fine-tuning', hyb: 'Hybrid (fine-tune + RAG)' },
+  scenarios: {
+    S1: { brief: 'Answer Service Desk questions from 1,200 KB articles that change every week; answers must cite the KB ID.',
+          c: { change: 'knowledge', examples: '100', freq: 'weekly', latency: 'normal', volume: 'mid', cite: 'yes' } },
+    S2: { brief: 'Classify every inbound ticket into 40 categories within 300 ms; 12,000 historical tickets are already labelled.',
+          c: { change: 'behaviour', examples: '10k', freq: 'rarely', latency: 'fast', volume: 'high', cite: 'no' } },
+    S3: { brief: 'Draft the user-facing reply from a triage record in the Service Desk’s house style; 80 good examples exist.',
+          c: { change: 'behaviour', examples: '100', freq: 'rarely', latency: 'normal', volume: 'mid', cite: 'no' } },
+    S4: { brief: 'Answer engineers from ENG-SPEC documents that change weekly, in the house ENG-SPEC answer format with internal terms; 2,000 reviewed Q&A pairs.',
+          c: { change: 'both', examples: '1k', freq: 'weekly', latency: 'normal', volume: 'mid', cite: 'yes' } }
+  },
+  // LoRA on the query and value projections of an illustrative 7B-class decoder: hidden size 4,096, 32 layers.
+  model: { params: 7.0e9, d: 4096, layers: 32, matrices: 2 },
+  ranks: [4, 8, 16, 32, 64]
+};
+const ORDER = ['pe', 'rag', 'ft', 'hyb'];
+const S = { scn: 'S1', c: { ...DATA.scenarios.S1.c }, method: 'lora', rank: 2 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function evaluate(c) {
+  const s = { ...DATA.base }, why = { pe: [], rag: [], ft: [], hyb: [] };
+  for (const [key, label, opts] of DATA.inputs) {
+    const pts = DATA.rules[key][c[key]], optLabel = opts.find(o => o[0] === c[key])[1];
+    for (const a in pts) { s[a] += pts[a]; why[a].push([pts[a], `${label.replace(/\?$/, '')}: ${optLabel}`]); }
+  }
+  const gated = c.examples === 'none' ? ['ft', 'hyb'] : [];
+  const best = ORDER.filter(a => !gated.includes(a)).reduce((b, a) => s[a] > s[b] ? a : b);   // ties go to the simpler rung
+  return { s, why, gated, best };
+}
+
+function renderCanvas() {
+  const box = document.getElementById('canvas'); box.innerHTML = '';
+  DATA.inputs.forEach(([key, label, opts]) => {
+    const row = document.createElement('div'); row.className = 'row-ctl';
+    row.innerHTML = `<span class="lbl">${label}</span>`;
+    const seg = document.createElement('div'); seg.className = 'seg seg-wrap';
+    opts.forEach(([v, t]) => {
+      const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-pressed', String(S.c[key] === v));
+      b.onclick = () => { const before = evaluate(S.c).best; S.c[key] = v; S.scn = 'custom'; syncScn(); render();
+        const after = evaluate(S.c).best;
+        logLine(logEl, `${label} → ${t}${before !== after ? ` · recommendation flips: ${DATA.names[before]} → <b>${DATA.names[after]}</b>` : ''}`, before !== after); };
+      seg.appendChild(b);
+    });
+    row.appendChild(seg); box.appendChild(row);
+  });
+}
+
+function render() {
+  renderCanvas();
+  const r = evaluate(S.c), max = 12;
+  document.getElementById('brief').textContent = S.scn === 'custom' ? 'Custom canvas: you changed an input. Pick a scenario to reset.' : DATA.scenarios[S.scn].brief;
+  svg.innerHTML = '';
+  el('line', { x1: 450, y1: 10, x2: 450, y2: 214, stroke: 'var(--border)' }, svg);
+  el('text', { x: 450, y: 226, 'text-anchor': 'middle', class: 'lab muted', text: '0' }, svg);
+  ORDER.forEach((a, i) => {
+    const y = 18 + i * 50, v = r.s[a], w = Math.min(Math.abs(v), max) / max * 260, best = a === r.best, gated = r.gated.includes(a);
+    const c = gated ? 'var(--p5)' : best ? 'var(--ok)' : 'var(--p0)';
+    el('text', { x: 14, y: y + 22, class: 'hdr', fill: gated ? 'var(--muted)' : 'var(--text)', text: DATA.names[a] }, svg);
+    el('rect', { x: v >= 0 ? 450 : 450 - w, y: y + 6, width: Math.max(w, 2), height: 26, rx: 5, fill: c, 'fill-opacity': gated ? 0.35 : best ? 0.9 : 0.5 }, svg);
+    el('text', { x: v >= 0 ? 456 + w : 444 - w, y: y + 24, 'text-anchor': v >= 0 ? 'start' : 'end', class: 'lab', fill: 'var(--text)',
+      text: `${v > 0 ? '+' : ''}${v}${gated ? '  · gated: no labelled data' : best ? '  ← recommended' : ''}` }, svg);
+  });
+  const top = r.why[r.best].filter(([p]) => p > 0).sort((a, b) => b[0] - a[0]).slice(0, 3);
+  const against = ORDER.filter(a => a !== r.best && !r.gated.includes(a)).sort((a, b) => r.s[b] - r.s[a])[0];
+  document.getElementById('reasons').innerHTML =
+    `<li><b>${DATA.names[r.best]}</b> wins with ${r.s[r.best]} points, ${r.s[r.best] - r.s[against]} ahead of ${DATA.names[against]}.</li>` +
+    top.map(([p, t]) => `<li>+${p} from <b>${t}</b></li>`).join('') +
+    (r.gated.length ? '<li><b>Gate:</b> with no labelled examples, fine-tuning and hybrid are not options yet. Start with prompts, log real traffic, label it.</li>' : '');
+  const lines = DATA.inputs.map(([k, label, opts]) => `| ${label} | ${opts.find(o => o[0] === S.c[k])[1]} |`).join('\n');
+  document.getElementById('pane').textContent =
+    `## Fine-tuning decision canvas: ${S.scn === 'custom' ? 'custom' : S.scn}\n\n| Input | Value |\n| --- | --- |\n${lines}\n\n` +
+    `Scores: ${ORDER.map(a => `${DATA.names[a]} ${r.s[a]}${r.gated.includes(a) ? ' (gated)' : ''}`).join(' · ')}\n` +
+    `Decision: ${DATA.names[r.best]}\nRevisit when: the update frequency, the volume or the labelled-data count changes, or the eval set shows a gap.`;
+}
+
+function syncScn() { document.querySelectorAll('#scn button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.scn))); }
+bindSeg('scn', v => { S.scn = v; S.c = { ...DATA.scenarios[v].c }; render(); logLine(logEl, `${v} loaded → <b>${DATA.names[evaluate(S.c).best]}</b>`, true); });
+
+// --- Fine-tuning methods ---------------------------------------------------------------------------
+const svg2 = document.getElementById('svg2');
+const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n.toLocaleString('en-GB');
+const bytes = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : (n / 1e6).toFixed(1) + ' MB';
+function renderMethod() {
+  const M = DATA.model, r = DATA.ranks[S.rank], lora = M.layers * M.matrices * r * (M.d + M.d);
+  document.getElementById('rankV').textContent = r;
+  document.getElementById('rank').disabled = S.method !== 'lora';
+  svg2.innerHTML = '';
+  const trainable = S.method === 'full', W = 150;
+  el('text', { x: 130, y: 18, 'text-anchor': 'middle', class: 'hdr', text: 'Weight W (4,096 × 4,096)' }, svg2);
+  el('rect', { x: 55, y: 30, width: W, height: W, rx: 4, fill: trainable ? 'var(--p1)' : 'var(--p5)', 'fill-opacity': trainable ? 0.55 : 0.18, stroke: trainable ? 'var(--p1)' : 'var(--p5)' }, svg2);
+  el('text', { x: 130, y: 110, 'text-anchor': 'middle', class: 'small', style: 'font-weight:600', text: trainable ? 'trained' : 'frozen' }, svg2);
+  if (S.method === 'lora') {
+    const t = 4 + r * 1.2;
+    el('text', { x: 250, y: 110, 'text-anchor': 'middle', class: 'hdr', text: '+' }, svg2);
+    el('rect', { x: 280, y: 30, width: t, height: W, rx: 2, fill: 'var(--p1)', 'fill-opacity': 0.75 }, svg2);
+    el('text', { x: 280 + t / 2, y: 198, 'text-anchor': 'middle', class: 'lab', text: `B (4,096 × ${r})` }, svg2);
+    el('rect', { x: 320 + t, y: 30, width: W, height: t, rx: 2, fill: 'var(--p1)', 'fill-opacity': 0.75 }, svg2);
+    el('text', { x: 320 + t + W / 2, y: 48 + t, 'text-anchor': 'middle', class: 'lab', text: `A (${r} × 4,096)` }, svg2);
+    el('text', { x: 690, y: 70, 'text-anchor': 'middle', class: 'small', text: 'output = W·x + B·A·x' }, svg2);
+    el('text', { x: 690, y: 92, 'text-anchor': 'middle', class: 'lab muted', text: 'on q_proj and v_proj in all 32 layers' }, svg2);
+  } else if (S.method === 'full') {
+    el('text', { x: 560, y: 90, 'text-anchor': 'middle', class: 'small', text: 'Every matrix in every layer is updated,' }, svg2);
+    el('text', { x: 560, y: 110, 'text-anchor': 'middle', class: 'small', text: 'so each variant is a full copy of the model.' }, svg2);
+  } else {
+    [['instruction', 'Summarise INC-104512 for the user', 'var(--p0)'], ['response', 'Your VPN is affected by a known issue…', 'var(--p2)']].forEach(([k, t, c], i) => {
+      el('rect', { x: 280, y: 40 + i * 70, width: 560, height: 50, rx: 8, fill: c, 'fill-opacity': 0.12, stroke: c }, svg2);
+      el('text', { x: 296, y: 62 + i * 70, class: 'lab', fill: 'var(--muted)', text: k }, svg2);
+      el('text', { x: 296, y: 80 + i * 70, class: 'small', text: t }, svg2);
+    });
+    el('text', { x: 560, y: 196, 'text-anchor': 'middle', class: 'lab muted', text: 'thousands of pairs like this, trained with full fine-tuning or LoRA' }, svg2);
+  }
+  const p = M.params, rows = S.method === 'lora'
+    ? [[fmt(lora), 'trainable parameters'], [(lora / p * 100).toFixed(2) + '%', 'of the model'], [bytes(lora * 2), 'adapter file (bf16)'], [bytes(p * 2), 'frozen base, loaded once']]
+    : S.method === 'full'
+      ? [[fmt(p), 'trainable parameters'], ['100%', 'of the model'], [bytes(p * 2), 'checkpoint per variant (bf16)'], ['≈ ' + bytes(p * 16), 'training memory (~16 bytes/param with Adam)']]
+      : [['—', 'a data recipe, not a method'], ['JSONL', 'chat-format examples'], ['1k–100k', 'typical example count'], ['full or LoRA', 'trains on it']];
+  document.getElementById('stats2').innerHTML = rows.map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
+  document.getElementById('pane2').innerHTML = S.method === 'inst'
+    ? '<span class="cmt"># train.jsonl: one chat-format example per line (the shape OpenAI fine-tuning accepts; open-weight trainers use the same idea)</span>\n' +
+      jsonHtml({ messages: [{ role: 'system', content: 'You write Service Desk replies in the house style.' },
+        { role: 'user', content: 'Triage record: INC-104512, P2, Network Ops, KB-0042' },
+        { role: 'assistant', content: 'Thanks for reporting this. Your VPN issue is linked to INC-104512, which Network Ops is working on…' }] })
+    : S.method === 'lora'
+      ? esc('# Hugging Face PEFT, for an open-weight model you host yourself\nfrom peft import LoraConfig, get_peft_model\n\n' +
+        `config = LoraConfig(r=${r}, lora_alpha=${2 * r}, target_modules=["q_proj", "v_proj"], task_type="CAUSAL_LM")\n` +
+        'model = get_peft_model(base_model, config)\nmodel.print_trainable_parameters()')
+      : '<span class="cmt"># Full fine-tuning: the same training loop, every parameter has requires_grad=True.\n# You store, serve and roll back a complete model per variant.</span>';
+}
+bindSeg('method', v => { S.method = v; renderMethod(); logLine(logEl, `Method: ${{ full: 'full fine-tuning', lora: 'LoRA', inst: 'instruction tuning' }[v]}`); });
+document.getElementById('rank').addEventListener('input', e => { S.rank = +e.target.value; renderMethod(); });
+
+render(); renderMethod();
+logLine(logEl, 'Illustrative scoring. Load each scenario, then change one input at a time.');
+
+renderQuiz('quiz', [
+  { q: 'Scenario S1 needs answers from KB articles that change weekly, with a citation. Why does RAG beat fine-tuning so clearly?',
+    options: ['RAG models are larger.',
+      'Fine-tuning is not allowed for IT data.',
+      'The need is knowledge that changes weekly and must be cited: retrieval updates in minutes and carries a source ID, while facts trained into weights are frozen and unsourced.',
+      'RAG needs more labelled examples.'],
+    answer: 2,
+    explain: 'Load S1: the biggest contributions to RAG are “Knowledge (facts)”, “Weekly or faster” and “Must cite: yes”. Each of those also counts against fine-tuning.' },
+  { q: 'In S2 (the ticket classifier), switch “Labelled examples” to <b>None</b>. What happens, and why?',
+    options: ['Fine-tuning still wins; data does not matter.',
+      'Fine-tuning and hybrid are gated, so prompt engineering is recommended: you cannot train without examples. Start with a prompt, log real tickets and label them.',
+      'RAG wins, because classification is retrieval.',
+      'Hybrid wins, because it needs fewer examples.'],
+    answer: 1,
+    explain: 'Data availability is a hard prerequisite, not a weight. The usual path is: prompt engineering now, collect and label traffic, then fine-tune a small model once you have thousands of examples and a measured gap.' },
+  { q: 'S4 recommends a hybrid. What does each half do?',
+    options: ['Fine-tuning stores the documents; RAG formats the answer.',
+      'Both halves retrieve documents.',
+      'Hybrid means using two providers.',
+      'Retrieval supplies the current, citable ENG-SPEC facts; fine-tuning (on the 2,000 reviewed pairs) supplies the answer format and internal vocabulary.'],
+    answer: 3,
+    explain: 'Split the problem by what changes: facts change weekly and need sources, so they come from retrieval; format and terminology are stable behaviour, so they can be learnt.' },
+  { q: 'A colleague proposes fine-tuning the model on all 1,200 KB articles “so it knows our KB”. What is the strongest objection?',
+    options: ['The model learns what answers look like, not a reliable store of facts: it will answer fluently with no source to check, be stale after the next edit, and expose every article to every user.',
+      'Fine-tuning is too slow to run once.',
+      'KB articles are too short to train on.',
+      'Fine-tuned models cannot be called through an API.'],
+    answer: 0,
+    explain: 'This is the most common misuse of fine-tuning. Facts go in retrieval, where they can be cited, updated and filtered by permission; behaviour goes in the weights.' },
+  { q: 'LoRA with rank 16 on the query and value projections of the illustrative 7B model trains how many parameters?',
+    options: ['About 8.4 million, roughly 0.12% of the model (32 layers × 2 matrices × 16 × (4,096 + 4,096)).',
+      'All 7 billion.',
+      'About 700 million, 10% of the model.',
+      'About 16, one per rank.'],
+    answer: 0,
+    explain: 'Each adapted 4,096 × 4,096 matrix gets B (4,096 × r) and A (r × 4,096): r × 8,192 parameters. Slide the rank: the adapter grows linearly with r and stays megabytes, while the frozen base is shared by every adapter.' }
+]);
+</script>
+</body>
+</html>

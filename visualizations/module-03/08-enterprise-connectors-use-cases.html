@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enterprise Connectors and Use Cases</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>8 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 8</div>
+  <h1>One pattern, many sources, four assistants</h1>
+  <p class="lede">Enterprise RAG lives or dies at the connectors: what they load, which permissions come with it, and how changes and
+    deletions reach the index. Click a source to see its reader, credentials and what a loaded document looks like. Click a use case to
+    see how it configures the shared pattern, then press <b>Diff</b> to compare the policy-search and customer-support assistants. Switch the
+    credentials off to see the offline fallback.</p>
+
+  <div class="card">
+    <div class="controls">
+      <button class="toggle" id="creds" aria-pressed="true">Connector credentials available: on</button>
+      <button id="diff">Diff: policy search vs customer support</button>
+      <div class="seg" id="tab">
+        <button data-v="code" aria-pressed="true">Code / config</button>
+        <button data-v="doc" aria-pressed="false">Loaded document</button>
+      </div>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 330" role="img" aria-label="Enterprise sources on the left feed one shared RAG pattern in the centre, which serves four use cases on the right; click a source or a use case"></svg></div>
+    <div class="detail" id="detail"></div>
+    <pre class="pane" id="pane" aria-label="Connector code, use-case configuration or a loaded document" style="margin-top:10px"></pre>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Connectors at a glance</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Source</th><th>Reader</th><th>Credentials (from your secret store)</th><th>Watch out for</th></tr></thead>
+      <tbody>
+        <tr><td>SharePoint</td><td><code>SharePointReader</code> (<code>llama-index-readers-microsoft-sharepoint</code>)</td><td>An Entra ID app: client ID, client secret, tenant ID, with Microsoft Graph read permissions</td><td>Carry the permissions over (<code>attach_permission_metadata=True</code>); Office files need parsing</td></tr>
+        <tr><td>Confluence</td><td><code>ConfluenceReader</code> (<code>llama-index-readers-confluence</code>)</td><td>Site URL plus an API token or OAuth 2.0</td><td>Page restrictions, archived spaces, macros that render as noise</td></tr>
+        <tr><td>Jira</td><td><code>JiraReader</code> (<code>llama-index-readers-jira</code>)</td><td>Server URL, account email and an API token</td><td>Select with JQL; comments hold the real fix; internal-only fields</td></tr>
+        <tr><td>Files (PDF, Office, scans)</td><td>Unstructured API (<code>unstructured-client</code>) or <code>UnstructuredReader</code></td><td>An API key, or run the open-source library locally</td><td>Use <code>hi_res</code> for scans and tables; keep tables as HTML, not flattened text</td></tr>
+        <tr><td>Local export (fallback)</td><td><code>SimpleDirectoryReader</code> / <code>DirectoryLoader</code></td><td>None</td><td>Normalise to the same metadata, so the rest of the pipeline cannot tell the difference</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> write one normalisation step that turns every reader’s output into the same
+    document shape: <code>doc_id</code>, <code>source</code>, <code>url</code>, <code>last_modified</code>, <code>status</code> and
+    <code>allowed_groups</code>. Everything downstream (chunking, filters, citations, incremental sync and the offline fallback) then
+    works the same for every source, and a new use case is configuration, not new code.</div>
+  <div class="callout warn"><b>Common trap:</b> syncing additions and edits but not deletions or permission changes. A page that was
+    deleted, or restricted to Legal yesterday, keeps answering questions from the index today. Re-sync permissions with content, and
+    remove or tombstone chunks whose source has gone.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="07-langchain-vs-llamaindex.html"><small>← Previous</small>RAG frameworks: LangChain vs LlamaIndex</a>
+    <a class="next" href="09-agentic-rag.html"><small>Next →</small>Agentic RAG</a>
+  </div>
+</div>
+
+<script>
+// Reader classes and arguments verified against the LlamaHub reader packages and unstructured-client; hosts are placeholders
+// (<your-site>, <tenant>), credentials come from the environment, and every document is synthetic.
+const SRC = {
+  sharepoint: { name: 'SharePoint', what: 'Policies POL-…, contracts CTR-…, ENG-SPEC files',
+    code: 'import os\nfrom llama_index.readers.microsoft_sharepoint import SharePointReader\n\nreader = SharePointReader(\n    client_id=os.environ["SP_CLIENT_ID"],\n    client_secret=os.environ["SP_CLIENT_SECRET"],\n    tenant_id=os.environ["SP_TENANT_ID"],\n    attach_permission_metadata=True,          # who may read each file\n)\ndocs = reader.load_data(sharepoint_site_name="ITPolicies", sharepoint_folder_path="Policies", recursive=True)',
+    doc: { text: 'POL-SEC-012 Remote access policy … 3. Contractors: Contractors may connect only from company-managed laptops. Exception: …',
+      metadata: { source: 'sharepoint', doc_id: 'POL-SEC-012', title: 'Remote access policy', doc_type: 'policy', status: 'current',
+        url: 'https://<tenant>.sharepoint.com/sites/ITPolicies/Policies/POL-SEC-012.docx', last_modified: '2026-04-01T09:12:00Z', allowed_groups: ['All staff'] } },
+    note: 'An Entra ID app registration with Microsoft Graph read access. The reader downloads files and can attach each file’s permissions, which you turn into <code>allowed_groups</code> at normalisation.' },
+  confluence: { name: 'Confluence', what: 'IT KB space, engineering space',
+    code: 'import os\nfrom llama_index.readers.confluence import ConfluenceReader\n\nreader = ConfluenceReader(\n    base_url="https://<your-site>.atlassian.net/wiki",\n    api_token=os.environ["CONFLUENCE_API_TOKEN"],\n)\ndocs = reader.load_data(space_key="ITKB", include_attachments=False)\n# or a query: reader.load_data(cql=\'space = ITKB and lastmodified > now("-1d")\')',
+    doc: { text: 'KB-0042 VPN client rejects credentials after a password change. 1. Clear the saved VPN password … 3. Escalate to Network Ops L2 if …',
+      metadata: { source: 'confluence', doc_id: 'KB-0042', title: 'VPN client rejects credentials after a password change', space: 'ITKB', doc_type: 'kb', status: 'current',
+        url: 'https://<your-site>.atlassian.net/wiki/spaces/ITKB/pages/<page-id>', last_modified: '2026-10-28T06:10:00Z', allowed_groups: ['All staff'] } },
+    note: 'Load a whole space or a CQL query. A CQL filter on <code>lastmodified</code> gives you incremental sync; page restrictions must become <code>allowed_groups</code>.' },
+  jira: { name: 'Jira', what: 'Resolved incidents, known issues',
+    code: 'import os\nfrom llama_index.readers.jira import JiraReader\n\nreader = JiraReader(\n    email=os.environ["JIRA_EMAIL"],\n    api_token=os.environ["JIRA_API_TOKEN"],\n    server_url="<your-site>.atlassian.net",\n)\ndocs = reader.load_data(query="project = OPS AND status = Resolved AND resolved >= -90d")   # JQL',
+    doc: { text: 'OPS-2214 (INC-104512) EU VPN gateway rejects new passwords. Resolution: firmware 7.4.2 removes the credential cache; until then clear the saved password …',
+      metadata: { source: 'jira', doc_id: 'OPS-2214', incident: 'INC-104512', doc_type: 'incident', status: 'Resolved', priority: 'P2',
+        labels: ['vpn', 'eu'], last_modified: '2026-10-27T17:40:00Z', allowed_groups: ['IT staff'] } },
+    note: 'Select issues with JQL. Resolved incidents are a rich source of fixes, but they carry internal notes: mark them <code>IT staff</code> and keep them out of customer-facing assistants.' },
+  unstructured: { name: 'Unstructured API', what: 'Scanned PDFs and Office files',
+    code: 'import os\nfrom unstructured_client import UnstructuredClient\nfrom unstructured_client.models import operations, shared\n\nclient = UnstructuredClient(api_key_auth=os.environ["UNSTRUCTURED_API_KEY"])\nwith open("CTR-2026-118.pdf", "rb") as f:\n    resp = client.general.partition(request=operations.PartitionRequest(\n        partition_parameters=shared.PartitionParameters(\n            files=shared.Files(content=f.read(), file_name="CTR-2026-118.pdf"),\n            strategy=shared.Strategy.HI_RES,      # layout model: scans and tables\n            chunking_strategy="by_title",          # chunks follow the headings\n        )))\nelements = resp.elements                         # Title, NarrativeText, Table, ListItem, …',
+    doc: [{ type: 'Title', text: 'CTR-2026-118 Network support contract', metadata: { filename: 'CTR-2026-118.pdf', page_number: 1 } },
+      { type: 'NarrativeText', text: 'The supplier restores P1 network faults within 4 hours, 24 × 7 …', metadata: { filename: 'CTR-2026-118.pdf', page_number: 3 } },
+      { type: 'Table', text: 'Severity Response Restore P1 15 min 4 h P2 1 h 8 h', metadata: { filename: 'CTR-2026-118.pdf', page_number: 4, text_as_html: '<table><tr><th>Severity</th><th>Response</th><th>Restore</th></tr>…</table>' } }],
+    note: 'Partitions a file into typed elements. <code>hi_res</code> runs a layout model for scans and tables; keep <code>text_as_html</code> for tables, because the flattened text loses which number belongs to which column.' },
+  export: { name: 'Local export', what: 'Offline fallback: data/exports/',
+    code: 'from llama_index.core import SimpleDirectoryReader\n\n# Same pages, exported to disk, read with no credentials. normalise() maps them\n# to the same metadata as the live connectors, so nothing downstream changes.\ndocs = SimpleDirectoryReader("data/exports", recursive=True).load_data()\ndocs = [normalise(d) for d in docs]',
+    doc: { text: 'KB-0042 VPN client rejects credentials after a password change. 1. Clear the saved VPN password …',
+      metadata: { file_name: 'KB-0042.html', file_path: 'data/exports/confluence/ITKB/KB-0042.html', last_modified_date: '2026-10-28',
+        source: 'confluence-export', doc_id: 'KB-0042', doc_type: 'kb', status: 'current', allowed_groups: ['All staff'] } },
+    note: 'Connector credentials for the labs are still being agreed with the client IT team, so every lab ships an export of the same pages. The normalisation step makes the fallback indistinguishable downstream.' }
+};
+const USE = {
+  itkb: { name: 'IT knowledge base', src: ['confluence', 'jira'],
+    cfg: { sources: ['confluence:ITKB', 'jira:OPS resolved'], chunking: { strategy: 'by heading', max_tokens: 512 }, filters: { status: 'current', allowed_groups: '<caller groups>' }, top_k: 4, rerank: true,
+      answer: 'numbered steps, cite KB and OPS IDs, say when no article applies', eval: ['recall@4', 'answer relevance'] },
+    note: 'The Phase 1 assistant’s knowledge lookup, now over the real KB and incident history.' },
+  policy: { name: 'Policy & contract search', src: ['sharepoint', 'unstructured'],
+    cfg: { sources: ['sharepoint:Policies', 'sharepoint:Contracts', 'unstructured:scanned contracts'], chunking: { strategy: 'hierarchical, by clause', parents: 'section' }, filters: { status: 'current', doc_type: ['policy', 'contract'], allowed_groups: '<caller groups>' }, top_k: 6, rerank: true,
+      answer: 'quote the clause verbatim with its clause ID and version; never paraphrase obligations', eval: ['recall@6', 'quote exactness'] },
+    note: 'Precision matters more than fluency: answers quote clauses, cite the version in force and respect Legal and Finance access.' },
+  support: { name: 'Customer support', src: ['confluence', 'jira'],
+    cfg: { sources: ['confluence:SUPPORT', 'jira:known issues (customer-visible)'], chunking: { strategy: 'by heading', max_tokens: 384 }, filters: { status: 'current', audience: 'external' }, top_k: 3, rerank: true,
+      answer: 'short, friendly, no internal notes or IDs; offer escalation', eval: ['answer relevance', 'leakage of internal content'] },
+    note: 'Same pattern, different audience: an <code>audience = external</code> filter keeps internal runbooks and incident notes out.' },
+  eng: { name: 'Engineering documentation', src: ['confluence', 'sharepoint'],
+    cfg: { sources: ['confluence:ENG', 'sharepoint:ENG-SPEC'], chunking: { strategy: 'semantic', breakpoint_percentile: 90 }, filters: { status: 'current', system: '<from the question>' }, top_k: 5, rerank: true,
+      answer: 'house ENG-SPEC format, cite ENG-SPEC IDs and versions', eval: ['recall@5', 'format compliance'] },
+    note: 'Versions matter: filter on the system and its current spec version, or answers mix two generations of a design.' }
+};
+const S = { creds: true, sel: { kind: 'use', id: 'policy' }, tab: 'code', diff: false };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+const SY = { sharepoint: 50, confluence: 110, jira: 170, unstructured: 230, export: 290 }, UY = { itkb: 70, policy: 135, support: 200, eng: 265 };
+const SHORT = { sharepoint: 'policies, contracts, specs', confluence: 'IT KB, engineering', jira: 'resolved incidents', unstructured: 'scanned PDFs, Office files', export: 'data/exports/' };
+const USHORT = { itkb: 'IT knowledge base', policy: 'Policy & contracts', support: 'Customer support', eng: 'Engineering docs' };
+
+function feeds(u) { return S.creds ? USE[u].src : ['export']; }
+function render() {
+  svg.innerHTML = '';
+  const selUse = S.sel.kind === 'use' ? S.sel.id : null, selSrc = S.sel.kind === 'src' ? S.sel.id : null;
+  const active = new Set(S.diff ? [...feeds('policy'), ...feeds('support')] : selUse ? feeds(selUse) : selSrc ? [selSrc] : []);
+  Object.keys(SRC).forEach(s => {
+    const usable = S.creds ? s !== 'export' : s === 'export';
+    el('line', { x1: 202, y1: SY[s], x2: 350, y2: 170, stroke: active.has(s) && usable ? 'var(--accent)' : 'var(--border)', 'stroke-width': active.has(s) && usable ? 2.5 : 1, 'stroke-dasharray': usable ? '' : '4 4' }, svg);
+  });
+  Object.keys(USE).forEach(u => {
+    const on = S.diff ? ['policy', 'support'].includes(u) : u === selUse;
+    el('line', { x1: 550, y1: 170, x2: 690, y2: UY[u], stroke: on ? 'var(--accent)' : 'var(--border)', 'stroke-width': on ? 2.5 : 1 }, svg);
+  });
+  Object.entries(SRC).forEach(([s, d]) => {
+    const usable = S.creds ? s !== 'export' : s === 'export', sel = selSrc === s, c = s === 'export' ? 'var(--p5)' : 'var(--p4)';
+    const g = clickable(el('g', { opacity: usable ? 1 : 0.4 }, svg), () => pick('src', s), `${d.name}: ${d.what}`);
+    el('rect', { x: 12, y: SY[s] - 22, width: 190, height: 44, rx: 8, fill: c, 'fill-opacity': sel ? 0.3 : 0.12, stroke: c, 'stroke-width': sel ? 2.5 : 1.5 }, g);
+    el('text', { x: 22, y: SY[s] - 4, class: 'hdr', text: d.name }, g);
+    el('text', { x: 22, y: SY[s] + 12, class: 'lab', fill: usable ? 'var(--muted)' : 'var(--warn)', text: usable ? SHORT[s] : s === 'export' ? 'idle: credentials present' : 'offline: no credentials' }, g);
+  });
+  el('rect', { x: 350, y: 80, width: 200, height: 180, rx: 12, fill: 'var(--p3)', 'fill-opacity': 0.12, stroke: 'var(--p3)', 'stroke-width': 2 }, svg);
+  el('text', { x: 450, y: 104, 'text-anchor': 'middle', class: 'hdr', text: 'Shared RAG pattern' }, svg);
+  ['1 load (connector)', '2 normalise metadata + ACL', '3 chunk + embed + index', '4 retrieve with filters', '5 answer with citations', '6 incremental sync'].forEach((t, i) =>
+    el('text', { x: 366, y: 128 + i * 21, class: 'lab', text: t }, svg));
+  Object.entries(USE).forEach(([u, d]) => {
+    const sel = S.diff ? ['policy', 'support'].includes(u) : selUse === u;
+    const g = clickable(el('g', {}, svg), () => pick('use', u), `Use case: ${d.name}`);
+    el('rect', { x: 690, y: UY[u] - 23, width: 200, height: 46, rx: 8, fill: 'var(--p2)', 'fill-opacity': sel ? 0.3 : 0.12, stroke: 'var(--p2)', 'stroke-width': sel ? 2.5 : 1.5 }, g);
+    el('text', { x: 702, y: UY[u] - 3, class: 'hdr', text: USHORT[u] }, g);
+    el('text', { x: 702, y: UY[u] + 13, class: 'lab', fill: 'var(--muted)', text: S.creds ? feeds(u).map(s => SRC[s].name.split(' ')[0]).join(' + ') : 'local export' }, g);
+  });
+  renderPanels();
+}
+
+function renderPanels() {
+  const det = document.getElementById('detail'), pane = document.getElementById('pane');
+  if (S.diff) {
+    det.innerHTML = '<h3>Two assistants from one pattern</h3><p>Same pipeline code. The differences are configuration: sources, filters (<code>doc_type</code> vs <code>audience</code>), k, the answer style and what the eval measures.</p>';
+    const a = USE.policy.cfg, b = USE.support.cfg, keys = Object.keys(a);
+    pane.innerHTML = keys.map(k => {
+      const va = JSON.stringify(a[k]), vb = JSON.stringify(b[k]), same = va === vb;
+      return `<span class="j-key">${k}</span>${same ? '  <span class="cmt">(same)</span>' : ''}\n  <span class="${same ? 'cmt' : 'var-t'}">policy  </span> ${esc(va)}\n  <span class="${same ? 'cmt' : 'var-t'}">support </span> ${esc(vb)}`;
+    }).join('\n');
+    return;
+  }
+  if (S.sel.kind === 'src') {
+    const d = SRC[S.sel.id];
+    det.innerHTML = `<h3>${d.name}</h3><p>${d.note}</p>`;
+    pane.innerHTML = S.tab === 'code' ? esc(d.code) : '<span class="cmt"># after loading and normalisation (illustrative, synthetic)</span>\n' + jsonHtml(d.doc, ['allowed_groups', 'text_as_html', 'last_modified', 'status']);
+  } else {
+    const d = USE[S.sel.id];
+    det.innerHTML = `<h3>${d.name}</h3><p>${d.note}</p><p><b>Fed by:</b> ${feeds(S.sel.id).map(s => SRC[s].name).join(', ')}${S.creds ? '' : ' (offline: the exported pages of the same sources)'}</p>`;
+    pane.innerHTML = S.tab === 'code' ? '<span class="cmt"># the shared pattern, configured for this use case</span>\n' + jsonHtml(d.cfg, ['filters', 'answer'])
+      : '<span class="cmt"># a document this use case retrieves</span>\n' + jsonHtml(SRC[feeds(S.sel.id)[0]].doc, ['allowed_groups']);
+  }
+}
+
+function pick(kind, id) {
+  S.sel = { kind, id }; S.diff = false; render();
+  logLine(logEl, kind === 'src' ? `Source: ${SRC[id].name}` : `Use case: ${USE[id].name} ← ${feeds(id).map(s => SRC[s].name).join(' + ')}`);
+}
+bindToggle('creds', on => {
+  S.creds = on; document.getElementById('creds').textContent = 'Connector credentials available: ' + (on ? 'on' : 'off');
+  render(); logLine(logEl, on ? 'Live connectors in use' : 'No credentials: every use case reads the local export, with the same normalised metadata', !on);
+});
+document.getElementById('diff').onclick = () => { S.diff = true; render(); logLine(logEl, 'Diff: policy search vs customer support (configuration only)', true); };
+bindSeg('tab', v => { S.tab = v; renderPanels(); });
+render();
+logLine(logEl, 'Synthetic documents and placeholder hosts. Click sources and use cases; try the Diff.');
+
+renderQuiz('quiz', [
+  { q: 'Why load SharePoint files with <code>attach_permission_metadata=True</code> and keep <code>allowed_groups</code> on every chunk?',
+    options: ['It makes embeddings more accurate.',
+      'SharePoint refuses to download files otherwise.',
+      'It is required for citations.',
+      'So retrieval can filter chunks by the caller’s groups at query time: the assistant then never puts a document into the prompt that the user could not open in SharePoint.'],
+    answer: 3,
+    explain: 'Permissions are data: capture them at ingestion, normalise them, filter on them in the retrieval query (Topic 5), and re-sync them when they change.' },
+  { q: 'Connector credentials for the lab are not yet agreed with the client IT team. What keeps the labs running?',
+    options: ['Hard-code a test account in the notebook.',
+      'A local export of the same pages read with <code>SimpleDirectoryReader</code>, normalised to the same metadata, so chunking, filters, citations and evals work unchanged.',
+      'Skip the connector labs.',
+      'Ask learners to use their own credentials.'],
+    answer: 1,
+    explain: 'Switch the credentials off: every use case still works, fed by the export. Never put real credentials in a notebook; live connectors read them from a secret store or environment variables.' },
+  { q: 'The policy-search assistant and the customer-support assistant come from one shared pattern. What actually differs between them?',
+    options: ['Configuration: the sources, metadata filters (<code>doc_type</code> and groups vs <code>audience = external</code>), k, chunking strategy, answer style and eval focus.',
+      'Entirely different code bases.',
+      'Only the model provider.',
+      'Nothing; they are the same assistant.'],
+    answer: 0,
+    explain: 'Press Diff. Keeping the differences in configuration is what lets one team run several assistants, and test each against its own eval set.' },
+  { q: 'A Confluence page was deleted last week, but the assistant still quotes it. What was missed?',
+    options: ['The embedding model needs retraining.',
+      'Confluence pages cannot be deleted.',
+      'Incremental sync handled additions and edits but not deletions: the index needs a deletion (or tombstone) step and a permission re-sync, not only “modified since”.',
+      'The page is cached by the LLM provider.'],
+    answer: 2,
+    explain: 'A “modified since” query never returns a page that no longer exists. Reconcile the index against the source’s current IDs on a schedule, and treat permission changes as updates.' },
+  { q: 'A scanned contract’s SLA table comes out of the parser as “Severity Response Restore P1 15 min 4 h P2 1 h 8 h”. What is the better approach?',
+    options: ['Index the flattened text as it is; the model will work it out.',
+      'Drop tables from the index.',
+      'Convert the PDF to an image and embed that.',
+      'Use a layout-aware strategy (<code>hi_res</code>) and keep the table structure (the element’s <code>text_as_html</code>), chunking by title, so “P1 restore = 4 h” survives intact.'],
+    answer: 3,
+    explain: 'Connectors do not make content clean. Flattened tables are a classic source of wrong numbers in answers; Module 1’s OCR work and Unstructured’s element types exist to keep the structure.' }
+]);
+</script>
+</body>
+</html>

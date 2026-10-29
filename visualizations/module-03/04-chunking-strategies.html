@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chunking Strategies</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  #pane mark { background: var(--warn-soft); color: inherit; outline: 1px solid var(--warn); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>4 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 4</div>
+  <h1>Where you cut decides what the model can read</h1>
+  <p class="lede">The model only sees the chunks you retrieve. Cut a policy in the wrong place and the rule travels without its exception.
+    Ask <em>“Can a contractor use a personal laptop on the VPN?”</em> against <code>POL-SEC-012</code> (the right answer is “yes, with
+    MDM enrolment and written sponsor approval”). Start with fixed 300-character chunks, then try overlap, semantic breakpoints and
+    hierarchical parents until the answer is right without sending the whole document.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div class="seg" id="strat">
+        <button data-v="fixed" aria-pressed="true">Fixed size</button>
+        <button data-v="semantic" aria-pressed="false">Semantic</button>
+        <button data-v="hier" aria-pressed="false">Hierarchical</button>
+      </div>
+      <button class="primary" id="ask">Retrieve top 2 ▶</button>
+    </div>
+    <div class="controls" id="ctlFixed">
+      <label class="range">Chunk size <input type="range" id="size" min="150" max="600" step="50" value="300" aria-label="Chunk size in characters"> <b id="sizeV">300</b> chars</label>
+      <label class="range">Overlap <input type="range" id="overlap" min="0" max="100" step="50" value="0" aria-label="Overlap in characters"> <b id="overlapV">0</b> chars</label>
+    </div>
+    <div class="controls" id="ctlSem" hidden>
+      <label class="range">Breakpoint percentile <input type="range" id="pct" min="50" max="95" step="5" value="70" aria-label="Breakpoint percentile threshold"> <b id="pctV">70</b></label>
+      <span class="small" style="color:var(--muted)">split where the gap between neighbouring sentences is above this percentile</span>
+    </div>
+    <div class="controls" id="ctlHier" hidden>
+      <button class="toggle" id="parents" aria-pressed="true">Return the parent section: on</button>
+      <span class="small" style="color:var(--muted)">match on single sentences, send their whole section</span>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 390" role="img" aria-label="The policy laid out as rows of characters, with chunk boundaries, the two retrieved chunks and the positions of the rule and its exception"></svg></div>
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>retrieved chunk</span><span><i style="background:var(--p5)"></i>other chunks (alternate rows show overlap)</span>
+      <span><i style="background:var(--warn)"></i>F1 the rule · F2 the exception</span>
+    </div>
+    <div class="detail" id="detail"></div>
+    <div class="pane-title">What the model receives (top 2 chunks)</div>
+    <pre class="pane" id="pane" aria-label="The retrieved chunks" style="white-space:pre-wrap"></pre>
+    <div class="stats" id="stats"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>Three strategies</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Strategy</th><th>How it cuts</th><th>Strengths</th><th>Weaknesses</th><th>LangChain · LlamaIndex</th></tr></thead>
+      <tbody>
+        <tr><td><b>Fixed size</b></td><td>Every N characters or tokens, with optional overlap, preferring natural breaks</td><td>Simple, fast, predictable size and cost</td><td>Ignores meaning: rules and exceptions, tables and their headers get separated</td><td><code>RecursiveCharacterTextSplitter(chunk_size, chunk_overlap)</code> · <code>SentenceSplitter(chunk_size, chunk_overlap)</code></td></tr>
+        <tr><td><b>Semantic</b></td><td>Embeds each sentence and splits where neighbouring sentences are least similar</td><td>Chunks follow topics; sizes adapt</td><td>Embeds every sentence at ingestion; the threshold needs tuning; sizes vary widely</td><td><code>SemanticChunker</code> (langchain-experimental) · <code>SemanticSplitterNodeParser(buffer_size=1, breakpoint_percentile_threshold=95)</code></td></tr>
+        <tr><td><b>Hierarchical</b></td><td>Small child chunks for matching, linked to larger parents for context</td><td>Precise matching and complete context</td><td>More storage and plumbing; more tokens per answer</td><td><code>ParentDocumentRetriever</code> (langchain-classic) · <code>HierarchicalNodeParser([2048, 512, 128])</code> + <code>AutoMergingRetriever</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> chunking is a retrieval setting, so tune it like one. Pick the strategy for the
+    document type (headings → structure-aware or hierarchical; free text → semantic; logs and tickets → fixed), carry the section
+    heading into every chunk, then measure recall on labelled questions (Topic 6) before and after each change.</div>
+  <div class="callout warn"><b>Common trap:</b> “bigger chunks are safer”. At 600 characters every chunk holds more of the policy, but
+    each one now mixes topics, so its embedding matches every question a little and none of them well, and every answer pays for
+    three times the tokens. Overlap is no cure either: 400 characters with 100 overlap loses the exception that 400 with none keeps.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="03-vector-databases.html"><small>← Previous</small>Vector databases</a>
+    <a class="next" href="05-metadata-hybrid-retrieval.html"><small>Next →</small>Metadata design &amp; hybrid retrieval</a>
+  </div>
+</div>
+
+<script>
+// Synthetic policy POL-SEC-012. Each sentence has a pre-computed relevance to the question, and each pair of neighbouring
+// sentences a pre-computed similarity (illustrative values). A chunk's score is the length-weighted mean of the relevance
+// of the text it contains: a toy stand-in for embedding the chunk, which reproduces the "dilution" of large chunks.
+const DATA = {
+  sections: [
+    ['1. Purpose', [['POL-SEC-012 sets the rules for remote access to internal systems over the corporate VPN.', .46], ['It applies to employees, contractors and service accounts in every region.', .50]]],
+    ['2. Approved devices', [['Remote access is allowed only from devices the company manages.', .55], ["Personal devices, including contractors' own laptops, are not managed devices.", .74], ['A managed device runs the corporate endpoint agent, full-disk encryption and current security updates.', .30]]],
+    ['3. Contractors', [['Contractors connect through the contractor VPN profile, not the employee profile.', .64], ['Contractors may connect only from company-managed laptops.', .82], ['Exception: a personal device is allowed if it is enrolled in mobile device management and the sponsor approves it in writing.', .56], ['Exceptions expire after 90 days and must be renewed by the sponsor.', .41]]],
+    ['4. Authentication', [['Every VPN session requires multi-factor authentication.', .36], ['Sessions disconnect after 12 hours, or after 30 minutes without activity.', .22]]],
+    ['5. Support hours', [['The Service Desk supports remote access from 07:00 to 19:00 local time on working days.', .25], ['Outside those hours, report an outage through the on-call number in KB-0042.', .18]]]
+  ],
+  neighbourSim: [0.71, 0.33, 0.76, 0.64, 0.29, 0.72, 0.55, 0.74, 0.31, 0.70, 0.27, 0.68],
+  facts: [['F1', 'only from company-managed laptops'], ['F2', 'a personal device is allowed if it is enrolled in mobile device management and the sponsor approves it in writing']],
+  answers: {
+    both: ['ok', 'Yes, if the laptop is enrolled in mobile device management and the sponsor approves it in writing; the exception lasts 90 days (POL-SEC-012 §3).'],
+    rule: ['bad', 'No. Contractors may connect only from company-managed laptops (POL-SEC-012).'],
+    exc:  ['warn', 'A personal device is allowed if it is enrolled in MDM and a sponsor approves it in writing. (The excerpt does not say who this applies to.)'],
+    none: ['bad', 'The retrieved excerpts do not cover contractors’ devices.']
+  },
+  k: 2
+};
+let TEXT = ''; const SENT = [];
+DATA.sections.forEach(([h, ss], si) => {
+  if (TEXT) TEXT += '\n\n';
+  const hs = TEXT.length; TEXT += h + '\n';
+  ss.forEach(([t, rel], k) => { const start = TEXT.length; TEXT += t + (k < ss.length - 1 ? ' ' : ''); SENT.push({ si, t, rel, start, end: start + t.length, hs }); });
+});
+const FACTS = DATA.facts.map(([id, key]) => ({ id, start: TEXT.indexOf(key), end: TEXT.indexOf(key) + key.length }));
+
+const S = { strat: 'fixed', size: 300, overlap: 0, pct: 70, parents: true, asked: false, epoch: 0 };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function fixedChunks(size, overlap) {   // fixed windows, cut back to the last space (a character splitter's fallback)
+  const out = []; let start = 0;
+  while (start < TEXT.length) {
+    let end = Math.min(start + size, TEXT.length);
+    if (end < TEXT.length) { const sp = TEXT.lastIndexOf(' ', end); if (sp > start + size * 0.5) end = sp; }
+    out.push([start, end]);
+    if (end >= TEXT.length) break;
+    let next = Math.max(end - overlap, start + 1);
+    if (overlap) { const sp = TEXT.indexOf(' ', next); next = sp > 0 && sp < end ? sp + 1 : next; }
+    start = next; while (TEXT[start] === ' ' || TEXT[start] === '\n') start++;
+  }
+  return out;
+}
+function percentile(values, p) { const v = [...values].sort((a, b) => a - b), i = (v.length - 1) * p / 100, lo = Math.floor(i), hi = Math.ceil(i); return v[lo] + (v[hi] - v[lo]) * (i - lo); }
+function semanticChunks(p) {   // break where 1 - similarity is above the p-th percentile of all gaps
+  const gaps = DATA.neighbourSim.map(s => 1 - s), thr = percentile(gaps, p), out = []; let a = 0;
+  for (let i = 0; i < SENT.length; i++) {
+    if (i === SENT.length - 1 || gaps[i] > thr) {
+      const first = SENT[a], start = a === 0 || SENT[a - 1].si !== first.si ? first.hs : first.start;   // keep the heading with its section
+      out.push([start, SENT[i].end]); a = i + 1;
+    }
+  }
+  return out;
+}
+function score([a, b]) { let num = 0; SENT.forEach(s => { num += Math.max(0, Math.min(b, s.end) - Math.max(a, s.start)) * s.rel; }); return num / (b - a); }
+
+function retrieve() {
+  if (S.strat === 'hier') {
+    const kids = SENT.map((s, i) => [s.rel, i]).sort((a, b) => b[0] - a[0]).slice(0, DATA.k).map(x => x[1]);
+    const chunks = S.parents
+      ? [...new Set(kids.map(i => SENT[i].si))].map(si => { const ss = SENT.filter(s => s.si === si); return [ss[0].hs, ss[ss.length - 1].end]; })
+      : kids.map(i => [SENT[i].start, SENT[i].end]);
+    const all = SENT.map(s => [s.start, s.end]);
+    return { chunks: all, top: [], sent: chunks, kids };
+  }
+  const chunks = S.strat === 'fixed' ? fixedChunks(S.size, S.overlap) : semanticChunks(S.pct);
+  const top = chunks.map((c, i) => [score(c), i]).sort((a, b) => b[0] - a[0]).slice(0, DATA.k).map(x => x[1]);
+  return { chunks, top, sent: top.map(i => chunks[i]) };
+}
+function verdict(sent) {
+  const has = f => sent.some(([a, b]) => a <= f.start && b >= f.end), r = FACTS.map(has);
+  return { r, key: r[0] && r[1] ? 'both' : r[0] ? 'rule' : r[1] ? 'exc' : 'none' };
+}
+
+const ROW = 150, X0 = 34, PX = 846 / ROW, RY = 30, RH = 44;
+function band(a, b, lane, attrs, h = 10) {   // draw the char range [a, b) across wrapped rows
+  for (let row = Math.floor(a / ROW); row <= Math.floor((b - 1) / ROW); row++) {
+    const s = Math.max(a, row * ROW), e = Math.min(b, (row + 1) * ROW);
+    el('rect', Object.assign({ x: X0 + (s - row * ROW) * PX, y: RY + row * RH + lane * 11, width: Math.max((e - s) * PX - 1, 1), height: h, rx: 2 }, attrs), svg);
+  }
+}
+function render() {
+  const R = retrieve(), V = verdict(R.sent);
+  svg.innerHTML = '';
+  const rows = Math.ceil(TEXT.length / ROW);
+  for (let row = 0; row < rows; row++) el('text', { x: 2, y: RY + row * RH + 9, class: 'lab', fill: 'var(--muted)', text: String(row * ROW) }, svg);
+  SENT.forEach(s => { if (s.hs === s.start - (DATA.sections[s.si][0].length + 1)) {
+    const row = Math.floor(s.hs / ROW);
+    const hx = X0 + (s.hs - row * ROW) * PX, nearEnd = hx > X0 + 846 - 130;   // keep labels near the right edge inside the stage
+    el('text', { x: nearEnd ? X0 + 846 : hx, y: RY + row * RH - 4, 'text-anchor': nearEnd ? 'end' : 'start', class: 'lab', fill: 'var(--accent)', text: '§' + DATA.sections[s.si][0] }, svg);
+  } });
+  const lane = i => S.strat === 'fixed' && S.overlap ? i % 2 : 0;
+  R.chunks.forEach((c, i) => band(c[0], c[1], lane(i), { fill: 'var(--p5)', 'fill-opacity': i % 2 ? 0.35 : 0.2, stroke: 'var(--p5)' }));
+  R.sent.forEach((c, i) => band(c[0], c[1], R.top.length ? lane(R.top[i]) : 0, { fill: 'var(--ok)', 'fill-opacity': 0.45, stroke: 'var(--ok)', 'stroke-width': 1.5 }));
+  FACTS.forEach(f => {
+    band(f.start, f.end, 2, { fill: 'var(--warn)', 'fill-opacity': 0.75 }, 6);
+    const row = Math.floor(f.start / ROW);
+    el('text', { x: X0 + (f.start - row * ROW) * PX - 3, y: RY + row * RH + 28, 'text-anchor': 'end', class: 'lab', fill: 'var(--warn)', style: 'font-weight:700', text: f.id }, svg);
+  });
+  R.sent.forEach((c, i) => {
+    const row = Math.floor(c[0] / ROW), x = X0 + (c[0] - row * ROW) * PX;
+    el('text', { x: x + 3, y: RY + row * RH + 8.5 + 11 * (R.top.length ? lane(R.top[i]) : 0), class: 'lab', fill: 'var(--text)', style: 'font-weight:700', text: `#${i + 1}` }, svg);
+  });
+  renderPanels(R, V);
+  return { R, V };
+}
+
+function renderPanels(R, V) {
+  const [cls, text] = DATA.answers[V.key];
+  const sizes = R.chunks.map(([a, b]) => b - a), tokens = Math.round(R.sent.reduce((t, [a, b]) => t + b - a, 0) / 4);
+  const label = { ok: 'Correct', bad: 'Wrong', warn: 'Incomplete' }[cls];
+  document.getElementById('detail').innerHTML = S.asked
+    ? `<h3 class="${cls}-t">${label}: ${V.r[0] ? 'rule ✓' : 'rule ✗'} · ${V.r[1] ? 'exception ✓' : 'exception ✗'}</h3><p>${esc(text)}</p>`
+    : '<p>Press <b>Retrieve top 2 ▶</b> to send the question.</p>';
+  const hi = s => { let out = esc(s); DATA.facts.forEach(([, key]) => { out = out.replace(esc(key), `<mark>${esc(key)}</mark>`); }); return out; };
+  document.getElementById('pane').innerHTML = R.sent.map(([a, b], i) =>
+    `<span class="cmt"># chunk ${i + 1} · ${b - a} chars${R.top.length ? ' · score ' + score([a, b]).toFixed(2) : ''}</span>\n${hi(TEXT.slice(a, b))}`).join('\n\n');
+  document.getElementById('stats').innerHTML =
+    `<div class="stat"><b>${S.strat === 'hier' ? SENT.length + ' + ' + DATA.sections.length : R.chunks.length}</b><span>${S.strat === 'hier' ? 'children + parents indexed' : 'chunks indexed'}</span></div>` +
+    `<div class="stat"><b>${Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length)}</b><span>${S.strat === 'hier' ? 'avg child chars' : 'avg chunk chars'}</span></div>` +
+    `<div class="stat"><b>≈ ${tokens}</b><span>tokens sent to the model</span></div>` +
+    `<div class="stat"><b style="color:var(--${cls})">${V.r.filter(Boolean).length} / 2</b><span>facts in what was sent</span></div>`;
+}
+
+function describe() {
+  return S.strat === 'fixed' ? `Fixed ${S.size} chars, overlap ${S.overlap}` : S.strat === 'semantic' ? `Semantic, percentile ${S.pct}` : `Hierarchical, parents ${S.parents ? 'on' : 'off'}`;
+}
+function changed() { S.asked = false; S.epoch++; render(); }
+async function ask() {
+  const epoch = ++S.epoch; S.asked = false;
+  const { R } = render();
+  for (const [a] of R.sent) {
+    const row = Math.floor(a / ROW), dot = el('circle', { r: 7, fill: 'var(--accent)' }, svg);
+    await tween(dot, 450, 386, X0 + (a - row * ROW) * PX + 8, RY + row * RH + 5, 420);
+    dot.remove(); if (epoch !== S.epoch) return;
+  }
+  S.asked = true; const { V } = render();
+  logLine(logEl, `${describe()} → ${{ both: '<b>correct</b>', rule: '<b>wrong</b>: the rule without its exception', exc: 'incomplete: the exception without its rule', none: 'nothing relevant' }[V.key]}`, V.key !== 'both');
+}
+
+bindSeg('strat', v => {
+  S.strat = v;
+  document.getElementById('ctlFixed').hidden = v !== 'fixed';
+  document.getElementById('ctlSem').hidden = v !== 'semantic';
+  document.getElementById('ctlHier').hidden = v !== 'hier';
+  changed(); logLine(logEl, describe());
+});
+[['size', 'sizeV'], ['overlap', 'overlapV'], ['pct', 'pctV']].forEach(([id, out]) => document.getElementById(id).addEventListener('input', e => {
+  S[id] = +e.target.value; document.getElementById(out).textContent = e.target.value; changed();
+}));
+bindToggle('parents', on => { S.parents = on; document.getElementById('parents').textContent = 'Return the parent section: ' + (on ? 'on' : 'off'); changed(); logLine(logEl, describe()); });
+document.getElementById('ask').onclick = ask;
+render();
+logLine(logEl, 'Illustrative relevance scores on a synthetic policy. Press Retrieve top 2 ▶, then change the cut.');
+
+renderQuiz('quiz', [
+  { q: 'With fixed 300-character chunks and no overlap, the assistant answers “No”. What went wrong?',
+    options: ['The model ignored the policy.',
+      'The chunks were too large.',
+      'The question was ambiguous.',
+      'The rule and its exception landed in different chunks, and the exception’s chunk was not in the top 2, so the model never saw it. The answer is fluent, cited and wrong.'],
+    answer: 3,
+    explain: 'Run it and read “What the model receives”: chunk 1 has F1 (“only from company-managed laptops”) and nothing has F2. Retrieval decides what the model can know; chunking decides what retrieval can return.' },
+  { q: 'Is overlap a reliable fix?',
+    options: ['No: it helps some settings (300 with 50 overlap is correct) and hurts others (400 with 100 overlap loses the exception that 400 with none keeps), because it shifts every later boundary and changes which chunks rank highest.',
+      'Yes: any overlap guarantees that facts are never split.',
+      'Overlap only matters for semantic chunking.',
+      'Overlap reduces the number of chunks.'],
+    answer: 0,
+    explain: 'Overlap moves boundaries and duplicates text; it does not make a fixed splitter understand that an exception belongs to its rule. Measure each setting instead of assuming.' },
+  { q: 'Semantic chunking at the 50th percentile gives a wrong answer, but at the 70th it is correct. Why?',
+    options: ['A higher percentile embeds more sentences.',
+      'Percentiles only affect the chunk size limit.',
+      'At the 50th percentile half of all gaps become breaks, including the moderate gap between the rule and the exception; at the 70th only the four largest gaps (the section boundaries) break, so §3 stays whole.',
+      'The 50th percentile disables embeddings.'],
+    answer: 2,
+    explain: 'The rule → exception gap is real (the exception changes topic towards MDM), just smaller than a section change. The threshold decides whether that gap counts as a boundary.' },
+  { q: 'With hierarchical chunking, why does “Return the parent section” turn a wrong answer into a right one?',
+    options: ['Parents have better embeddings.',
+      'The two best-matching sentences are the rule (§3) and the general statement in §2; neither is the exception. Returning their parent sections sends the whole of §3, exception included, for about 154 tokens.',
+      'It retrieves more children.',
+      'It removes the distractor sentence.'],
+    answer: 1,
+    explain: 'Small chunks match precisely; large chunks carry context. Matching on children and sending parents (<code>ParentDocumentRetriever</code>, or LlamaIndex’s hierarchical nodes with <code>AutoMergingRetriever</code>) gets both.' },
+  { q: 'Which statement about chunk size is accurate on this page?',
+    options: ['Bigger chunks always give better answers.',
+      'Smaller chunks always give better answers.',
+      'Chunk size has no effect on cost.',
+      'Bigger chunks raise the tokens sent per answer (600 characters sends about 280–300 tokens against about 150 for section-sized chunks) and dilute each chunk’s match, so “bigger is safer” is not a rule; measure on your questions.'],
+    answer: 3,
+    explain: 'Compare the token stat as you move the size slider. The right size is the smallest one that keeps your answers complete on a labelled test set (Topic 6).' }
+]);
+</script>
+</body>
+</html>

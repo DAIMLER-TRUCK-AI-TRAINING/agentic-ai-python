@@ -1,0 +1,10 @@
+[project]
+name = "embeddings-basics"
+version = "0.1.0"
+description = "Embed text and rank by cosine similarity (Module 6 demo)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=2.2.0",
+    "python-dotenv>=1.0.0",
+]

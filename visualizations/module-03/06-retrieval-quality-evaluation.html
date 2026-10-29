@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrieval Quality Evaluation</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/common.js"></script>
+<style>
+  .lab { font-family: var(--mono); font-size: 11px; }
+  .hdr { font-size: 13px; font-weight: 600; }
+  .small { font-size: 12px; }
+  .qrow { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; gap: 10px; align-items: start; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .qrow:first-child { border-top: 0; }
+  .qrow .q { color: var(--muted); }
+  .qrow .q b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+  .chip.cut { opacity: .35; }
+  @media (max-width: 560px) { .qrow { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a href="index.html">← Module 3 · Enterprise RAG Pipelines &amp; Fine-Tuning Strategy</a>
+    <div class="nav"><span>6 / 9</span><a href="#" onclick="toggleTheme();return false;">Toggle theme</a></div>
+  </div>
+
+  <div class="kicker">Topic 6</div>
+  <h1>Evals are tests for the retriever, too</h1>
+  <p class="lede">You cannot tune what you do not measure. Six labelled test queries, each with the chunks a reviewer marked relevant,
+    turn “retrieval feels fine” into numbers. Slide <b>k</b> (the number of chunks sent to the model) from 1 to 10 and watch precision,
+    recall, MRR, answer relevance and the context bill pull against each other. Then switch re-ranking on and find the k you would ship.</p>
+
+  <div class="card">
+    <div class="controls">
+      <label class="range">k (chunks sent) <input type="range" id="k" min="1" max="10" step="1" value="3" aria-label="Number of chunks retrieved"> <b id="kV">3</b></label>
+      <button class="toggle" id="rr" aria-pressed="false">Re-ranked: off</button>
+    </div>
+    <div class="stage"><svg id="svg" viewBox="0 0 900 270" role="img" aria-label="Precision, recall, MRR and answer relevance as k changes, with the current k marked"></svg></div>
+    <div class="legend">
+      <span><i style="background:var(--p0)"></i>precision@k</span><span><i style="background:var(--p2)"></i>recall@k</span>
+      <span><i style="background:var(--p3)"></i>MRR@k</span><span><i style="background:var(--p1)"></i>answer relevance (1–5, right axis)</span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="detail" id="grid" aria-label="Retrieved chunks per test query"></div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <h2>The retrieval eval rubric</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Metric</th><th>Question it answers</th><th>How to compute</th><th>Example bar</th></tr></thead>
+      <tbody>
+        <tr><td><b>Precision@k</b></td><td>How much of what I send is useful?</td><td>relevant in top k ÷ k</td><td>≥ 0.5 at the k you ship</td></tr>
+        <tr><td><b>Recall@k</b></td><td>Did I send everything needed?</td><td>relevant in top k ÷ all relevant for the query</td><td>≥ 0.9; the most important retrieval metric for RAG</td></tr>
+        <tr><td><b>Hit rate@k</b></td><td>Did at least one useful chunk arrive?</td><td>share of queries with ≥ 1 relevant in top k</td><td>1.0 on the critical queries</td></tr>
+        <tr><td><b>MRR@k</b></td><td>How high is the first useful chunk?</td><td>mean of 1 ÷ rank of the first relevant chunk</td><td>≥ 0.8 when you send few chunks</td></tr>
+        <tr><td><b>Answer relevance</b></td><td>Does the generated answer address the question?</td><td>a judge model scores each answer 1–5 against a rubric; spot-check by people</td><td>≥ 4.0 mean</td></tr>
+        <tr><td><b>Context tokens</b></td><td>What does each answer cost and how long does it take?</td><td>k × average chunk tokens</td><td>within the latency and cost budget</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h2>Diagnosing a low score</h2>
+  <div class="card table-wrap">
+    <table>
+      <thead><tr><th>Symptom</th><th>Likely cause</th><th>Try</th></tr></thead>
+      <tbody>
+        <tr><td>Low recall@10, even with a large k</td><td>The first stage never finds the chunk</td><td>Chunking (Topic 4), hybrid search for codes and IDs (Topic 5), query rewriting, a better embedding model</td></tr>
+        <tr><td>Good recall@10, low recall@3</td><td>Relevant chunks are found but ranked low</td><td>A re-ranker over the top 20–50, metadata boosts</td></tr>
+        <tr><td>Low precision at the k you ship</td><td>k is larger than the answers need</td><td>A smaller k after re-ranking; a relevance threshold</td></tr>
+        <tr><td>Good retrieval, low answer relevance</td><td>Generation: the prompt, the model, or noise in the context</td><td>Prompt and citation rules; fewer, better chunks; check groundedness (Module 5)</td></tr>
+        <tr><td>Scores differ by query type</td><td>One method suits one kind of question</td><td>Slice the eval set by type (IDs, how-to, policy) and report each slice</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout"><b>Engineering takeaway:</b> build the labelled set before you tune anything: 30–100 real questions from
+    tickets, each with the chunk IDs a subject-matter expert marks relevant. Re-run it on every change to chunking, embeddings, k, filters
+    or re-ranking, exactly like a regression suite. Groundedness and faithfulness evaluation of the answers comes in Module 5.</div>
+  <div class="callout warn"><b>Common trap:</b> raising k until recall looks good. Recall climbs, but precision falls, every answer pays
+    for more tokens, and answer relevance drops once irrelevant chunks crowd the context. And no k recovers a chunk the first stage
+    never retrieved: TQ-06’s escalation section is missing at every k, which is a chunking or query problem, not a k problem.</div>
+
+  <h2>Self-quiz</h2>
+  <div class="card"><div id="quiz"></div></div>
+
+  <div class="pager">
+    <a href="05-metadata-hybrid-retrieval.html"><small>← Previous</small>Metadata design &amp; hybrid retrieval</a>
+    <a class="next" href="07-langchain-vs-llamaindex.html"><small>Next →</small>RAG frameworks: LangChain vs LlamaIndex</a>
+  </div>
+</div>
+
+<script>
+// Six synthetic test queries with reviewer labels. "base" is the hybrid retriever's top 10; "rr" is the same 10 candidates after a
+// cross-encoder re-ranker. Answer-relevance scores are illustrative judge-model means; context tokens assume ~380 tokens per chunk.
+const DATA = {
+  queries: [
+    ['TQ-01', 'VPN error 809 after a password change', ['KB-0042 §2', 'KB-0042 §3'], [],
+      ['KB-0042 §2', 'KB-0107 §1', 'KB-0042 §3', 'KB-0608 §1', 'POL-SEC-012 §4', 'KB-0715 §1', 'CTR-2026-118 §2', 'KB-0450 §1', 'KB-0521 §1', 'KB-0213 §2'],
+      ['KB-0042 §2', 'KB-0042 §3', 'KB-0107 §1', 'KB-0608 §1', 'POL-SEC-012 §4', 'KB-0715 §1', 'KB-0450 §1', 'CTR-2026-118 §2', 'KB-0213 §2', 'KB-0521 §1']],
+    ['TQ-02', 'Can a contractor use a personal laptop on the VPN?', ['POL-SEC-012 §3', 'POL-SEC-012 §2'], [],
+      ['POL-SEC-012 §1', 'POL-SEC-012 §3', 'KB-0450 §1', 'KB-0042 §1', 'POL-SEC-012 §2', 'KB-0608 §2', 'KB-0107 §2', 'POL-SEC-012 §4', 'KB-0715 §2', 'KB-0213 §1'],
+      ['POL-SEC-012 §3', 'POL-SEC-012 §2', 'POL-SEC-012 §1', 'KB-0450 §1', 'KB-0042 §1', 'POL-SEC-012 §4', 'KB-0608 §2', 'KB-0107 §2', 'KB-0715 §2', 'KB-0213 §1']],
+    ['TQ-03', 'What does PAY-17 mean?', ['KB-0790 §1'], [],
+      ['KB-0318 §1', 'CTR-2026-118 §3', 'KB-0790 §1', 'KB-0318 §2', 'KB-0521 §2', 'KB-0790 §3', 'KB-0450 §2', 'KB-0213 §3', 'KB-0608 §3', 'KB-0107 §3'],
+      ['KB-0790 §1', 'KB-0318 §1', 'KB-0790 §3', 'CTR-2026-118 §3', 'KB-0318 §2', 'KB-0521 §2', 'KB-0450 §2', 'KB-0213 §3', 'KB-0608 §3', 'KB-0107 §3']],
+    ['TQ-04', 'wifi keeps dropping at the Singapore office', ['KB-0715 §1', 'KB-0715 §2'], [],
+      ['ENG-SPEC-0417 §2', 'KB-0715 §1', 'ENG-SPEC-0417 §1', 'KB-0042 §2', 'KB-0608 §1', 'POL-SEC-012 §1', 'KB-0213 §1', 'KB-0715 §2', 'KB-0521 §1', 'CTR-2026-118 §1'],
+      ['KB-0715 §1', 'ENG-SPEC-0417 §2', 'KB-0715 §2', 'ENG-SPEC-0417 §1', 'KB-0042 §2', 'KB-0608 §1', 'POL-SEC-012 §1', 'KB-0213 §1', 'KB-0521 §1', 'CTR-2026-118 §1']],
+    ['TQ-05', 'I clicked a payroll link and typed my password', ['KB-0733 §1', 'KB-0733 §2', 'KB-0107 §2'], [],
+      ['KB-0733 §1', 'KB-0733 §2', 'KB-0318 §1', 'KB-0790 §2', 'KB-0608 §1', 'KB-0107 §2', 'KB-0042 §1', 'POL-SEC-012 §4', 'KB-0450 §1', 'KB-0521 §2'],
+      ['KB-0733 §1', 'KB-0733 §2', 'KB-0107 §2', 'KB-0608 §1', 'KB-0318 §1', 'KB-0790 §2', 'KB-0042 §1', 'POL-SEC-012 §4', 'KB-0450 §1', 'KB-0521 §2']],
+    ['TQ-06', 'Emails stuck in the outbox for several mailboxes', ['KB-0521 §1', 'KB-0521 §3'], ['KB-0521 §3'],
+      ['KB-0521 §1', 'KB-0521 §2', 'KB-0213 §1', 'KB-0608 §2', 'KB-0790 §2', 'KB-0107 §1', 'KB-0042 §3', 'KB-0715 §1', 'KB-0450 §2', 'CTR-2026-118 §2'],
+      ['KB-0521 §1', 'KB-0521 §2', 'KB-0042 §3', 'KB-0107 §1', 'KB-0213 §1', 'KB-0608 §2', 'KB-0790 §2', 'KB-0715 §1', 'KB-0450 §2', 'CTR-2026-118 §2']]
+  ],
+  answerRelevance: { base: [3.1, 3.6, 3.9, 4.0, 4.0, 3.9, 3.8, 3.7, 3.6, 3.5], rr: [3.9, 4.3, 4.4, 4.4, 4.3, 4.2, 4.1, 4.0, 3.9, 3.8] },
+  tokensPerChunk: 380
+};
+const S = { k: 3, rr: false };
+const svg = document.getElementById('svg'), logEl = document.getElementById('log');
+
+function metrics(k, which) {
+  const per = DATA.queries.map(([id, q, rel, , base, rr]) => {
+    const list = which === 'rr' ? rr : base, flags = list.map(d => rel.includes(d));
+    return { id, p: precisionAtK(flags, k), r: recallAtK(flags, k, rel.length), mrr: reciprocalRank(flags, k), hit: flags.slice(0, k).some(Boolean) };
+  });
+  const mean = f => per.reduce((s, x) => s + f(x), 0) / per.length;
+  return { per, p: mean(x => x.p), r: mean(x => x.r), mrr: mean(x => x.mrr), hit: mean(x => x.hit ? 1 : 0), ar: DATA.answerRelevance[which][k - 1] };
+}
+
+const X = k => 70 + (k - 1) * 82, Y = v => 230 - v * 200, YA = a => 230 - (a - 1) / 4 * 200;
+function render() {
+  const which = S.rr ? 'rr' : 'base', series = Array.from({ length: 10 }, (_, i) => metrics(i + 1, which)), cur = series[S.k - 1];
+  svg.innerHTML = '';
+  [0, 0.25, 0.5, 0.75, 1].forEach(v => {
+    el('line', { x1: 70, y1: Y(v), x2: 808, y2: Y(v), stroke: 'var(--border)', 'stroke-dasharray': v ? '3 4' : '' }, svg);
+    el('text', { x: 62, y: Y(v) + 4, 'text-anchor': 'end', class: 'lab', fill: 'var(--muted)', text: v.toFixed(2) }, svg);
+    el('text', { x: 816, y: Y(v) + 4, class: 'lab', fill: 'var(--p1)', text: (1 + v * 4).toFixed(0) }, svg);
+  });
+  for (let k = 1; k <= 10; k++) el('text', { x: X(k), y: 250, 'text-anchor': 'middle', class: 'lab', fill: k === S.k ? 'var(--text)' : 'var(--muted)', style: k === S.k ? 'font-weight:700' : '', text: k }, svg);
+  el('text', { x: 440, y: 266, 'text-anchor': 'middle', class: 'lab', fill: 'var(--muted)', text: 'k (chunks sent to the model)' }, svg);
+  el('rect', { x: X(S.k) - 14, y: 22, width: 28, height: 212, rx: 6, fill: 'var(--accent)', 'fill-opacity': 0.08 }, svg);
+  const line = (vals, yf, c, dash) => {
+    el('polyline', { points: vals.map((v, i) => `${X(i + 1)},${yf(v)}`).join(' '), fill: 'none', stroke: c, 'stroke-width': 2.5, 'stroke-dasharray': dash || '' }, svg);
+    vals.forEach((v, i) => el('circle', { cx: X(i + 1), cy: yf(v), r: i + 1 === S.k ? 6 : 3, fill: c }, svg));
+  };
+  line(series.map(m => m.p), Y, 'var(--p0)');
+  line(series.map(m => m.r), Y, 'var(--p2)');
+  line(series.map(m => m.mrr), Y, 'var(--p3)', '6 4');
+  line(series.map(m => m.ar), YA, 'var(--p1)', '2 3');
+  el('text', { x: 14, y: 14, class: 'hdr', text: S.rr ? 'After re-ranking (same 10 candidates, new order)' : 'Hybrid retriever, first-stage order' }, svg);
+
+  const tok = S.k * DATA.tokensPerChunk;
+  document.getElementById('stats').innerHTML = [
+    [cur.p.toFixed(3), 'precision@' + S.k], [cur.r.toFixed(3), 'recall@' + S.k], [cur.mrr.toFixed(3), 'MRR@' + S.k],
+    [cur.hit.toFixed(2), 'hit rate@' + S.k], [cur.ar.toFixed(1), 'answer relevance (1–5)'], [tok.toLocaleString('en-GB'), 'context tokens per query']
+  ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
+
+  document.getElementById('grid').innerHTML = DATA.queries.map(([id, q, rel, missing, base, rr], qi) => {
+    const list = S.rr ? rr : base, m = cur.per[qi];
+    const chips = list.map((d, i) => `<span class="chip ${rel.includes(d) ? 'rel' : 'irr'}${i >= S.k ? ' cut' : ''}" title="rank ${i + 1}">${i + 1}. ${d}</span>`).join('') +
+      missing.map(d => `<span class="chip miss" title="labelled relevant, not retrieved">not retrieved: ${d}</span>`).join('');
+    return `<div class="qrow"><div class="q"><b>${id}</b> ${esc(q)}<br><span class="small">P ${m.p.toFixed(2)} · R ${m.r.toFixed(2)} · RR ${m.mrr.toFixed(2)}</span></div><div class="chips">${chips}</div></div>`;
+  }).join('');
+  return cur;
+}
+function report() {
+  const m = render();
+  logLine(logEl, `k = ${S.k}${S.rr ? ', re-ranked' : ''}: P ${m.p.toFixed(3)} · R ${m.r.toFixed(3)} · MRR ${m.mrr.toFixed(3)} · answer relevance ${m.ar.toFixed(1)} · ${(S.k * DATA.tokensPerChunk).toLocaleString('en-GB')} tokens`, m.r >= 0.9 && m.p >= 0.5);
+}
+document.getElementById('k').addEventListener('input', e => { S.k = +e.target.value; document.getElementById('kV').textContent = S.k; report(); });
+bindToggle('rr', on => { S.rr = on; document.getElementById('rr').textContent = 'Re-ranked: ' + (on ? 'on' : 'off'); report(); });
+render();
+logLine(logEl, 'Illustrative labels and judge scores. Slide k, then switch re-ranking on.');
+
+renderQuiz('quiz', [
+  { q: 'TQ-01 has two relevant chunks. Before re-ranking they sit at ranks 1 and 3. What are precision@1 and recall@1 for this query?',
+    options: ['1.0 and 1.0.',
+      '0.5 and 1.0.',
+      '1.0 and 0.5: the one chunk sent is relevant, but it is only one of the two relevant chunks.',
+      '0.5 and 0.5.'],
+    answer: 2,
+    explain: 'Precision divides by what you sent (k = 1); recall divides by what exists (2 relevant chunks). Read TQ-01’s row in the grid at k = 1.' },
+  { q: 'Without re-ranking, what happens between k = 3 and k = 10?',
+    options: ['Recall rises from 0.694 to 0.917, precision falls from 0.444 to 0.183, the context grows from 1,140 to 3,800 tokens, and answer relevance falls from 3.9 to 3.5.',
+      'Precision and recall both rise.',
+      'Nothing changes after k = 3.',
+      'Answer relevance keeps rising with k.'],
+    answer: 0,
+    explain: 'More chunks find more of what is relevant but dilute the context with what is not. Answer relevance peaks around k = 4–5 here, then declines as noise crowds the prompt.' },
+  { q: 'Re-ranking raises precision@3 from 0.444 to 0.611. Why is recall@10 still 0.917 with or without it?',
+    options: ['The re-ranker is broken.',
+      'Recall is capped at 0.917 by definition.',
+      'Re-ranking always lowers recall.',
+      'A re-ranker only reorders the candidates the first stage returned; TQ-06’s escalation section (KB-0521 §3) was never among them, so no reordering or k can include it.'],
+    answer: 3,
+    explain: 'Fix first-stage misses at the first stage: chunking, the query, hybrid search or metadata. The re-ranker’s job is to move relevant candidates up so that a small k is enough.' },
+  { q: 'Your team wants to ship k = 10 “to be safe”. With re-ranking on, which k does this data support instead, and why?',
+    options: ['k = 10: more context is always safer.',
+      'k = 3: recall is already 0.917 (the ceiling), precision is 0.611, answer relevance peaks at 4.4, and the context is 1,140 tokens instead of 3,800.',
+      'k = 1: precision is perfect.',
+      'k = 6: it is the middle of the range.'],
+    answer: 1,
+    explain: 'k = 1 has perfect precision but recall 0.556: multi-chunk answers lose half their facts. k = 3 reaches the recall ceiling at a third of the cost of k = 10.' },
+  { q: 'A colleague says: “Answer relevance is 4.3, so retrieval is fine.” What is the flaw?',
+    options: ['None; answer relevance proves retrieval quality.',
+      'Answer relevance only works for Claude.',
+      'Answer relevance judges whether the answer addresses the question, not whether it used the right chunks or is true. Measure retrieval with precision and recall on labelled chunks, and groundedness separately.',
+      'Answer relevance must be 5.0.'],
+    answer: 2,
+    explain: 'A fluent answer built from the wrong chunk can score well on relevance. That is why the rubric keeps retrieval metrics, answer relevance and (in Module 5) groundedness as separate measurements.' }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+[project]
+name = "demo-12-streamlit-integration-with-fastapi"
+version = "0.1.0"
+description = "Streamlit chatbot integrated with FastAPI backend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit>=1.40.0",
+    "requests>=2.32.0",
+]
