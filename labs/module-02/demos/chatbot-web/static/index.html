@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Module 5 — Streaming Chatbot</title>
+    <title>Module 2 — Streaming Chatbot</title>
     <style>
       * {
         box-sizing: border-box;
@@ -49,6 +49,17 @@
           opacity: 0.4;
           transform: scale(0.8);
         }
+      }
+      .model-chip {
+        font-size: 0.74rem;
+        color: #94a3b8;
+        border: 1px solid #334155;
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-family: "Consolas", monospace;
+      }
+      .model-chip:empty {
+        display: none;
       }
       .topbar-spacer {
         flex: 1;
@@ -433,7 +444,8 @@
   </head>
   <body>
     <div class="topbar">
-      <div class="brand"><span class="brand-dot"></span>Module 5 Chatbot</div>
+      <div class="brand"><span class="brand-dot"></span>Module 2 Chatbot</div>
+      <div class="model-chip" id="modelChip" title="LLM_PROVIDER and model from .env"></div>
       <div class="topbar-spacer"></div>
       <div class="selector">
         <label>Persona</label>
@@ -488,7 +500,7 @@
         <div class="persona-card" id="personaCard">
           <div class="pc-emoji" id="pcEmoji">📚</div>
           <div class="pc-name" id="pcName">Nova</div>
-          <div class="pc-tag" id="pcTag">Study buddy for students</div>
+          <div class="pc-tag" id="pcTag">Vehicle engineering tutor</div>
         </div>
 
         <h3>Session</h3>
@@ -523,31 +535,46 @@
       };
       let abortCtl = null;
 
+      // Reference prompts from the course's commercial vehicle world (labs/module-03/data)
       const EXAMPLES = {
         nova: [
-          "Explain photosynthesis in plain English.",
-          "Quiz me on World War II.",
-          "How do derivatives work?",
+          "Explain how SCR with AdBlue cuts NOx emissions.",
+          "Why does an electric truck charge slowly when it is freezing outside?",
+          "Quiz me on 8D problem solving.",
+        ],
+        axel: [
+          "The particulate filter lamp is on and the truck only does short trips.",
+          "Air compressor runs almost nonstop on a CT-33 tipper.",
+          "What does fault code FC-ADB-0412 mean?",
         ],
         aurora: [
-          "Look up booking ABC123.",
-          "What's the baggage policy for economy?",
-          "Hi, how can you help?",
-        ],
-        bean: [
-          "A large oat latte please.",
-          "What pastries do you have?",
-          "Anything strong and not too sweet?",
+          "The exhaust fluid light is flashing, can I keep driving?",
+          "Can the truck be driven while an over-the-air update installs?",
+          "What is the list price of a new LH-40 tractor?",
         ],
         atlas: [
-          "Plan a 5-day Tokyo trip.",
-          "I'm vegetarian — any restaurant tips for Kyoto?",
-          "Best month for cherry blossoms?",
+          "Line terminals in hall 2 show no orders after the switch maintenance.",
+          "Help me start an 8D for loose axle U-bolts found at the end-of-line audit.",
+          "Takt is 4.5 min and station 12 needs 5.1 min. What are my options?",
         ],
       };
 
-      const PRICE_PER_1K_INPUT = 0.00015;
-      const PRICE_PER_1K_OUTPUT = 0.0006;
+      // USD per 1M tokens for the configured model, from /healthz (null → cost shows "—")
+      let PRICE_PER_1M = null;
+
+      async function loadConfig() {
+        try {
+          const res = await fetch("/healthz");
+          const cfg = await res.json();
+          PRICE_PER_1M = cfg.price_per_1m;
+          document.getElementById("modelChip").textContent = cfg.provider
+            ? `${cfg.provider} · ${cfg.model || "model not set"}`
+            : cfg.config_error || "";
+          if (!PRICE_PER_1M) document.getElementById("s-cost").textContent = "—";
+        } catch {
+          // the chip and the cost estimate are optional
+        }
+      }
 
       async function loadPersonas() {
         const res = await fetch("/api/personas");
@@ -629,7 +656,7 @@
         document.getElementById("s-turns").textContent = "0";
         document.getElementById("s-in").textContent = "0";
         document.getElementById("s-out").textContent = "0";
-        document.getElementById("s-cost").textContent = "$0.0000";
+        document.getElementById("s-cost").textContent = PRICE_PER_1M ? "$0.0000" : "—";
         document.getElementById("composerHint").textContent = "Ready.";
       }
 
@@ -777,12 +804,14 @@
       }
 
       function updateStats(ev) {
+        if (ev.turn_count === undefined) return; // a blocked input carries no session totals
         document.getElementById("s-turns").textContent = ev.turn_count;
         document.getElementById("s-in").textContent = ev.total_input_tokens;
         document.getElementById("s-out").textContent = ev.total_output_tokens;
+        if (!PRICE_PER_1M) return;
         const cost =
-          (ev.total_input_tokens / 1000) * PRICE_PER_1K_INPUT +
-          (ev.total_output_tokens / 1000) * PRICE_PER_1K_OUTPUT;
+          (ev.total_input_tokens / 1e6) * PRICE_PER_1M.input +
+          (ev.total_output_tokens / 1e6) * PRICE_PER_1M.output;
         document.getElementById("s-cost").textContent = "$" + cost.toFixed(4);
       }
 
@@ -816,6 +845,7 @@
         }
       });
 
+      loadConfig();
       loadPersonas();
     </script>
   </body>

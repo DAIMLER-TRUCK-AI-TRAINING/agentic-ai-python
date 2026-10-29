@@ -1,5 +1,5 @@
 """
-Module 5 chatbot — FastAPI backend.
+Module 2 chatbot — FastAPI backend on LangChain.
 
 Endpoints:
 - GET  /api/personas               → metadata for the persona picker
@@ -7,7 +7,10 @@ Endpoints:
 - POST /api/sessions/{sid}/chat    → send a message, stream the reply (SSE)
 - DELETE /api/sessions/{sid}       → end a session
 - GET  /api/sessions/{sid}         → inspect session state (debugging)
-- GET  /healthz                    → liveness probe
+- GET  /healthz                    → liveness probe, with the configured provider and model
+
+The chat model comes from app/llm.py: LLM_PROVIDER picks OpenAI, Anthropic Claude,
+Azure OpenAI or Claude on Microsoft Foundry, and nothing below changes.
 
 Static files (the chat UI) are served from /static.
 """
@@ -17,17 +20,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import anthropic
+import openai
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from .guardrails import SAFE_DECLINE, check_input, check_output
+from .llm import ProviderConfigError, describe, get_chat_model
 from .memory import (
     Strategy,
     apply_strategy,
+    estimate_tokens,
     messages_token_estimate,
     should_rotate_summary,
 )
@@ -35,27 +41,8 @@ from .personas import PERSONAS, get_system_prompt, persona_meta
 from .sessions import store
 
 load_dotenv()
-client = OpenAI()
-import os
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
-
-def _completion_kwargs(model: str, max_tokens: int, temperature: float | None = None) -> dict:
-    # GPT-5 family uses `max_completion_tokens` and rejects custom `temperature`.
-    # It also spends reasoning tokens out of that same budget, so a small cap can
-    # be fully consumed by reasoning, leaving zero visible output. Keep reasoning
-    # minimal and give the budget headroom so the reply actually streams.
-    if model.startswith("gpt-5"):
-        return {
-            "max_completion_tokens": max(max_tokens, 2000),
-            "reasoning_effort": "minimal",
-        }
-    kwargs: dict = {"max_tokens": max_tokens}
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    return kwargs
-
-app = FastAPI(title="Module 5 Chatbot")
+app = FastAPI(title="Module 2 Chatbot")
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -81,7 +68,7 @@ def index() -> FileResponse:
 
 @app.get("/healthz")
 def healthz() -> dict:
-    return {"ok": True, "model": CHAT_MODEL}
+    return {"ok": True, **describe()}
 
 
 @app.get("/api/personas")
@@ -124,7 +111,7 @@ def end_session(sid: str) -> dict:
 
 
 @app.post("/api/sessions/{sid}/chat")
-def chat(sid: str, req: ChatReq) -> StreamingResponse:
+async def chat(sid: str, req: ChatReq) -> StreamingResponse:
     sess = store.get(sid)
     if sess is None:
         raise HTTPException(404, "session not found — start a new one")
@@ -142,44 +129,54 @@ def chat(sid: str, req: ChatReq) -> StreamingResponse:
     user_msg = guard["redacted"]
     sess.history.append({"role": "user", "content": user_msg})
 
-    # ── Memory strategy (Layer 4) ──
-    if sess.strategy == "summary" and should_rotate_summary(sess.history, summarize_every_turns=4):
-        _rotate_summary(sess)
-
-    prompt_messages = apply_strategy(sess.history, sess.strategy, window_pairs=4)
-    in_tok_est = messages_token_estimate(prompt_messages)
-
-    def event_stream():
-        # Layer 5 — LLM call
+    async def event_stream():
+        # Errors become an `error` event: once streaming starts, the HTTP status is already sent
         try:
-            stream = client.chat.completions.create(
-                model=CHAT_MODEL,
-                messages=prompt_messages,
-                stream=True,
-                **_completion_kwargs(CHAT_MODEL, max_tokens=400, temperature=0.6),
-            )
+            model = get_chat_model()
+
+            # ── Memory strategy (Layer 4) ──
+            if sess.strategy == "summary" and should_rotate_summary(sess.history, summarize_every_turns=4):
+                await _rotate_summary(sess, model)
+
+            prompt_messages = apply_strategy(sess.history, sess.strategy, window_pairs=4)
+            in_tok_est = messages_token_estimate(prompt_messages)
+
+            # Tell the client what we're working with
+            yield _sse({
+                "event": "meta",
+                "persona": sess.persona_key,
+                "strategy": sess.strategy,
+                "messages_in_prompt": len(prompt_messages),
+                "input_tokens_est": in_tok_est,
+            })
+
+            # Layer 5 — LLM call. LangChain takes the role/content dicts as they are;
+            # each chunk's .text is the new text on every provider. Adding the chunks
+            # up gives the full message, with usage_metadata from the last chunk.
+            full = None
+            async for chunk in model.astream(prompt_messages):
+                full = chunk if full is None else full + chunk
+                if chunk.text:
+                    yield _sse({"event": "delta", "delta": chunk.text})
+        except ProviderConfigError as exc:
+            yield _sse({"event": "error", "error": str(exc)})
+            return
+        except (openai.APIStatusError, anthropic.APIStatusError) as exc:
+            # 401: wrong key · 404: wrong model or deployment name · 429: rate limit
+            yield _sse({"event": "error", "error": f"LLM provider error {exc.status_code}: {exc.message}"})
+            return
+        except (openai.APIConnectionError, anthropic.APIConnectionError):
+            yield _sse({"event": "error", "error": "Could not reach the LLM provider: check the endpoint or resource name"})
+            return
         except Exception as exc:
             yield _sse({"event": "error", "error": str(exc)})
             return
 
-        # Tell the client what we're working with
-        yield _sse({
-            "event": "meta",
-            "persona": sess.persona_key,
-            "strategy": sess.strategy,
-            "messages_in_prompt": len(prompt_messages),
-            "input_tokens_est": in_tok_est,
-        })
-
-        collected: list[str] = []
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
-            if delta:
-                collected.append(delta)
-                yield _sse({"event": "delta", "delta": delta})
-
-        reply = "".join(collected)
-        out_tok_est = len(reply.split())
+        reply = full.text if full is not None else ""
+        # Real token counts when the provider reports them, otherwise the estimates
+        usage = (full.usage_metadata if full is not None else None) or {}
+        in_tok = usage.get("input_tokens") or in_tok_est
+        out_tok = usage.get("output_tokens") or estimate_tokens(reply)
 
         # Layer 6 — output guardrails
         sys_prompt = get_system_prompt(sess.persona_key)
@@ -190,19 +187,19 @@ def chat(sid: str, req: ChatReq) -> StreamingResponse:
 
         sess.history.append({"role": "assistant", "content": reply})
         sess.turn_count += 1
-        sess.total_input_tokens += in_tok_est
-        sess.total_output_tokens += out_tok_est
+        sess.total_input_tokens += in_tok
+        sess.total_output_tokens += out_tok
 
         # Layer 7 — telemetry (we just log to stdout here)
         print(
             f"[turn] sid={sess.sid} persona={sess.persona_key} "
-            f"strategy={sess.strategy} in≈{in_tok_est} out≈{out_tok_est}"
+            f"strategy={sess.strategy} in={in_tok} out={out_tok}"
         )
 
         yield _sse({
             "event": "done",
-            "input_tokens": in_tok_est,
-            "output_tokens": out_tok_est,
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
             "turn_count": sess.turn_count,
             "total_input_tokens": sess.total_input_tokens,
             "total_output_tokens": sess.total_output_tokens,
@@ -217,7 +214,7 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-def _rotate_summary(sess) -> None:
+async def _rotate_summary(sess, model) -> None:
     """
     Replace the oldest mid-conversation turns with a model-generated summary.
     Keeps the system prompt and the last 4 messages verbatim.
@@ -230,18 +227,14 @@ def _rotate_summary(sess) -> None:
     recent = rest[-keep_recent:]
 
     body = "\n".join(f"{m['role']}: {m['content']}" for m in middle)
-    resp = client.chat.completions.create(
-        model=CHAT_MODEL,
-        messages=[
-            {"role": "system", "content":
-                "Summarize the conversation below in 4–6 bullet points. "
-                "Preserve names, IDs, dates, decisions, and unresolved questions. "
-                "This summary will replace the verbatim turns."},
-            {"role": "user", "content": body},
-        ],
-        **_completion_kwargs(CHAT_MODEL, max_tokens=240),
-    )
-    summary = resp.choices[0].message.content or ""
+    resp = await model.ainvoke([
+        {"role": "system", "content":
+            "Summarize the conversation below in 4–6 bullet points. "
+            "Preserve vehicle models, fault codes, part numbers, IDs, dates, decisions, "
+            "and unresolved questions. This summary will replace the verbatim turns."},
+        {"role": "user", "content": body},
+    ])
+    summary = resp.text
 
     system_msg = next(m for m in sess.history if m["role"] == "system")
     sess.history = [
