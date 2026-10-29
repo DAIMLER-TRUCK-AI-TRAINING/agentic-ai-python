@@ -14,6 +14,9 @@ DENY_PATTERNS = [
     r"\bphishing\b",
     r"\bmalware\b",
     r"how (do|to) (i )?(make|build) (a |an )?(bomb|explosive|weapon)",
+    # Emissions and safety-system tampering ("AdBlue emulator", "bypass the DPF", "disable the speed limiter")
+    r"\b(bypass|defeat|delete|disable|emulat\w*|tamper\w*)\b.{0,40}\b(adblue|dpf|egr|scr|emissions?|particulate filter|speed limiter|tachograph)\b",
+    r"\b(adblue|dpf|egr|scr)\b.{0,20}\b(delete|emulator|bypass|defeat)\b",
 ]
 
 PII_PATTERNS = [

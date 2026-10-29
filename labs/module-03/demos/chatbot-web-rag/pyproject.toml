@@ -1,20 +1,38 @@
 [project]
 name = "rag-chatbot"
 version = "0.1.0"
-description = "Module 6: the Module 5 streaming chatbot, enhanced with Retrieval-Augmented Generation (Chroma)."
+description = "Module 3: the Module 2 streaming chatbot on LangChain, enhanced with Retrieval-Augmented Generation (Chroma) over a commercial vehicle knowledge base."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "openai>=1.40.0",
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
-    "chromadb>=0.5.0",
+    "chromadb>=1.5.9",
+    "langchain>=1.4.7",
+    "langchain-openai>=1.7.3",
+    "langchain-anthropic>=1.7.6",
+    "openai>=2.45.0",
+    # Held below 2.0: anthropic 1.x sends the key as x-api-key, the header the Foundry endpoint reads
+    "anthropic>=1.17.0,<2.0.0",
+    # EMBEDDING_PROVIDER=local: embeddings without a key, for Claude-only setups
+    "sentence-transformers>=6.2.0",
+    "torch>=2.14.1",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
     "httpx>=0.27.0",
 ]
+
+# CPU-only PyTorch on Linux and Windows: the default PyPI wheels there pull in the CUDA libraries,
+# which a small embedding model on a laptop does not need. macOS wheels come from PyPI.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
